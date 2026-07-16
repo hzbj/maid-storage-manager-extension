@@ -10,7 +10,6 @@ import net.minecraftforge.event.entity.EntityLeaveLevelEvent;
 import net.minecraftforge.event.entity.living.LivingEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
-import io.github.maidstorageextension.compat.EnderPocketCompat;
 import io.github.maidstorageextension.item.LogisticsTrackerItem;
 import io.github.maidstorageextension.logistics.LogisticsTrackerService;
 import io.github.maidstorageextension.maid.courier.CourierService;
@@ -60,7 +59,7 @@ public final class ServerEvents {
         }
     }
 
-    /** Keeps an in-flight journal safe even when the accessory or selected task changes mid-transfer. */
+    /** Keeps an in-flight journal safe when the selected task changes mid-transfer. */
     @SubscribeEvent
     public static void maidTick(LivingEvent.LivingTickEvent event) {
         if (!(event.getEntity() instanceof EntityMaid maid)
@@ -70,8 +69,7 @@ public final class ServerEvents {
         MiscSortRecoveryService.tick(level, maid);
         CourierService.tickBroomFlight(level, maid);
         if (maid.tickCount % 10 != 0 || !CourierService.hasActiveTransaction(maid)) return;
-        if (!maid.getTask().getUid().equals(CourierTask.TASK_ID)
-                || !EnderPocketCompat.hasCourierTransport(maid)) {
+        if (!maid.getTask().getUid().equals(CourierTask.TASK_ID)) {
             CourierService.tick(level, maid);
         }
     }

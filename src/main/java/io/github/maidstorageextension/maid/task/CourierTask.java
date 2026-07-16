@@ -36,13 +36,12 @@ public final class CourierTask implements IMaidTask {
         return tasks;
     }
 
-    @Override public boolean isEnable(EntityMaid maid) { return EnderPocketCompat.hasCourierTransport(maid); }
+    @Override public boolean isEnable(EntityMaid maid) { return true; }
 
     @Override
     public List<Pair<String, java.util.function.Predicate<EntityMaid>>> getEnableConditionDesc(EntityMaid maid) {
         // AbstractMaidContainerGui adds task.<namespace>.<path>.enable_condition. itself.
-        return List.of(Pair.of("transport",
-                EnderPocketCompat::hasCourierTransport));
+        return List.of(Pair.of("transport", ignored -> true));
     }
 
     @Override

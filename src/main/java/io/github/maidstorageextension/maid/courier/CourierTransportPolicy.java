@@ -10,21 +10,29 @@ public final class CourierTransportPolicy {
     public static CourierData.TransportMode select(boolean hasEnderPocket, boolean hasBroom,
                                                    boolean nearWarehouse,
                                                    boolean nearOwner) {
-        if (!hasEnderPocket || !hasBroom) {
-            return CourierData.TransportMode.NONE;
+        CourierData.TransportMode required = requiredMode(nearWarehouse, nearOwner);
+        return hasRequiredItems(required, hasEnderPocket, hasBroom)
+                ? required
+                : CourierData.TransportMode.NONE;
+    }
+
+    public static CourierData.TransportMode requiredMode(boolean nearWarehouse, boolean nearOwner) {
+        if (nearWarehouse) {
+            return nearOwner ? CourierData.TransportMode.WALK
+                    : CourierData.TransportMode.ENDER_POCKET;
         }
-        if (nearWarehouse && nearOwner) {
-            return CourierData.TransportMode.WALK;
-        }
-        if (!nearWarehouse && nearOwner) {
-            return CourierData.TransportMode.BROOM;
-        }
-        if (nearWarehouse && !nearOwner) {
-            return CourierData.TransportMode.ENDER_POCKET;
-        }
-        if (!nearWarehouse && !nearOwner) {
-            return CourierData.TransportMode.BROOM_ENDER_POCKET;
-        }
-        return CourierData.TransportMode.NONE;
+        return nearOwner ? CourierData.TransportMode.BROOM
+                : CourierData.TransportMode.BROOM_ENDER_POCKET;
+    }
+
+    public static boolean hasRequiredItems(CourierData.TransportMode mode,
+                                           boolean hasEnderPocket,
+                                           boolean hasBroom) {
+        return switch (mode) {
+            case BROOM -> hasBroom;
+            case ENDER_POCKET -> hasEnderPocket;
+            case BROOM_ENDER_POCKET -> hasBroom && hasEnderPocket;
+            case NONE, WALK -> true;
+        };
     }
 }

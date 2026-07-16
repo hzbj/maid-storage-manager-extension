@@ -31,11 +31,6 @@ public final class EnderPocketCompat {
         return false;
     }
 
-    /** Courier mode requires both Spell's accessory and Marisa's Broom. */
-    public static boolean hasCourierTransport(EntityMaid maid) {
-        return isEquipped(maid) && hasBroom(maid);
-    }
-
     public static boolean hasBroom(EntityMaid maid) {
         Item broom = ForgeRegistries.ITEMS.getValue(BROOM_ITEM_ID);
         if (broom == null || broom == Items.AIR) return false;

@@ -16,17 +16,20 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class CourierTaskTranslationContractTest {
     @Test
     void enableConditionReturnsOnlyTheSuffixExpectedByTheUpstreamGui() {
-        assertEquals("transport", new CourierTask().getEnableConditionDesc(null).get(0).getFirst());
+        CourierTask task = new CourierTask();
+        assertEquals("transport", task.getEnableConditionDesc(null).get(0).getFirst());
+        assertTrue(task.isEnable(null));
+        assertTrue(task.getEnableConditionDesc(null).get(0).getSecond().test(null));
     }
 
     @Test
-    void enableConditionExplicitlyRequiresBothCourierItems() {
+    void enableConditionExplainsThatTransportItemsAreCheckedPerRoute() {
         JsonObject chinese = translations("zh_cn");
         JsonObject english = translations("en_us");
         String key = "task.maid_storage_manager_extension.courier.enable_condition.transport";
 
-        assertTrue(chinese.get(key).getAsString().contains("同时"));
-        assertTrue(english.get(key).getAsString().contains("both"));
+        assertTrue(chinese.get(key).getAsString().contains("无需前置道具"));
+        assertTrue(english.get(key).getAsString().contains("no item prerequisite"));
     }
 
     @Test
