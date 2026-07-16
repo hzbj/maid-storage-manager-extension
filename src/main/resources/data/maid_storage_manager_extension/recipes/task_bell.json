@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    " N ",
+    " G ",
+    "PPP"
+  ],
+  "key": {
+    "N": { "tag": "forge:nuggets/gold" },
+    "G": { "tag": "forge:ingots/gold" },
+    "P": { "tag": "minecraft:planks" }
+  },
+  "result": {
+    "item": "maid_storage_manager_extension:task_bell"
+  }
+}
+

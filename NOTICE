@@ -1,0 +1,9 @@
+女仆仓管扩展（Maid Storage Manager Extension）
+
+本项目依赖并扩展“女仆仓管 / Maid Storage Manager”，不包含该 Mod 或车万女仆的代码与资源。
+原项目作者：xypp
+原项目许可证：MIT
+来源：https://github.com/xyppM/maid_storage_manager
+
+部分兼容接缝和功能实现依据 Maid Storage Manager 1.15.6 的公开源码改写，
+相关衍生代码继续按 MIT License 发布。

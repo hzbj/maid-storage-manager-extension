@@ -1,0 +1,7 @@
+{
+  "parent": "item/generated",
+  "textures": {
+    "layer0": "maid_storage_manager_extension:item/misc_storage"
+  }
+}
+

@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "PGP",
+    "ECE",
+    " W "
+  ],
+  "key": {
+    "P": { "item": "minecraft:paper" },
+    "G": { "item": "minecraft:gold_ingot" },
+    "E": { "item": "minecraft:ender_pearl" },
+    "C": { "item": "minecraft:compass" },
+    "W": { "item": "minecraft:dark_oak_fence" }
+  },
+  "result": {
+    "item": "maid_storage_manager_extension:courier_warehouse_station"
+  }
+}

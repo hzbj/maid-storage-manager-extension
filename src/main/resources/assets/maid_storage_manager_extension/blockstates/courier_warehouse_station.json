@@ -1,0 +1,5 @@
+{
+  "variants": {
+    "": { "model": "maid_storage_manager_extension:block/courier_warehouse_station" }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "io.github.maidstorageextension.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "maid_storage_manager_extension.refmap.json",
+  "mixins": [
+    "EntityBroomMixin",
+    "LegacyConfigDataMixin",
+    "MaidFollowOwnerTaskMixin",
+    "MaidBrainRecoveryMixin",
+    "PlaceBehaviorMixin",
+    "PlaceMoveBehaviorMixin",
+    "RequestItemUtilMixin",
+    "RequestRetBehaviorMixin",
+    "ProgressDataMixin",
+    "ScheduleBehaviorMixin",
+    "StorageManageTaskMixin",
+    "ViewBehaviorMixin"
+  ],
+  "client": [
+    "CustomEmptyModelMixin",
+    "ProgressPadRenderMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

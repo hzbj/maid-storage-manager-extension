@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "pressed=false": { "model": "maid_storage_manager_extension:block/task_bell" },
+    "pressed=true": { "model": "maid_storage_manager_extension:block/task_bell_pressed" }
+  }
+}
+

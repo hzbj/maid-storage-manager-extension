@@ -1,0 +1,20 @@
+{
+  "type": "touhou_little_maid:altar_crafting",
+  "output": {
+    "type": "minecraft:item",
+    "nbt": {
+      "Item": {
+        "id": "maid_storage_manager_extension:logistics_tracker",
+        "Count": 1
+      }
+    }
+  },
+  "power": 0.7,
+  "ingredients": [
+    { "item": "minecraft:compass" },
+    { "item": "minecraft:filled_map" },
+    { "item": "minecraft:ender_eye" },
+    { "item": "minecraft:amethyst_shard" },
+    { "item": "minecraft:paper" }
+  ]
+}
