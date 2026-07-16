@@ -30,9 +30,16 @@ PAPER = "#dfbd86"
 PAPER_LIGHT = "#f3ddb0"
 CYAN_DARK = "#176f78"
 CYAN = "#35b9bd"
+CYAN_LIGHT = "#8be2d6"
 GREEN_DARK = "#1f5b3a"
 GREEN = "#3f9b5c"
 GREEN_LIGHT = "#89cd88"
+RED_DARK = "#7a2926"
+RED = "#c84a3b"
+RED_LIGHT = "#ef7d55"
+IRON_DARK = "#59626c"
+IRON = "#a9b0b5"
+IRON_LIGHT = "#e2e1d7"
 
 
 def image() -> Image.Image:
@@ -73,27 +80,36 @@ def logistics_tracker() -> Image.Image:
     out = image()
     d = ImageDraw.Draw(out)
 
-    # A short ledger rather than a screen or tool-shaped device.
-    d.polygon([(3, 1), (12, 2), (14, 4), (13, 13),
-               (4, 14), (2, 12), (2, 3)], fill=OUTLINE)
-    d.polygon([(4, 2), (11, 3), (13, 4), (12, 12),
-               (4, 13), (3, 11), (3, 4)], fill=DARK_WOOD)
-    d.polygon([(5, 3), (10, 3), (12, 5), (11, 11),
-               (5, 12), (4, 10), (4, 4)], fill=PAPER_DARK)
-    d.polygon([(5, 4), (10, 4), (11, 5), (10, 10),
-               (5, 11), (5, 5)], fill=PAPER)
-    rect(d, (6, 4, 9, 4), PAPER_LIGHT)
-    rect(d, (5, 5, 5, 8), PAPER_LIGHT)
+    # Front-facing shipping manifest: parcel, route arrow, destination, and rows.
+    d.polygon([(3, 1), (12, 1), (13, 2), (13, 13),
+               (12, 14), (3, 14), (2, 13), (2, 2)], fill=OUTLINE)
+    rect(d, (3, 2, 12, 13), DARK_WOOD)
+    rect(d, (3, 3, 11, 12), PAPER_DARK)
+    rect(d, (4, 3, 11, 12), PAPER)
+    rect(d, (4, 3, 10, 3), PAPER_LIGHT)
+    rect(d, (4, 4, 4, 11), PAPER_LIGHT)
 
-    # One low-detail route is readable at actual inventory scale.
-    for x, y in [(6, 6), (7, 7), (8, 7), (9, 8), (10, 8)]:
-        rect(d, (x, y, x, y), CYAN)
-    rect(d, (6, 6, 6, 6), CYAN_DARK)
-    rect(d, (10, 8, 10, 8), CYAN_DARK)
-    rect(d, (3, 3, 4, 4), GOLD_DARK)
-    rect(d, (4, 3, 4, 3), GOLD_LIGHT)
-    rect(d, (11, 11, 12, 12), GOLD_DARK)
-    rect(d, (11, 11, 11, 11), GOLD_LIGHT)
+    # Brass clip makes the silhouette read as a viewing sheet at inventory scale.
+    rect(d, (6, 0, 9, 1), OUTLINE)
+    rect(d, (5, 1, 10, 3), OUTLINE)
+    rect(d, (6, 1, 9, 2), GOLD)
+    rect(d, (7, 1, 8, 1), GOLD_LIGHT)
+
+    # A boxed shipment moves along the cyan arrow into a marked destination.
+    rect(d, (4, 5, 6, 7), OUTLINE)
+    rect(d, (5, 5, 6, 6), WOOD_LIGHT)
+    rect(d, (5, 5, 5, 5), WOOD_SHINE)
+    rect(d, (7, 6, 9, 6), CYAN_DARK)
+    rect(d, (8, 5, 10, 7), CYAN)
+    rect(d, (10, 4, 11, 8), CYAN_DARK)
+    rect(d, (10, 5, 10, 7), CYAN_LIGHT)
+    rect(d, (11, 6, 11, 6), GOLD_LIGHT)
+
+    # Two compact ledger rows preserve the "table" reading without tiny text.
+    rect(d, (5, 9, 5, 9), GOLD_DARK)
+    rect(d, (7, 9, 10, 9), WOOD)
+    rect(d, (5, 11, 5, 11), CYAN_DARK)
+    rect(d, (7, 11, 10, 11), WOOD)
     return out
 
 
@@ -101,24 +117,30 @@ def inspection_device() -> Image.Image:
     out = image()
     d = ImageDraw.Draw(out)
 
-    # Round brass inspection lens with a short centered wooden grip.
-    d.polygon([(6, 1), (10, 1), (13, 4), (14, 7), (13, 10),
-               (10, 12), (6, 12), (3, 10), (2, 7), (3, 4)], fill=OUTLINE)
-    d.polygon([(6, 2), (10, 2), (12, 4), (13, 7), (12, 9),
-               (10, 11), (6, 11), (4, 9), (3, 7), (4, 4)], fill=GOLD_DARK)
-    d.polygon([(6, 3), (10, 3), (12, 5), (12, 8), (10, 10),
-               (6, 10), (4, 8), (4, 5)], fill=GOLD)
-    rect(d, (5, 5, 10, 8), GREEN_DARK)
-    rect(d, (6, 4, 9, 9), GREEN_DARK)
-    rect(d, (6, 5, 9, 8), GREEN)
-    rect(d, (6, 5, 7, 6), GREEN_LIGHT)
-    rect(d, (5, 3, 8, 3), GOLD_LIGHT)
-    rect(d, (5, 4, 5, 5), GOLD_SHINE)
+    # A storage crate under a diagonal magnifier stays legible at native 16px size.
+    d.polygon([(1, 7), (7, 7), (9, 9), (9, 14),
+               (8, 15), (1, 15), (0, 14), (0, 8)], fill=OUTLINE)
+    rect(d, (1, 8, 7, 14), WOOD)
+    rect(d, (2, 8, 6, 9), WOOD_LIGHT)
+    rect(d, (1, 10, 7, 11), DARK_WOOD)
+    rect(d, (3, 10, 5, 12), GOLD_DARK)
+    rect(d, (4, 10, 4, 11), GOLD_LIGHT)
+    rect(d, (2, 12, 6, 14), WOOD_LIGHT)
 
-    rect(d, (6, 11, 10, 12), OUTLINE)
-    rect(d, (7, 12, 9, 15), OUTLINE)
-    rect(d, (8, 12, 8, 14), WOOD_LIGHT)
-    rect(d, (7, 14, 9, 15), DARK_WOOD)
+    # The heavy diagonal handle avoids the old lollipop-like centered silhouette.
+    d.polygon([(8, 7), (10, 9), (5, 15), (2, 15), (2, 13)], fill=OUTLINE)
+    d.polygon([(8, 8), (9, 9), (4, 14), (3, 14)], fill=WOOD_LIGHT)
+
+    d.polygon([(8, 0), (12, 0), (15, 3), (15, 6),
+               (12, 9), (8, 9), (5, 6), (5, 3)], fill=OUTLINE)
+    d.polygon([(8, 1), (12, 1), (14, 3), (14, 6),
+               (12, 8), (8, 8), (6, 6), (6, 3)], fill=GOLD_DARK)
+    d.polygon([(8, 2), (11, 2), (13, 4), (13, 6),
+               (11, 7), (8, 7), (7, 6), (7, 3)], fill=GREEN_DARK)
+    rect(d, (8, 3, 11, 6), GREEN)
+    rect(d, (8, 3, 9, 4), GREEN_LIGHT)
+    rect(d, (7, 2, 9, 2), GOLD_LIGHT)
+    rect(d, (7, 3, 7, 4), GOLD_SHINE)
     return out
 
 
@@ -148,21 +170,42 @@ def misc_storage_marker() -> Image.Image:
     out = image()
     d = ImageDraw.Draw(out)
 
-    # Square crate marker, deliberately unlike Minecraft's name-tag silhouette.
-    rect(d, (7, 1, 8, 2), OUTLINE)
-    rect(d, (7, 1, 7, 1), GOLD_LIGHT)
-    d.polygon([(3, 2), (12, 2), (14, 4), (14, 12),
-               (12, 14), (3, 14), (1, 12), (1, 4)], fill=OUTLINE)
-    rect(d, (3, 3, 12, 13), DARK_WOOD)
-    rect(d, (2, 5, 3, 11), WOOD)
-    rect(d, (12, 4, 13, 12), WOOD)
-    rect(d, (4, 4, 11, 12), WOOD_LIGHT)
-    rect(d, (5, 5, 10, 10), PAPER_DARK)
-    rect(d, (6, 5, 9, 9), PAPER)
-    rect(d, (6, 6, 8, 8), PAPER_LIGHT)
-    rect(d, (7, 9, 9, 10), OUTLINE)
-    rect(d, (8, 9, 8, 9), WOOD)
-    rect(d, (3, 3, 4, 3), WOOD_SHINE)
+    # Mixed bottle, scrap, and apple silhouettes make the open crate read as "misc".
+    rect(d, (2, 2, 4, 3), OUTLINE)
+    rect(d, (3, 1, 4, 2), OUTLINE)
+    d.polygon([(2, 3), (5, 3), (6, 6), (5, 8), (2, 8), (1, 6)], fill=OUTLINE)
+    rect(d, (3, 2, 3, 3), CYAN_LIGHT)
+    rect(d, (2, 4, 4, 6), CYAN)
+    rect(d, (3, 4, 4, 4), CYAN_LIGHT)
+    rect(d, (2, 7, 5, 7), CYAN_DARK)
+
+    d.polygon([(6, 2), (7, 1), (8, 2), (11, 5),
+               (10, 7), (8, 6), (5, 3)], fill=OUTLINE)
+    rect(d, (6, 2, 7, 3), IRON_LIGHT)
+    rect(d, (8, 3, 9, 5), IRON)
+    rect(d, (9, 5, 10, 6), IRON_DARK)
+
+    rect(d, (11, 2, 13, 2), GREEN_DARK)
+    rect(d, (12, 1, 12, 2), GREEN)
+    d.polygon([(10, 3), (13, 3), (15, 5), (14, 8),
+               (10, 8), (9, 5)], fill=OUTLINE)
+    rect(d, (10, 4, 13, 7), RED)
+    rect(d, (11, 4, 12, 4), RED_LIGHT)
+    rect(d, (14, 5, 14, 6), RED_DARK)
+
+    # Deep open top and crossed wooden slats keep the lower half unmistakably a crate.
+    d.polygon([(2, 6), (13, 6), (14, 8), (13, 13),
+               (12, 14), (3, 14), (1, 13), (1, 8)], fill=OUTLINE)
+    d.polygon([(2, 7), (13, 7), (13, 12), (12, 13),
+               (3, 13), (2, 12)], fill=WOOD)
+    rect(d, (2, 7, 13, 8), DARK_WOOD)
+    rect(d, (3, 9, 12, 12), WOOD_LIGHT)
+    rect(d, (3, 9, 4, 12), WOOD_SHINE)
+    for x, y in [(5, 9), (6, 10), (7, 10), (8, 11), (9, 12), (10, 12)]:
+        rect(d, (x, y, x, y), DARK_WOOD)
+    for x, y in [(10, 9), (9, 10), (8, 10), (7, 11), (6, 12), (5, 12)]:
+        rect(d, (x, y, x, y), DARK_WOOD)
+    rect(d, (2, 13, 13, 13), DARK_WOOD)
     return out
 
 
