@@ -47,6 +47,35 @@ public final class MiscSortBehavior extends Behavior<EntityMaid> {
         RETURN_SOURCE
     }
 
+    private record DestinationCargoObservation(
+            ItemStack stack,
+            int baselineCount,
+            int initialJournalCount,
+            int initialMaidCargo,
+            int initialTargetCount) {
+        private DestinationCargoObservation {
+            stack = stack.copyWithCount(1);
+        }
+    }
+
+    private static final class DestinationCargoGroup {
+        private final ItemStack stack;
+        private final int baselineCount;
+        private int journalCount;
+        private boolean consistentBaseline = true;
+
+        private DestinationCargoGroup(MiscSortMemory.CargoLine line) {
+            stack = line.stack();
+            baselineCount = line.baselineCount();
+            add(line);
+        }
+
+        private void add(MiscSortMemory.CargoLine line) {
+            consistentBaseline &= baselineCount == line.baselineCount();
+            journalCount = saturatingAdd(journalCount, line.inFlightCount());
+        }
+    }
+
     private static final int MAX_STALLED_CONTEXT_STEPS = 1200;
     private static final int MAX_SLOT_CONTEXT_STEPS = 512;
 
@@ -62,6 +91,7 @@ public final class MiscSortBehavior extends Behavior<EntityMaid> {
     private int stalledContextSteps;
     private int lastContextCargoProgress;
     private boolean externalRecovery;
+    private List<DestinationCargoObservation> destinationCargoObservations = List.of();
 
     public MiscSortBehavior() {
         super(Map.of(), 2400);
@@ -371,6 +401,9 @@ public final class MiscSortBehavior extends Behavior<EntityMaid> {
         stalledContextSteps = 0;
         lastContextCargoProgress = contextCargoProgress(sort);
         operationDone = false;
+        destinationCargoObservations = operation == Operation.DEPOSIT
+                ? captureDestinationCargo(level, maid, sort)
+                : List.of();
     }
 
     static List<ItemStack> extractionTemplates(MiscSortMemory sort) {
@@ -513,8 +546,6 @@ public final class MiscSortBehavior extends Behavior<EntityMaid> {
             int moved = result.moved();
             if (moved > 0) {
                 removeTransactionItems(inventory, line, moved);
-                ViewedInventoryUtil.ambitiousAddItemAndSync(
-                        maid, level, operationTarget, payload.copyWithCount(moved));
                 line.setInFlightCount(result.journalRemaining());
                 changed = true;
             }
@@ -525,8 +556,16 @@ public final class MiscSortBehavior extends Behavior<EntityMaid> {
                 changed = true;
             }
             lines.set(i, line);
+            if (moved > 0) {
+                // Commit the physical cargo ledger before the non-critical shared-cache sync.
+                // If that sync is interrupted, the maid must not retain a phantom in-flight item.
+                sort.replaceCargoLines(lines);
+                ViewedInventoryUtil.ambitiousAddItemAndSync(
+                        maid, level, operationTarget, payload.copyWithCount(moved));
+            }
         }
         if (changed) sort.replaceCargoLines(lines);
+        reconcileDestinationCargo(level, maid, sort);
         clearBatchIfDelivered(maid, sort);
         MiscSortMemory.ActiveBatch remainingBatch = sort.getActiveBatch().orElse(null);
         operationDone = remainingBatch == null
@@ -555,10 +594,12 @@ public final class MiscSortBehavior extends Behavior<EntityMaid> {
             int moved = result.moved();
             if (moved <= 0) continue;
             removeTransactionItems(inventory, line, moved);
-            ViewedInventoryUtil.ambitiousAddItemAndSync(
-                    maid, level, operationTarget, payload.copyWithCount(moved));
             line.setInFlightCount(result.journalRemaining());
             lines.set(i, line);
+            // Keep source-return recovery crash-consistent for the same reason as deposits.
+            sort.replaceCargoLines(lines);
+            ViewedInventoryUtil.ambitiousAddItemAndSync(
+                    maid, level, operationTarget, payload.copyWithCount(moved));
             changed = true;
         }
         if (changed) sort.replaceCargoLines(lines);
@@ -572,6 +613,83 @@ public final class MiscSortBehavior extends Behavior<EntityMaid> {
                 && (!ItemStack.isSameItemSameTags(payload, remainder)
                 || remainder.getCount() > payload.getCount())) return payload.getCount();
         return remainder.isEmpty() ? 0 : remainder.getCount();
+    }
+
+    private List<DestinationCargoObservation> captureDestinationCargo(
+            ServerLevel level, EntityMaid maid, MiscSortMemory sort) {
+        if (!(context instanceof ISlotBasedStorage targetInventory)
+                || operationTargetKey == null) return List.of();
+        List<DestinationCargoGroup> groups = new ArrayList<>();
+        for (MiscSortMemory.CargoLine line
+                : sort.getActiveBatch().orElseThrow().cargoLines()) {
+            if (!line.hasInFlight() || line.currentDestination().isEmpty()) continue;
+            String key = MiscSortService.canonicalStorageKey(
+                    level, line.currentDestination().orElseThrow());
+            if (!operationTargetKey.equals(key)) continue;
+            DestinationCargoGroup group = groups.stream()
+                    .filter(existing -> ItemStack.isSameItemSameTags(existing.stack, line.stack()))
+                    .findFirst().orElse(null);
+            if (group == null) groups.add(new DestinationCargoGroup(line));
+            else group.add(line);
+        }
+
+        CombinedInvWrapper maidInventory = maid.getAvailableInv(false);
+        List<DestinationCargoObservation> observations = new ArrayList<>();
+        for (DestinationCargoGroup group : groups) {
+            if (!group.consistentBaseline || group.baselineCount < 0) continue;
+            int maidCargo = MiscCargoAccounting.available(
+                    group.journalCount, countExact(maidInventory, group.stack), group.baselineCount);
+            observations.add(new DestinationCargoObservation(
+                    group.stack, group.baselineCount, group.journalCount, maidCargo,
+                    countExact(targetInventory, group.stack)));
+        }
+        return List.copyOf(observations);
+    }
+
+    private void reconcileDestinationCargo(
+            ServerLevel level, EntityMaid maid, MiscSortMemory sort) {
+        if (destinationCargoObservations.isEmpty()
+                || !(context instanceof ISlotBasedStorage targetInventory)
+                || operationTargetKey == null) return;
+        MiscSortMemory.ActiveBatch batch = sort.getActiveBatch().orElse(null);
+        if (batch == null) return;
+        List<MiscSortMemory.CargoLine> lines = batch.cargoLines();
+        CombinedInvWrapper maidInventory = maid.getAvailableInv(false);
+        boolean changed = false;
+        for (DestinationCargoObservation observation : destinationCargoObservations) {
+            List<Integer> matchingLines = new ArrayList<>();
+            int currentJournal = 0;
+            for (int i = 0; i < lines.size(); i++) {
+                MiscSortMemory.CargoLine line = lines.get(i);
+                if (!line.hasInFlight() || line.currentDestination().isEmpty()
+                        || !ItemStack.isSameItemSameTags(observation.stack(), line.stack())) continue;
+                String key = MiscSortService.canonicalStorageKey(
+                        level, line.currentDestination().orElseThrow());
+                if (!operationTargetKey.equals(key)) continue;
+                matchingLines.add(i);
+                currentJournal = saturatingAdd(currentJournal, line.inFlightCount());
+            }
+            if (currentJournal == 0) continue;
+
+            int physicalMaidCargo = Math.max(0,
+                    countExact(maidInventory, observation.stack()) - observation.baselineCount());
+            int currentMaidCargo = Math.min(observation.initialMaidCargo(), physicalMaidCargo);
+            int reconciledJournal = MiscCargoAccounting.reconcileDestinationJournal(
+                    observation.initialJournalCount(), observation.initialMaidCargo(),
+                    observation.initialTargetCount(), currentJournal, currentMaidCargo,
+                    countExact(targetInventory, observation.stack()));
+            int confirmedDelivery = currentJournal - reconciledJournal;
+            for (int index : matchingLines) {
+                if (confirmedDelivery <= 0) break;
+                MiscSortMemory.CargoLine line = lines.get(index);
+                int reconciled = Math.min(confirmedDelivery, line.inFlightCount());
+                line.setInFlightCount(line.inFlightCount() - reconciled);
+                lines.set(index, line);
+                confirmedDelivery -= reconciled;
+                changed = true;
+            }
+        }
+        if (changed) sort.replaceCargoLines(lines);
     }
 
     private static ItemStack availablePayload(
@@ -685,6 +803,7 @@ public final class MiscSortBehavior extends Behavior<EntityMaid> {
         travelTicks = 0;
         stalledContextSteps = 0;
         lastContextCargoProgress = 0;
+        destinationCargoObservations = List.of();
     }
 
     private void closeContext(EntityMaid maid) {
@@ -714,6 +833,7 @@ public final class MiscSortBehavior extends Behavior<EntityMaid> {
         travelTicks = 0;
         stalledContextSteps = 0;
         lastContextCargoProgress = 0;
+        destinationCargoObservations = List.of();
     }
 
     private static void normalizeLegacyCargo(
@@ -746,6 +866,19 @@ public final class MiscSortBehavior extends Behavior<EntityMaid> {
             if (ItemStack.isSameItemSameTags(expected, actual)) total += actual.getCount();
         }
         return (int) Math.min(Integer.MAX_VALUE, total);
+    }
+
+    private static int countExact(ISlotBasedStorage inventory, ItemStack expected) {
+        long total = 0L;
+        for (int slot = 0; slot < inventory.getSlots(); slot++) {
+            ItemStack actual = inventory.getStackInSlot(slot);
+            if (ItemStack.isSameItemSameTags(expected, actual)) total += actual.getCount();
+        }
+        return (int) Math.min(Integer.MAX_VALUE, total);
+    }
+
+    private static int saturatingAdd(int left, int right) {
+        return (int) Math.min(Integer.MAX_VALUE, (long) left + Math.max(0, right));
     }
 
     private static List<Integer> findEmptySlots(CombinedInvWrapper inventory) {

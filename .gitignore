@@ -3,4 +3,15 @@ build/
 run/
 out/
 logs/
+.codebuddy/
+.idea/
+.settings/
+.classpath
+.project
 *.iml
+*.ipr
+*.iws
+
+# Public Maven dependencies must not be committed to the repository.
+libs/*.jar
+!libs/1.20.1-tour_guide-1.0.2.jar

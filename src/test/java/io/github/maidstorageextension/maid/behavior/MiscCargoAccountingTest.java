@@ -134,6 +134,27 @@ class MiscCargoAccountingTest {
         assertTrue(rejectedHelmetRemainder.markCandidateFull());
     }
 
+    @Test
+    void targetGainAndMaidLossRepairAnUncommittedCargoJournal() {
+        assertEquals(0, MiscCargoAccounting.reconcileDestinationJournal(
+                64, 64, 12,
+                64, 0, 76));
+    }
+
+    @Test
+    void anAlreadyCommittedPartialInsertionIsNotCountedTwice() {
+        assertEquals(32, MiscCargoAccounting.reconcileDestinationJournal(
+                64, 64, 12,
+                32, 32, 44));
+    }
+
+    @Test
+    void missingMaidCargoWithoutAMatchingTargetGainRemainsProtected() {
+        assertEquals(64, MiscCargoAccounting.reconcileDestinationJournal(
+                64, 64, 12,
+                64, 0, 12));
+    }
+
     private static MiscSortMemory.CargoLine cargo(
             ItemStack stack, int requested, int inFlight, int slot, Target destination) {
         return new MiscSortMemory.CargoLine(stack, requested, inFlight, slot,

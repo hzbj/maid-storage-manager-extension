@@ -15,11 +15,16 @@ public final class CourierRequestTarget {
     private CourierRequestTarget() {
     }
 
-    public static void write(ItemStack stack, BlockPos position, ResourceLocation dimension) {
-        if (stack == null || stack.isEmpty() || position == null || dimension == null) return;
+    public static boolean write(ItemStack stack, BlockPos position, ResourceLocation dimension) {
+        if (stack == null || stack.isEmpty() || position == null || dimension == null) return false;
+        Target current = read(stack);
+        if (current != null && current.position().equals(position) && current.dimension().equals(dimension)) {
+            return false;
+        }
         CompoundTag tag = stack.getOrCreateTag();
         tag.putLong(TAG_POSITION, position.asLong());
         tag.putString(TAG_DIMENSION, dimension.toString());
+        return true;
     }
 
     @Nullable

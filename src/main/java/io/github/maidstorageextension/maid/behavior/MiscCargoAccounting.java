@@ -54,6 +54,22 @@ final class MiscCargoAccounting {
                 false, result.journalRemaining() > 0);
     }
 
+    static int reconcileDestinationJournal(
+            int initialJournal, int initialMaidCargo, int initialTargetCount,
+            int currentJournal, int currentMaidCargo, int currentTargetCount) {
+        if (initialJournal < 0 || initialMaidCargo < 0 || initialTargetCount < 0
+                || currentJournal < 0 || currentMaidCargo < 0 || currentTargetCount < 0
+                || currentJournal > initialJournal) {
+            throw new IllegalArgumentException("invalid destination observation counts");
+        }
+        int departedFromMaid = Math.max(0, initialMaidCargo - currentMaidCargo);
+        int arrivedAtTarget = Math.max(0, currentTargetCount - initialTargetCount);
+        int physicallyConfirmed = Math.min(departedFromMaid, arrivedAtTarget);
+        int alreadyCommitted = initialJournal - currentJournal;
+        int uncommittedDelivery = Math.max(0, physicallyConfirmed - alreadyCommitted);
+        return Math.max(0, currentJournal - uncommittedDelivery);
+    }
+
     /** Selects every exact cargo line routed to the same normalized physical target. */
     static List<Integer> lineIndexesAtDestination(
             List<MiscSortMemory.CargoLine> lines,

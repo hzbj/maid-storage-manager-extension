@@ -1,9 +1,12 @@
 女仆仓管扩展（Maid Storage Manager Extension）
+Copyright (c) 2026 hzbj
 
-本项目依赖并扩展“女仆仓管 / Maid Storage Manager”，不包含该 Mod 或车万女仆的代码与资源。
-原项目作者：xypp
-原项目许可证：MIT
-来源：https://github.com/xyppM/maid_storage_manager
+本项目是独立开发的非官方社区扩展，与 Maid Storage Manager、Touhou
+Little Maid 及其作者、维护团队不存在隶属关系，也不代表上游项目提供
+官方支持或背书。
 
-部分兼容接缝和功能实现依据 Maid Storage Manager 1.15.6 的公开源码改写，
-相关衍生代码继续按 MIT License 发布。
+发布产物不会重新打包或覆盖上游 Mod 的 JAR、class 或原始资源。部分兼容
+接缝和功能实现依据 Maid Storage Manager 1.15.6 的公开源码与运行行为编写，
+本项目代码按 MIT License 发布。
+
+上游作者、项目链接、许可证、构建依赖与素材说明见 THIRD_PARTY_NOTICES.md。

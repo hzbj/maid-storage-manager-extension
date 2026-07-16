@@ -18,6 +18,8 @@ class MiscSortTargetContextRegressionTest {
     void depositPassKeepsTheCurrentContextWhileCargoStillTargetsTheSameChest()
             throws IOException {
         boolean[] usesRemainingCargoDecision = {false};
+        boolean[] invokesPhysicalDeliveryReconciliation = {false};
+        boolean[] reconcilesPhysicalDeliveryEvidence = {false};
         String classPath = "/" + Type.getInternalName(MiscSortBehavior.class) + ".class";
         try (InputStream stream = MiscSortBehavior.class.getResourceAsStream(classPath)) {
             assertNotNull(stream, "Compiled miscellaneous-sort behavior is missing");
@@ -25,7 +27,9 @@ class MiscSortTargetContextRegressionTest {
                 @Override
                 public MethodVisitor visitMethod(int access, String name, String descriptor,
                                                  String signature, String[] exceptions) {
-                    if (!name.equals("tickDeposit")) return null;
+                    if (!name.equals("tickDeposit")
+                            && !name.equals("reconcileDestinationCargo")) return null;
+                    String visitedMethod = name;
                     return new MethodVisitor(Opcodes.ASM9) {
                         @Override
                         public void visitMethodInsn(int opcode, String owner, String name,
@@ -33,6 +37,15 @@ class MiscSortTargetContextRegressionTest {
                             if (owner.equals(Type.getInternalName(MiscCargoAccounting.class))
                                     && name.equals("destinationOperationComplete")) {
                                 usesRemainingCargoDecision[0] = true;
+                            }
+                            if (visitedMethod.equals("tickDeposit")
+                                    && owner.equals(Type.getInternalName(MiscSortBehavior.class))
+                                    && name.equals("reconcileDestinationCargo")) {
+                                invokesPhysicalDeliveryReconciliation[0] = true;
+                            }
+                            if (owner.equals(Type.getInternalName(MiscCargoAccounting.class))
+                                    && name.equals("reconcileDestinationJournal")) {
+                                reconcilesPhysicalDeliveryEvidence[0] = true;
                             }
                         }
                     };
@@ -43,5 +56,10 @@ class MiscSortTargetContextRegressionTest {
         assertTrue(usesRemainingCargoDecision[0],
                 "A deposit pass must not finish and rapidly reopen the same physical chest "
                         + "while an in-flight line still points at that chest");
+        assertTrue(invokesPhysicalDeliveryReconciliation[0],
+                "A deposit pass must invoke physical delivery reconciliation before completion");
+        assertTrue(reconcilesPhysicalDeliveryEvidence[0],
+                "The open destination must reconcile a stale journal only from matching "
+                        + "maid-loss and target-gain evidence");
     }
 }

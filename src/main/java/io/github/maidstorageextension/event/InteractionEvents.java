@@ -104,8 +104,8 @@ public final class InteractionEvents {
                 || !event.getItemStack().is(ItemRegistry.REQUEST_LIST_ITEM.get())
                 || player.isShiftKeyDown()) return;
         var target = player.blockPosition();
-        CourierRequestTarget.write(event.getItemStack(), target,
-                player.serverLevel().dimension().location());
+        if (!CourierRequestTarget.write(event.getItemStack(), target,
+                player.serverLevel().dimension().location())) return;
         player.sendSystemMessage(Component.translatable(
                 "message.maid_storage_manager_extension.courier.owner_target_marked",
                 target.getX(), target.getY(), target.getZ()));

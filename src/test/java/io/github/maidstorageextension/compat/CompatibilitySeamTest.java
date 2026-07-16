@@ -34,6 +34,7 @@ import studio.fantasyit.maid_storage_manager.storage.base.ISlotBasedStorage;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Set;
@@ -125,7 +126,7 @@ class CompatibilitySeamTest {
     }
 
     private static Set<String> productionParticleMethods() throws IOException {
-        Path jarPath = Path.of("libs", "maid_storage_manager-1.15.6.jar");
+        Path jarPath = productionMaidStorageManagerJar();
         String classPath = "studio/fantasyit/maid_storage_manager/items/render/CustomEmptyModel.class";
         Set<String> names = new HashSet<>();
         try (ZipFile jar = new ZipFile(jarPath.toFile())) {
@@ -185,7 +186,7 @@ class CompatibilitySeamTest {
     }
 
     private static int productionPriorityFlattenInvocationCount(String expectedTarget) throws IOException {
-        Path jarPath = Path.of("libs", "maid_storage_manager-1.15.6.jar");
+        Path jarPath = productionMaidStorageManagerJar();
         String classPath = "studio/fantasyit/maid_storage_manager/maid/behavior/place/PlaceMoveBehavior.class";
         int[] count = {0};
         try (ZipFile jar = new ZipFile(jarPath.toFile())) {
@@ -214,6 +215,16 @@ class CompatibilitySeamTest {
             }
         }
         return count[0];
+    }
+
+    private static Path productionMaidStorageManagerJar() throws IOException {
+        assertNotNull(CustomEmptyModel.class.getProtectionDomain().getCodeSource(),
+                "Cannot locate the resolved Maid Storage Manager dependency");
+        try {
+            return Path.of(CustomEmptyModel.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+        } catch (URISyntaxException exception) {
+            throw new IOException("Invalid Maid Storage Manager dependency path", exception);
+        }
     }
 
     private static RedirectMetadata miscPriorityRedirectMetadata() throws IOException {

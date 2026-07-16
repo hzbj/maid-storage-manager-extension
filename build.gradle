@@ -55,6 +55,17 @@ mixin {
 }
 
 repositories {
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = 'Modrinth'
+                url = 'https://api.modrinth.com/maven'
+            }
+        }
+        // ForgeGradle publishes deobfuscated artifacts to its generated Maven repository.
+        forRepositories(fg.repository)
+        filter { includeGroup 'maven.modrinth' }
+    }
     flatDir { dir 'libs' }
     maven { url = 'https://maven.shedaniel.me/' }
 }
@@ -67,10 +78,13 @@ configurations {
 dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
 
-    compileOnly fg.deobf('libs:maid_storage_manager:1.15.6')
-    runtimeOnly fg.deobf('libs:maid_storage_manager:1.15.6')
-    compileOnly fg.deobf('libs:touhoulittlemaid:1.5.2-forge+mc1.20.1-snapshot')
-    runtimeOnly fg.deobf('libs:touhoulittlemaid:1.5.2-forge+mc1.20.1-snapshot')
+    // Version IDs lock the exact Maid Storage Manager 1.15.6 and TLM 1.5.2 files.
+    compileOnly fg.deobf('maven.modrinth:5sIJPqAj:xTNPlwGP')
+    runtimeOnly fg.deobf('maven.modrinth:5sIJPqAj:xTNPlwGP')
+    compileOnly fg.deobf('maven.modrinth:R0bDWFAW:YpdxfSC2')
+    runtimeOnly fg.deobf('maven.modrinth:R0bDWFAW:YpdxfSC2')
+    // Pin the verified 1.20.1 Forge artifact; some newer mislabeled files call 1.21-only APIs.
+    runtimeOnly fg.deobf('maven.modrinth:QHB4kBBS:XErW9XWj')
     compileOnly fg.deobf('libs:1.20.1-tour_guide:1.0.2')
     implementation fg.deobf('me.shedaniel.cloth:cloth-config-forge:11.1.136')
 
@@ -101,7 +115,9 @@ tasks.named('processResources', ProcessResources).configure {
 
 tasks.named('jar', Jar).configure {
     from('LICENSE')
+    from('LICENSE-ASSETS.md')
     from('NOTICE')
+    from('THIRD_PARTY_NOTICES.md')
     manifest {
         attributes([
             'Specification-Title': mod_id,
