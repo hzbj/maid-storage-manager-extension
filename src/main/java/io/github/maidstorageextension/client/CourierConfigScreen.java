@@ -143,11 +143,15 @@ public final class CourierConfigScreen extends AbstractContainerScreen<CourierCo
         EntityMaid maid = menu.maid();
         if (maid == null) return;
         CourierData.Data data = CourierData.get(maid);
+        boolean hasEnderPocket = EnderPocketCompat.isEquipped(maid);
+        boolean hasBroom = EnderPocketCompat.hasBroom(maid);
+        String transportItemsKey = hasEnderPocket
+                ? (hasBroom ? "both" : "ender_pocket")
+                : (hasBroom ? "broom" : "none");
         graphics.drawString(font, Component.translatable(
                 "gui.maid_storage_manager_extension.courier.transport",
-                Component.translatable(EnderPocketCompat.hasCourierTransport(maid)
-                        ? "gui.maid_storage_manager_extension.courier.present"
-                        : "gui.maid_storage_manager_extension.courier.missing")), 12, 28, 0xDDDDDD, false);
+                Component.translatable("gui.maid_storage_manager_extension.courier.tools."
+                        + transportItemsKey)), 12, 28, 0xDDDDDD, false);
         graphics.drawString(font, Component.translatable(
                 "gui.maid_storage_manager_extension.courier.phase",
                 Component.translatable("gui.maid_storage_manager_extension.courier.phase."

@@ -1,7 +1,6 @@
 package io.github.maidstorageextension.maid.behavior;
 
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
-import io.github.maidstorageextension.compat.EnderPocketCompat;
 import io.github.maidstorageextension.maid.courier.CourierService;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.behavior.Behavior;
@@ -15,12 +14,12 @@ public final class CourierBehavior extends Behavior<EntityMaid> {
 
     @Override
     protected boolean checkExtraStartConditions(ServerLevel level, EntityMaid maid) {
-        return EnderPocketCompat.hasCourierTransport(maid);
+        return true;
     }
 
     @Override
     protected boolean canStillUse(ServerLevel level, EntityMaid maid, long gameTime) {
-        return EnderPocketCompat.hasCourierTransport(maid) && maid.getTarget() == null;
+        return maid.getTarget() == null;
     }
 
     @Override

@@ -206,7 +206,7 @@ public final class LogisticsTrackerService {
             boolean locationValid = binding.hasStation()
                     ? stationLevel != null && (!stationLevel.hasChunkAt(binding.mailboxPos())
                     || CourierWarehouseStationService.isValid(stationLevel, binding))
-                    : !EnderPocketCompat.hasBroom(courier) && warehouse != null;
+                    : warehouse != null;
             boolean valid = locationValid && (warehouse == null
                     || io.github.maidstorageextension.data.WarehouseCourierData.get(warehouse)
                     .isAuthorized(courier.getUUID()));

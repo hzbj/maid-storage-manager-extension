@@ -61,7 +61,7 @@ public final class CourierService {
         }
         CourierData.WarehouseBinding binding = CourierWarehouseStationService.findNearest(
                 owner.serverLevel(), courier.blockPosition());
-        if (binding == null && !EnderPocketCompat.hasBroom(courier)) {
+        if (binding == null) {
             EntityMaid nearby = findNearestWarehouse(owner.serverLevel(), courier,
                     courierData.broomFlightDistance());
             if (nearby != null) {
@@ -343,14 +343,13 @@ public final class CourierService {
         }
         if (hasActiveTransaction(courier) && data.transportMode() == CourierData.TransportMode.NONE) {
             recoverTransportMode(level, courier, data);
+            if (data.transportMode() == CourierData.TransportMode.NONE) {
+                pauseForMissingTransport(courier, data);
+                return;
+            }
         }
         if (!transportAvailable(courier, data.transportMode())) {
-            pauseMovement(courier);
-            if (!data.accessoryWarningSent()) {
-                data.accessoryWarningSent(true);
-                sync(courier, data);
-                notifyOwner(courier, "message.maid_storage_manager_extension.courier.transport_removed");
-            }
+            pauseForMissingTransport(courier, data);
             return;
         } else if (data.accessoryWarningSent()) {
             data.accessoryWarningSent(false);
@@ -697,8 +696,7 @@ public final class CourierService {
                 warnTransportNotReady(courier, data, warehouse);
                 return false;
             }
-            if ((EnderPocketCompat.hasBroom(courier) || mode.usesBroom())
-                    && !validStation(level, data.binding(data.warehouse()))) {
+            if (mode.usesBroom() && !validStation(level, data.binding(data.warehouse()))) {
                 warnStationUnavailable(courier, data);
                 return false;
             }
@@ -720,8 +718,7 @@ public final class CourierService {
             warnTransportNotReady(courier, data, warehouse);
             return;
         }
-        if ((EnderPocketCompat.hasBroom(courier) || mode.usesBroom())
-                && !validStation(level, data.binding(data.warehouse()))) {
+        if (mode.usesBroom() && !validStation(level, data.binding(data.warehouse()))) {
             warnStationUnavailable(courier, data);
             return;
         }
@@ -742,28 +739,24 @@ public final class CourierService {
     private static CourierData.TransportMode selectStartMode(ServerLevel level, EntityMaid courier,
                                                              CourierData.Data data,
                                                              EntityMaid warehouse) {
+        CourierData.TransportMode required = requiredStartMode(level, courier, data, warehouse);
+        CourierData.TransportMode selected = CourierTransportPolicy.hasRequiredItems(required,
+                EnderPocketCompat.isEquipped(courier), EnderPocketCompat.hasBroom(courier))
+                ? required : CourierData.TransportMode.NONE;
+        return selected.usesBroom() && !broomRouteAvailable(level, courier, data)
+                ? CourierData.TransportMode.NONE : selected;
+    }
+
+    private static CourierData.TransportMode requiredStartMode(ServerLevel level, EntityMaid courier,
+                                                               CourierData.Data data,
+                                                               EntityMaid warehouse) {
         boolean sameWarehouseDimension = data.warehouseDimension() != null
                 && data.warehouseDimension().equals(dimension(level));
         boolean insideWarehouse = sameWarehouseDimension
                 && nearWarehouseForTransport(courier, warehouse, data.warehousePos(),
                 data.broomFlightDistance());
         boolean besideOwner = isNearOwnerForTransport(level, courier, data.broomFlightDistance());
-        CourierData.TransportMode selected = CourierTransportPolicy.select(
-                EnderPocketCompat.isEquipped(courier), EnderPocketCompat.hasBroom(courier),
-                insideWarehouse, besideOwner);
-        return selected.usesBroom() && !broomRouteAvailable(level, courier, data)
-                ? CourierData.TransportMode.NONE : selected;
-    }
-
-    private static boolean insideWarehouseArea(EntityMaid courier, EntityMaid warehouse,
-                                               BlockPos rememberedPos) {
-        if (warehouse != null) {
-            return warehouse.hasRestriction()
-                    ? warehouse.isWithinRestriction(courier.blockPosition())
-                    : courier.distanceToSqr(warehouse) <= BIND_RANGE * BIND_RANGE;
-        }
-        return rememberedPos != null
-                && courier.distanceToSqr(rememberedPos.getCenter()) <= BIND_RANGE * BIND_RANGE;
+        return CourierTransportPolicy.requiredMode(insideWarehouse, besideOwner);
     }
 
     private static boolean isBesideOwner(ServerLevel level, EntityMaid courier) {
@@ -825,7 +818,9 @@ public final class CourierService {
         EntityMaid warehouse = resolveWarehouse(level, data);
         CourierData.TransportMode recovered = selectStartMode(level, courier, data, warehouse);
         if (recovered == CourierData.TransportMode.NONE
-                && EnderPocketCompat.hasCourierTransport(courier)) {
+                && CourierTransportPolicy.hasRequiredItems(
+                CourierData.TransportMode.BROOM_ENDER_POCKET,
+                EnderPocketCompat.isEquipped(courier), EnderPocketCompat.hasBroom(courier))) {
             recovered = CourierData.TransportMode.BROOM_ENDER_POCKET;
         }
         if (recovered.usesBroom() && !broomRouteAvailable(level, courier, data)) {
@@ -838,17 +833,16 @@ public final class CourierService {
     }
 
     private static boolean transportAvailable(EntityMaid courier, CourierData.TransportMode mode) {
-        if (!EnderPocketCompat.hasCourierTransport(courier)) {
-            return false;
-        }
-        return switch (mode) {
-            case ENDER_POCKET -> EnderPocketCompat.isEquipped(courier);
-            case BROOM -> EnderPocketCompat.hasBroom(courier);
-            case BROOM_ENDER_POCKET -> EnderPocketCompat.hasBroom(courier)
-                    && EnderPocketCompat.isEquipped(courier);
-            case WALK -> EnderPocketCompat.hasCourierTransport(courier);
-            case NONE -> EnderPocketCompat.hasCourierTransport(courier);
-        };
+        return CourierTransportPolicy.hasRequiredItems(mode,
+                EnderPocketCompat.isEquipped(courier), EnderPocketCompat.hasBroom(courier));
+    }
+
+    private static void pauseForMissingTransport(EntityMaid courier, CourierData.Data data) {
+        pauseMovement(courier);
+        if (data.accessoryWarningSent()) return;
+        data.accessoryWarningSent(true);
+        sync(courier, data);
+        notifyOwner(courier, "message.maid_storage_manager_extension.courier.transport_removed");
     }
 
     private static void warnTransportNotReady(EntityMaid courier, CourierData.Data data,
@@ -856,15 +850,20 @@ public final class CourierService {
         if (data.targetWarningSent()) return;
         data.targetWarningSent(true);
         sync(courier, data);
-        if (courier.level() instanceof ServerLevel level && EnderPocketCompat.hasBroom(courier)
-                && !broomRouteAvailable(level, courier, data)) {
+        if (!(courier.level() instanceof ServerLevel level)) return;
+        CourierData.TransportMode required = requiredStartMode(level, courier, data, warehouse);
+        boolean hasEnderPocket = EnderPocketCompat.isEquipped(courier);
+        boolean hasBroom = EnderPocketCompat.hasBroom(courier);
+        if (required.usesBroom() && !hasBroom && required.usesEnderPocket() && !hasEnderPocket) {
+            notifyOwner(courier,
+                    "message.maid_storage_manager_extension.courier.missing_broom_and_ender_pocket");
+        } else if (required.usesBroom() && !hasBroom) {
+            notifyOwner(courier, "message.maid_storage_manager_extension.courier.missing_broom");
+        } else if (required.usesEnderPocket() && !hasEnderPocket) {
+            notifyOwner(courier, "message.maid_storage_manager_extension.courier.missing_ender_pocket");
+        } else if (required.usesBroom() && !broomRouteAvailable(level, courier, data)) {
             notifyOwner(courier,
                     "message.maid_storage_manager_extension.courier.broom_overworld_only");
-        } else if (EnderPocketCompat.isEquipped(courier)
-                && !insideWarehouseArea(courier, warehouse, data.warehousePos())) {
-            notifyOwner(courier, "message.maid_storage_manager_extension.courier.ender_requires_warehouse_area");
-        } else if (EnderPocketCompat.hasBroom(courier)) {
-            notifyOwner(courier, "message.maid_storage_manager_extension.courier.broom_requires_owner");
         }
     }
 
