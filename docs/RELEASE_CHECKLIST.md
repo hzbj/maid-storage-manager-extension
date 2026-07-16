@@ -12,9 +12,9 @@
 
 ## GitHub Release
 
-- [ ] 创建带 `v` 前缀的标签，例如 `v1.2.1`。
-- [ ] Release 标题使用 `女仆仓管扩展 1.2.1`。
-- [ ] 上传 `1.20.1-maid_storage_manager_extension-1.2.1.jar`。
+- [ ] 创建带 `v` 前缀的标签，例如 `v1.2.2`。
+- [ ] Release 标题使用 `女仆仓管扩展 1.2.2`。
+- [ ] 上传 `1.20.1-maid_storage_manager_extension-1.2.2.jar`。
 - [ ] 不上传本地依赖 JAR；`sources` JAR仅在确有开发者需求时提供。
 - [ ] 写明 Minecraft、Forge 和所有必需依赖的兼容范围。
 - [ ] 写明这是非官方扩展，并把问题反馈链接指向本仓库。

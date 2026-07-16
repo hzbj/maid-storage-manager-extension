@@ -116,6 +116,18 @@ class ResourceAssetTest {
     }
 
     @Test
+    void courierMailboxRecipeNeedsNoEnderPearlsAndAcceptsAnyWoodenFence() throws IOException {
+        JsonObject recipe = JsonParser.parseString(Files.readString(Path.of(
+                "src/main/resources/data/maid_storage_manager_extension/recipes/courier_warehouse_station.json"),
+                StandardCharsets.UTF_8)).getAsJsonObject();
+
+        assertEquals(" C ", recipe.getAsJsonArray("pattern").get(1).getAsString());
+        assertFalse(recipe.getAsJsonObject("key").has("E"));
+        assertEquals("forge:fences/wooden", recipe.getAsJsonObject("key")
+                .getAsJsonObject("W").get("tag").getAsString());
+    }
+
+    @Test
     void redesignedInventoryIconsAreTransparentSixteenPixelSprites() throws IOException {
         String[] names = {"courier_warehouse_station", "inventory_maintenance_device",
                 "logistics_tracker", "task_bell", "misc_storage"};
