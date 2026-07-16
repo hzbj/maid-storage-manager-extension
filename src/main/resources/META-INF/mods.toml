@@ -30,7 +30,7 @@ side="BOTH"
 [[dependencies."${mod_id}"]]
 modId="touhou_little_maid"
 mandatory=true
-versionRange="[1.5.2,1.6)"
+versionRange="[1.5.3,1.6)"
 ordering="AFTER"
 side="BOTH"
 
@@ -44,7 +44,7 @@ side="BOTH"
 [[dependencies."${mod_id}"]]
 modId="touhou_little_maid_spell"
 mandatory=true
-versionRange="[1.0,)"
+versionRange="[1.8.2,1.9)"
 ordering="AFTER"
 side="BOTH"
 

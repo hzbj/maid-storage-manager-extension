@@ -1275,6 +1275,10 @@ public final class CourierService {
     private static void completeRemoteTransaction(EntityMaid courier, CourierData.Data data) {
         pauseMovement(courier);
         CourierBroomFlightService.cleanup(courier, data);
+        if (CourierRuntimePolicy.shouldAnchorAfterRemoteTransaction(data.transportMode())) {
+            setHomeAtCurrentPosition(courier);
+            data.clearFollowOverride();
+        }
         data.clearRequest();
         data.clearDeposit();
         data.clearRoute();

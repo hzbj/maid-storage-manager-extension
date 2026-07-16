@@ -31,6 +31,21 @@ class CourierRuntimePolicyTest {
     }
 
     @Test
+    void enderPocketCompletionAnchorsCourierAtWarehouseInsteadOfRestoringOwnerFollow() {
+        assertTrue(CourierRuntimePolicy.shouldAnchorAfterRemoteTransaction(
+                CourierData.TransportMode.ENDER_POCKET));
+        assertTrue(CourierRuntimePolicy.shouldAnchorAfterRemoteTransaction(
+                CourierData.TransportMode.BROOM_ENDER_POCKET));
+        assertFalse(CourierRuntimePolicy.shouldAnchorAfterRemoteTransaction(
+                CourierData.TransportMode.WALK));
+        assertFalse(CourierRuntimePolicy.shouldAnchorAfterRemoteTransaction(
+                CourierData.TransportMode.BROOM));
+        assertFalse(CourierRuntimePolicy.shouldAnchorAfterRemoteTransaction(
+                CourierData.TransportMode.NONE));
+        assertFalse(CourierRuntimePolicy.shouldAnchorAfterRemoteTransaction(null));
+    }
+
+    @Test
     void broomTransactionsKeepTheCourierChunkAliveWhileWaitingAndReturning() {
         assertTrue(CourierRuntimePolicy.shouldKeepCourierChunkLoaded(
                 CourierData.TransportMode.BROOM, CourierData.Phase.REQUEST_RUNNING));
