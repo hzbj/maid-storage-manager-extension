@@ -9,6 +9,7 @@ import io.github.maidstorageextension.mixin.CustomEmptyModelMixin;
 import io.github.maidstorageextension.mixin.PlaceMoveBehaviorMixin;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.AnnotationVisitor;
@@ -38,6 +39,7 @@ import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -109,6 +111,16 @@ class CompatibilitySeamTest {
         assertDoesNotThrow(() -> AddClothConfigEvent.class.getDeclaredMethod("getRoot"));
         assertDoesNotThrow(() -> AddClothConfigEvent.class.getDeclaredMethod("getEntryBuilder"));
         assertDoesNotThrow(() -> AbstractMaidContainerGui.class.getDeclaredMethod("getMaid"));
+    }
+
+    @Test
+    void enderPocketRuntimeProvidesUuidBasedRemoteMaidSessions() {
+        assertDoesNotThrow(() -> {
+            Class<?> service = Class.forName(
+                    "com.github.yimeng261.maidspell.item.bauble.enderPocket.EnderPocketService");
+            service.getDeclaredMethod("openMaidInventory", ServerPlayer.class, UUID.class);
+            service.getDeclaredMethod("completeRemoteOpen", ServerPlayer.class, UUID.class);
+        });
     }
 
     @Test

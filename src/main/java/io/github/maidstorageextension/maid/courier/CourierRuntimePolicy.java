@@ -22,6 +22,11 @@ public final class CourierRuntimePolicy {
         return followOverrideActive && shouldSuspendOwnerFollow(mode);
     }
 
+    /** Remote handoff leaves the courier at its warehouse instead of restoring owner follow. */
+    public static boolean shouldAnchorAfterRemoteTransaction(CourierData.TransportMode mode) {
+        return mode != null && mode.usesEnderPocket();
+    }
+
     public static boolean shouldKeepCourierChunkLoaded(CourierData.TransportMode mode,
                                                        CourierData.Phase phase) {
         // The journal, rather than the currently selected task or transport item, owns the

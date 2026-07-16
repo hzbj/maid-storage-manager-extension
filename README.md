@@ -21,11 +21,11 @@
 | --- | --- | --- |
 | Minecraft Java | `1.20.1` | 客户端与服务端 |
 | Forge | `47.x` | 客户端与服务端 |
-| Touhou Little Maid | `>= 1.5.2, < 1.6` | 客户端与服务端 |
+| Touhou Little Maid | `>= 1.5.3, < 1.6` | 客户端与服务端 |
 | Maid Storage Manager | `>= 1.15.6, < 1.16` | 客户端与服务端 |
-| 本扩展 | `1.2.3` | 客户端与服务端，版本必须一致 |
+| 本扩展 | `1.2.5` | 客户端与服务端，版本必须一致 |
 | Cloth Config | `>= 11.1.136, < 12` | 仅客户端 |
-| Touhou Little Maid: Spell | `>= 1.0` | 客户端与服务端 |
+| Touhou Little Maid: Spell | `>= 1.8.2, < 1.9` | 客户端与服务端 |
 
 ## 安装
 
@@ -91,7 +91,7 @@
 .\gradlew.bat clean build
 ```
 
-输出：`build/libs/1.20.1-maid_storage_manager_extension-1.2.3.jar`。
+输出：`build/libs/1.20.1-maid_storage_manager_extension-1.2.5.jar`。
 
 ## 许可证与来源
 
