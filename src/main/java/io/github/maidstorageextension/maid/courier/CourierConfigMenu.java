@@ -1,6 +1,7 @@
 package io.github.maidstorageextension.maid.courier;
 
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
+import io.github.maidstorageextension.compat.EnderPocketCompat;
 import io.github.maidstorageextension.registry.ExtensionMenus;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Inventory;
@@ -16,6 +17,7 @@ public final class CourierConfigMenu extends AbstractContainerMenu {
         super(ExtensionMenus.COURIER_CONFIG.get(), containerId);
         this.playerInventory = playerInventory;
         this.maidId = maidId;
+        EnderPocketCompat.syncRemoteProxyBeforeMenu(playerInventory.player, maidId);
     }
 
     public static CourierConfigMenu fromNetwork(int containerId, Inventory inventory,
@@ -25,7 +27,11 @@ public final class CourierConfigMenu extends AbstractContainerMenu {
     }
 
     public EntityMaid maid() {
-        return playerInventory.player.level().getEntity(maidId) instanceof EntityMaid maid ? maid : null;
+        return EnderPocketCompat.resolveRemoteMaid(playerInventory.player, maidId);
+    }
+
+    public int maidId() {
+        return maidId;
     }
 
     @Override
