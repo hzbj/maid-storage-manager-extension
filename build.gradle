@@ -84,6 +84,7 @@ dependencies {
     compileOnly fg.deobf('maven.modrinth:R0bDWFAW:g1SKoGQJ')
     runtimeOnly fg.deobf('maven.modrinth:R0bDWFAW:g1SKoGQJ')
     // 1.8.2 adds the 1.20.1 remote maid proxy used by Ender Pocket menus.
+    compileOnly fg.deobf('maven.modrinth:QHB4kBBS:bIBBeovu')
     // Its dev-only config listener can fail before Forge loads COMMON config; the explicit
     // property keeps client seam smoke tests runnable without changing release dependencies.
     if (!project.hasProperty('skipMaidSpellRuntime')) {

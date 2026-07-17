@@ -1,10 +1,10 @@
 package io.github.maidstorageextension.network;
 
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
+import io.github.maidstorageextension.compat.EnderPocketCompat;
 import io.github.maidstorageextension.maid.courier.CourierService;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.Entity;
 import net.minecraftforge.network.NetworkEvent;
 
 import java.util.UUID;
@@ -93,8 +93,8 @@ public record CourierCommandPacket(int maidId, Command command, UUID targetCouri
                 }
                 return;
             }
-            Entity entity = sender.level().getEntity(packet.maidId);
-            if (!(entity instanceof EntityMaid maid)) return;
+            EntityMaid maid = EnderPocketCompat.resolveRemoteMaid(sender, packet.maidId);
+            if (maid == null) return;
             switch (packet.command) {
                 case BIND_NEAREST -> CourierService.requestNearestWarehouse(sender, maid);
                 case CONFIRM_DEPOSIT -> CourierService.confirmDeposit(sender, maid);
@@ -118,6 +118,7 @@ public record CourierCommandPacket(int maidId, Command command, UUID targetCouri
                     if (packet.targetCourier != null) CourierService.reject(sender, maid, packet.targetCourier);
                 }
             }
+            EnderPocketCompat.syncRemoteProxy(sender, maid);
         });
         context.setPacketHandled(true);
     }

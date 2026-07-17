@@ -62,4 +62,13 @@ class CourierTransportPolicyTest {
         assertFalse(CourierTransportPolicy.hasRequiredItems(
                 CourierData.TransportMode.BROOM_ENDER_POCKET, true, false));
     }
+
+    @Test
+    void ownerInAnotherDimensionUsesEnderPocketWhenCourierIsAtTheWarehouse() {
+        // A cross-dimension owner is deliberately classified as not near the courier.
+        assertEquals(CourierData.TransportMode.ENDER_POCKET,
+                CourierTransportPolicy.requiredMode(true, false));
+        assertEquals(CourierData.TransportMode.ENDER_POCKET,
+                CourierTransportPolicy.select(true, false, true, false));
+    }
 }

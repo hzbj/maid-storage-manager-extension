@@ -1,6 +1,7 @@
 package io.github.maidstorageextension.network;
 
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
+import io.github.maidstorageextension.compat.EnderPocketCompat;
 import io.github.maidstorageextension.data.ExtensionConfigData;
 import io.github.maidstorageextension.data.PeriodicScanInterval;
 import io.github.maidstorageextension.maid.ExtensionMemoryUtil;
@@ -9,7 +10,6 @@ import io.github.maidstorageextension.maid.memory.PeriodicScanMemory;
 import io.github.maidstorageextension.scan.StorageScanService;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.Entity;
 import net.minecraftforge.network.NetworkEvent;
 import studio.fantasyit.maid_storage_manager.maid.task.StorageManageTask;
 
@@ -73,8 +73,8 @@ public record ExtensionMaidConfigPacket(
             if (sender == null) {
                 return;
             }
-            Entity entity = sender.level().getEntity(packet.maidId);
-            if (!(entity instanceof EntityMaid maid)
+            EntityMaid maid = EnderPocketCompat.resolveRemoteMaid(sender, packet.maidId);
+            if (maid == null
                     || !maid.isOwnedBy(sender)
                     || !maid.getTask().getUid().equals(StorageManageTask.TASK_ID)) {
                 return;
@@ -111,6 +111,7 @@ public record ExtensionMaidConfigPacket(
                 }
             }
             maid.setAndSyncData(ExtensionConfigData.KEY, data);
+            EnderPocketCompat.syncRemoteProxy(sender, maid);
         });
         context.setPacketHandled(true);
     }

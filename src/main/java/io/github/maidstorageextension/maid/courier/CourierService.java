@@ -52,6 +52,7 @@ public final class CourierService {
 
     public static void requestNearestWarehouse(ServerPlayer owner, EntityMaid courier) {
         if (!isCourierOwnedBy(courier, owner)) return;
+        if (!(courier.level() instanceof ServerLevel courierLevel)) return;
         CourierData.Data courierData = CourierData.get(courier);
         if (hasActiveTransaction(courier)) {
             owner.sendSystemMessage(Component.translatable(
@@ -59,13 +60,13 @@ public final class CourierService {
             return;
         }
         CourierData.WarehouseBinding binding = CourierWarehouseStationService.findNearest(
-                owner.serverLevel(), courier.blockPosition());
+                courierLevel, courier.blockPosition());
         if (binding == null) {
-            EntityMaid nearby = findNearestWarehouse(owner.serverLevel(), courier,
+            EntityMaid nearby = findNearestWarehouse(courierLevel, courier,
                     courierData.broomFlightDistance());
             if (nearby != null) {
                 binding = new CourierData.WarehouseBinding(nearby.getUUID(),
-                        warehouseAnchor(nearby), dimension(owner.serverLevel()),
+                        warehouseAnchor(nearby), dimension(courierLevel),
                         null, null, null, null, nearby.getName().getString());
             }
         }
@@ -74,7 +75,7 @@ public final class CourierService {
                     "message.maid_storage_manager_extension.courier.no_station"));
             return;
         }
-        Entity entity = owner.serverLevel().getEntity(binding.warehouse());
+        Entity entity = courierLevel.getEntity(binding.warehouse());
         if (!(entity instanceof EntityMaid warehouse)) {
             owner.sendSystemMessage(Component.translatable(
                     "message.maid_storage_manager_extension.courier.warehouse_not_loaded"));
@@ -200,10 +201,13 @@ public final class CourierService {
         UUID warehouseId = data.warehouse();
         data.removeWarehouse(warehouseId);
         sync(courier, data);
-        if (warehouseId != null && owner.serverLevel().getEntity(warehouseId) instanceof EntityMaid warehouse) {
-            WarehouseCourierData.Data warehouseData = WarehouseCourierData.get(warehouse);
-            warehouseData.revoke(courier.getUUID());
-            sync(warehouse, warehouseData);
+        if (warehouseId != null && courier.level() instanceof ServerLevel courierLevel) {
+            EntityMaid warehouse = findMaid(courierLevel, warehouseId);
+            if (warehouse != null) {
+                WarehouseCourierData.Data warehouseData = WarehouseCourierData.get(warehouse);
+                warehouseData.revoke(courier.getUUID());
+                sync(warehouse, warehouseData);
+            }
         }
     }
 

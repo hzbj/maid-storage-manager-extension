@@ -77,33 +77,24 @@ public final class CourierConfigScreen extends AbstractContainerScreen<CourierCo
     }
 
     private void send(CourierCommandPacket.Command command) {
-        EntityMaid maid = menu.maid();
-        if (maid != null) {
-            ExtensionNetwork.CHANNEL.sendToServer(CourierCommandPacket.courier(maid.getId(), command));
-        }
+        ExtensionNetwork.CHANNEL.sendToServer(
+                CourierCommandPacket.courier(menu.maidId(), command));
     }
 
     private void sendBroomFlightDistance() {
-        EntityMaid maid = menu.maid();
-        if (maid != null) {
-            ExtensionNetwork.CHANNEL.sendToServer(CourierCommandPacket.broomFlightDistance(
-                    maid.getId(), broomFlightDistance));
-        }
+        ExtensionNetwork.CHANNEL.sendToServer(CourierCommandPacket.broomFlightDistance(
+                menu.maidId(), broomFlightDistance));
     }
 
     private void sendPostDeliveryHomeMode() {
-        EntityMaid maid = menu.maid();
-        if (maid != null) {
-            ExtensionNetwork.CHANNEL.sendToServer(CourierCommandPacket.postDeliveryHomeMode(
-                    maid.getId(), stayHomeAfterDelivery));
-        }
+        ExtensionNetwork.CHANNEL.sendToServer(CourierCommandPacket.postDeliveryHomeMode(
+                menu.maidId(), stayHomeAfterDelivery));
     }
 
     private void sendSelect(UUID warehouse) {
-        EntityMaid maid = menu.maid();
-        if (maid != null && warehouse != null) {
+        if (warehouse != null) {
             ExtensionNetwork.CHANNEL.sendToServer(
-                    CourierCommandPacket.selectWarehouse(maid.getId(), warehouse));
+                    CourierCommandPacket.selectWarehouse(menu.maidId(), warehouse));
         }
     }
 
