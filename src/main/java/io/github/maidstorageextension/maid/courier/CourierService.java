@@ -45,7 +45,6 @@ public final class CourierService {
     private static final double OWNER_ANCHOR_RANGE = 8.0;
     private static final double HANDOFF_DISTANCE = 2.75;
     private static final double POSITION_ARRIVAL_DISTANCE = 1.75;
-    private static final long HANDOFF_TICKS = 20L;
     private static final long DEPOSIT_STALL_TICKS = 20L * 20L;
 
     private CourierService() {
@@ -391,13 +390,11 @@ public final class CourierService {
             case TRAVEL_TO_WAREHOUSE_REQUEST -> {
                 EntityMaid meeting = approachWarehouse(level, courier, data, warehouse);
                 if (meeting != null) enterHandoff(courier, data,
-                        CourierData.Phase.REQUEST_HANDOFF, level.getGameTime());
+                        CourierData.Phase.REQUEST_HANDOFF);
             }
             case REQUEST_HANDOFF -> {
                 EntityMaid meeting = approachWarehouse(level, courier, data, warehouse);
-                if (meeting != null && handoffReady(level, courier, meeting, data)) {
-                    dispatchRequest(courier, meeting, data);
-                }
+                if (meeting != null) dispatchRequest(courier, meeting, data);
             }
             // The courier waits at the counter while the storage maid is free to visit chests.
             // MSM's return behavior brings the storage maid back to this courier for final hand-off.
@@ -412,13 +409,11 @@ public final class CourierService {
             case TRAVEL_TO_WAREHOUSE_DEPOSIT -> {
                 EntityMaid meeting = approachWarehouse(level, courier, data, warehouse);
                 if (meeting != null) enterHandoff(courier, data,
-                        CourierData.Phase.DEPOSIT_HANDOFF, level.getGameTime());
+                        CourierData.Phase.DEPOSIT_HANDOFF);
             }
             case DEPOSIT_HANDOFF -> {
                 EntityMaid meeting = approachWarehouse(level, courier, data, warehouse);
-                if (meeting != null && handoffReady(level, courier, meeting, data)) {
-                    dispatchDeposit(level, courier, meeting, data);
-                }
+                if (meeting != null) dispatchDeposit(level, courier, meeting, data);
             }
             // Do not stop or chase the storage maid here: she must be able to walk to target chests.
             case DEPOSIT_RUNNING -> {
@@ -875,10 +870,10 @@ public final class CourierService {
             return null;
         }
         if (loadedWarehouse != null) {
-            if (courier.distanceToSqr(loadedWarehouse) <= HANDOFF_DISTANCE * HANDOFF_DISTANCE) {
+            if (withinNearbyHandoff(courier, loadedWarehouse)) {
                 CourierBroomFlightService.cleanup(courier, data);
                 data.targetWarningSent(false);
-                faceEachOther(courier, loadedWarehouse);
+                pauseMovement(courier);
                 return loadedWarehouse;
             }
             resetHandoff(data);
@@ -940,10 +935,10 @@ public final class CourierService {
         if (target == null) return;
         boolean reachedTarget = courier.distanceToSqr(target.getCenter())
                 <= POSITION_ARRIVAL_DISTANCE * POSITION_ARRIVAL_DISTANCE;
-        if (courier.distanceToSqr(owner) <= HANDOFF_DISTANCE * HANDOFF_DISTANCE) {
+        if (withinNearbyHandoff(courier, owner)) {
             CourierBroomFlightService.cleanup(courier, data);
-            faceEachOther(courier, owner);
-            enterHandoff(courier, data, CourierData.Phase.OWNER_HANDOFF, level.getGameTime());
+            pauseMovement(courier);
+            enterHandoff(courier, data, CourierData.Phase.OWNER_HANDOFF);
         } else if (reachedTarget) {
             pauseMovement(courier);
             data.phase(CourierData.Phase.WAITING_OWNER_PICKUP);
@@ -1041,15 +1036,13 @@ public final class CourierService {
                     "message.maid_storage_manager_extension.courier.owner_unavailable");
             return;
         }
-        if (courier.distanceToSqr(owner) > HANDOFF_DISTANCE * HANDOFF_DISTANCE) {
+        if (!withinNearbyHandoff(courier, owner)) {
             data.phase(CourierData.Phase.TRAVEL_TO_OWNER);
             resetHandoff(data);
             sync(courier, data);
             return;
         }
-        faceEachOther(courier, owner);
-        if (data.phase() == CourierData.Phase.OWNER_HANDOFF
-                && !handoffReady(level, courier, owner, data)) return;
+        pauseMovement(courier);
 
         if (transferDeliveryCargo(courier, owner, data)) {
             courier.swing(InteractionHand.MAIN_HAND, true);
@@ -1112,7 +1105,7 @@ public final class CourierService {
         }
         if (data.originOwner() && courier.getOwner() instanceof ServerPlayer owner
                 && owner.level() == courier.level()
-                && courier.distanceToSqr(owner) <= HANDOFF_DISTANCE * HANDOFF_DISTANCE) {
+                && withinNearbyHandoff(courier, owner)) {
             completeReturn(courier, data);
         } else {
             data.phase(CourierData.Phase.RETURNING_TO_ORIGIN);
@@ -1138,9 +1131,9 @@ public final class CourierService {
             }
             boolean reachedTarget = courier.distanceToSqr(target.getCenter())
                     <= POSITION_ARRIVAL_DISTANCE * POSITION_ARRIVAL_DISTANCE;
-            if (courier.distanceToSqr(owner) <= HANDOFF_DISTANCE * HANDOFF_DISTANCE) {
+            if (withinNearbyHandoff(courier, owner)) {
                 CourierBroomFlightService.cleanup(courier, data);
-                faceEachOther(courier, owner);
+                pauseMovement(courier);
                 completeReturn(courier, data);
             } else if (reachedTarget) {
                 pauseMovement(courier);
@@ -1406,6 +1399,7 @@ public final class CourierService {
     private static void dispatchRequest(EntityMaid courier, EntityMaid warehouse,
                                         CourierData.Data data) {
         if (!mayMutateWarehouseForCourier(warehouse)) return;
+        pauseMovement(courier);
         IItemHandlerModifiable source = courier.getAvailableInv(false);
         for (int slot = 0; slot < source.getSlots(); slot++) {
             ItemStack list = source.getStackInSlot(slot);
@@ -1556,7 +1550,7 @@ public final class CourierService {
         if (data.warehouse() == null || !data.warehouse().equals(warehouse.getUUID())
                 || (data.phase() != CourierData.Phase.REQUEST_RUNNING
                 && data.phase() != CourierData.Phase.REQUEST_WAITING_SPACE)
-                || courier.distanceToSqr(warehouse) > HANDOFF_DISTANCE * HANDOFF_DISTANCE) {
+                || !withinNearbyHandoff(courier, warehouse)) {
             return false;
         }
         // A task switch can leave this courier recovering an older exact-NBT misc-sort batch.
@@ -1573,7 +1567,7 @@ public final class CourierService {
             sync(courier, data);
             return true;
         }
-        faceEachOther(courier, warehouse);
+        pauseMovement(courier);
         courier.swing(InteractionHand.MAIN_HAND, true);
         warehouse.swing(InteractionHand.MAIN_HAND, true);
 
@@ -1593,7 +1587,7 @@ public final class CourierService {
         return true;
     }
 
-    /** Final face-to-face recovery after upstream request return pathing has stalled. */
+    /** Final nearby recovery after upstream request return pathing has stalled. */
     public static boolean tryRecoverRequestHandoff(EntityMaid warehouse, EntityMaid courier,
                                                    ItemStack payload) {
         if (acceptRequestPayload(warehouse, courier, payload)) return true;
@@ -1605,8 +1599,6 @@ public final class CourierService {
                 || (data.phase() != CourierData.Phase.REQUEST_RUNNING
                 && data.phase() != CourierData.Phase.REQUEST_WAITING_SPACE)) return false;
         if (!warehouse.teleportToOwner(courier)) return false;
-        warehouse.getNavigationManager().resetNavigation();
-        MemoryUtil.clearTarget(warehouse);
         return acceptRequestPayload(warehouse, courier, payload);
     }
 
@@ -1641,6 +1633,7 @@ public final class CourierService {
     private static void dispatchDeposit(ServerLevel level, EntityMaid courier, EntityMaid warehouse,
                                         CourierData.Data data) {
         if (!mayMutateWarehouseForCourier(warehouse)) return;
+        pauseMovement(courier);
         IItemHandlerModifiable source = courier.getAvailableInv(false);
         var destination = warehouse.getAvailableInv(false);
         List<CourierData.ManifestEntry> manifest = new ArrayList<>();
@@ -1725,7 +1718,7 @@ public final class CourierService {
     private static void returnDeposit(EntityMaid courier, EntityMaid warehouse,
                                       CourierData.Data data) {
         if (!mayMutateWarehouseForCourier(warehouse)) return;
-        faceEachOther(courier, warehouse);
+        pauseMovement(courier);
         for (CourierData.ManifestEntry entry : data.depositManifest()) {
             int available = Math.min(entry.amount(), Math.max(0,
                     CourierInventory.count(warehouse.getAvailableInv(false), entry.prototype())
@@ -1758,10 +1751,10 @@ public final class CourierService {
     }
 
     private static void enterHandoff(EntityMaid courier, CourierData.Data data,
-                                     CourierData.Phase phase, long gameTime) {
+                                     CourierData.Phase phase) {
         if (data.phase() == phase) return;
         data.phase(phase);
-        data.handoffStartedGameTime(gameTime);
+        resetHandoff(data);
         sync(courier, data);
     }
 
@@ -1771,28 +1764,15 @@ public final class CourierService {
                 : CourierData.Phase.TRAVEL_TO_OWNER;
     }
 
-    private static boolean handoffReady(ServerLevel level, EntityMaid courier, Entity target,
-                                        CourierData.Data data) {
-        faceEachOther(courier, target);
-        if (data.handoffStartedGameTime() < 0L) {
-            data.handoffStartedGameTime(level.getGameTime());
-            sync(courier, data);
-            return false;
-        }
-        return level.getGameTime() - data.handoffStartedGameTime() >= HANDOFF_TICKS;
-    }
-
     private static void resetHandoff(CourierData.Data data) {
+        // Keep the legacy journal field readable, but it no longer delays nearby hand-offs.
         data.handoffStartedGameTime(-1L);
     }
 
-    private static void faceEachOther(EntityMaid courier, Entity target) {
-        pauseMovement(courier);
-        MemoryUtil.setLookAt(courier, target);
-        if (target instanceof EntityMaid other) {
-            other.getNavigation().stop();
-            MemoryUtil.setLookAt(other, courier);
-        }
+    private static boolean withinNearbyHandoff(Entity courier, Entity target) {
+        return courier.level() == target.level()
+                && CourierGroundNavigationPolicy.withinNearbyHandoff(
+                courier.distanceToSqr(target), HANDOFF_DISTANCE);
     }
 
     private static void pauseMovement(EntityMaid courier) {

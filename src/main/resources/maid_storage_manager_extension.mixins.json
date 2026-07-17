@@ -20,7 +20,8 @@
   ],
   "client": [
     "CustomEmptyModelMixin",
-    "ProgressPadRenderMixin"
+    "ProgressPadRenderMixin",
+    "StorageManagerConfigScreenMixin"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -84,7 +84,11 @@ dependencies {
     compileOnly fg.deobf('maven.modrinth:R0bDWFAW:g1SKoGQJ')
     runtimeOnly fg.deobf('maven.modrinth:R0bDWFAW:g1SKoGQJ')
     // 1.8.2 adds the 1.20.1 remote maid proxy used by Ender Pocket menus.
-    runtimeOnly fg.deobf('maven.modrinth:QHB4kBBS:bIBBeovu')
+    // Its dev-only config listener can fail before Forge loads COMMON config; the explicit
+    // property keeps client seam smoke tests runnable without changing release dependencies.
+    if (!project.hasProperty('skipMaidSpellRuntime')) {
+        runtimeOnly fg.deobf('maven.modrinth:QHB4kBBS:bIBBeovu')
+    }
     compileOnly fg.deobf('libs:1.20.1-tour_guide:1.0.2')
     implementation fg.deobf('me.shedaniel.cloth:cloth-config-forge:11.1.136')
 
@@ -105,7 +109,8 @@ tasks.named('processResources', ProcessResources).configure {
         mod_license: mod_license,
         mod_version: mod_version,
         mod_authors: mod_authors,
-        mod_description: mod_description
+        mod_description: mod_description,
+        maid_spell_mandatory: !project.hasProperty('skipMaidSpellRuntime')
     ]
     inputs.properties replaceProperties
     filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) {

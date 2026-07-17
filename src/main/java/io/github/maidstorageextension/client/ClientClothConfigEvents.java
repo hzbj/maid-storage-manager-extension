@@ -11,7 +11,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import studio.fantasyit.maid_storage_manager.maid.task.StorageManageTask;
 
-/** Adds this extension's per-maid options to TLM's global Cloth Config screen. */
+/** Nests this extension's per-maid global options below Maid Storage Manager. */
 @Mod.EventBusSubscriber(modid = MaidStorageManagerExtension.MOD_ID, value = Dist.CLIENT)
 public final class ClientClothConfigEvents {
     private ClientClothConfigEvents() {
@@ -29,6 +29,6 @@ public final class ClientClothConfigEvents {
                 || !StorageManageTask.TASK_ID.equals(maid.getTask().getUid())) {
             return;
         }
-        ExtensionClothConfigScreen.appendTo(event.getRoot(), event.getEntryBuilder(), maid);
+        ExtensionClothConfigScreen.appendGlobalTo(event.getRoot(), event.getEntryBuilder(), maid);
     }
 }
