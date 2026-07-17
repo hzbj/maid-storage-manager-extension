@@ -72,6 +72,10 @@ class CourierGroundNavigationPolicyTest {
     void ownerPickupWaitOnlyResumesAtRealHandoffDistance() {
         double handoffDistance = 2.75;
 
+        assertTrue(CourierGroundNavigationPolicy.withinNearbyHandoff(
+                handoffDistance * handoffDistance, handoffDistance));
+        assertFalse(CourierGroundNavigationPolicy.withinNearbyHandoff(
+                Math.nextUp(handoffDistance * handoffDistance), handoffDistance));
         assertTrue(CourierGroundNavigationPolicy.shouldResumeOwnerPickup(
                 true, 2.0 * 2.0, handoffDistance));
         assertFalse(CourierGroundNavigationPolicy.shouldResumeOwnerPickup(

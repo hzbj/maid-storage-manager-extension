@@ -46,7 +46,12 @@ public final class CourierGroundNavigationPolicy {
     public static boolean shouldResumeOwnerPickup(boolean sameDimension,
                                                   double distanceSquared,
                                                   double handoffDistance) {
-        return sameDimension && handoffDistance >= 0.0
+        return sameDimension && withinNearbyHandoff(distanceSquared, handoffDistance);
+    }
+
+    public static boolean withinNearbyHandoff(double distanceSquared,
+                                              double handoffDistance) {
+        return handoffDistance >= 0.0
                 && distanceSquared <= handoffDistance * handoffDistance;
     }
 

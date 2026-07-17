@@ -13,16 +13,18 @@ import io.github.maidstorageextension.network.StationApprovalPacket;
 import me.shedaniel.clothconfig2.api.ConfigBuilder;
 import me.shedaniel.clothconfig2.api.ConfigCategory;
 import me.shedaniel.clothconfig2.api.ConfigEntryBuilder;
+import me.shedaniel.clothconfig2.impl.builders.SubCategoryBuilder;
 import net.minecraft.ChatFormatting;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.stream.IntStream;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.IntStream;
 
 public final class ExtensionClothConfigScreen {
     private static final Integer[] BELL_RANGES = IntStream.rangeClosed(2, 16)
@@ -35,27 +37,26 @@ public final class ExtensionClothConfigScreen {
     private ExtensionClothConfigScreen() {
     }
 
-    public static void appendTo(ConfigBuilder builder, ConfigEntryBuilder entries, EntityMaid maid) {
+    public static void appendGlobalTo(ConfigBuilder builder, ConfigEntryBuilder entries,
+                                      EntityMaid maid) {
         ExtensionConfigData.Data current = ExtensionConfigData.get(maid);
         MaintenanceStatusData.Data status = MaintenanceStatusData.get(maid);
         Draft draft = new Draft(current);
 
-        ConfigCategory scan = builder.getOrCreateCategory(
-                Component.translatable("gui.maid_storage_manager_extension.config.category.scan"));
-        scan.addEntry(entries.startTextDescription(Component.translatable(
+        ConfigCategory storageManager = builder.getOrCreateCategory(
+                Component.translatable("config.maid_storage_manager.title"));
+        SubCategoryBuilder extension = entries.startSubCategory(Component.translatable(
+                "gui.maid_storage_manager_extension.config.category.extension"));
+        extension.setExpanded(true);
+        extension.add(entries.startTextDescription(Component.translatable(
                         "gui.maid_storage_manager_extension.config.current_maid", maid.getName()))
                 .setColor(ChatFormatting.AQUA.getColor())
                 .build());
-        scan.addEntry(entries.startEnumSelector(
-                        Component.translatable("gui.maid_storage_manager_extension.config.periodic_scan_interval"),
-                        PeriodicScanInterval.class,
-                        current.periodicScanInterval())
-                .setEnumNameProvider(value -> Component.translatable(
-                        ((PeriodicScanInterval) value).translationKey()))
-                .setDefaultValue(PeriodicScanInterval.DISABLED)
-                .setSaveConsumer(value -> draft.interval = value)
-                .build());
-        scan.addEntry(entries.startIntSlider(
+
+        SubCategoryBuilder scan = entries.startSubCategory(Component.translatable(
+                "gui.maid_storage_manager_extension.config.category.scan"));
+        scan.setExpanded(true);
+        scan.add(entries.startIntSlider(
                         Component.translatable("gui.maid_storage_manager_extension.config.local_scan_radius"),
                         current.localScanRadius(),
                         ExtensionConfigData.MIN_LOCAL_SCAN_RADIUS,
@@ -67,7 +68,7 @@ public final class ExtensionClothConfigScreen {
                 .setTooltip(Component.translatable(
                         "gui.maid_storage_manager_extension.config.local_scan_radius.tooltip"))
                 .build());
-        scan.addEntry(entries.startBooleanToggle(
+        scan.add(entries.startBooleanToggle(
                         Component.translatable(
                                 "gui.maid_storage_manager_extension.config.misc_sort_match_nbt"),
                         current.miscSortMatchNbt())
@@ -76,10 +77,12 @@ public final class ExtensionClothConfigScreen {
                 .setTooltip(Component.translatable(
                         "gui.maid_storage_manager_extension.config.misc_sort_match_nbt.tooltip"))
                 .build());
+        extension.add(scan.build());
 
-        ConfigCategory bell = builder.getOrCreateCategory(
-                Component.translatable("gui.maid_storage_manager_extension.config.category.task_bell"));
-        bell.addEntry(entries.startSelector(
+        SubCategoryBuilder bell = entries.startSubCategory(Component.translatable(
+                "gui.maid_storage_manager_extension.config.category.task_bell"));
+        bell.setExpanded(true);
+        bell.add(entries.startSelector(
                         Component.translatable("gui.maid_storage_manager_extension.config.task_bell_range"),
                         BELL_RANGES,
                         current.taskBellRange())
@@ -88,7 +91,7 @@ public final class ExtensionClothConfigScreen {
                 .setDefaultValue(ExtensionConfigData.DEFAULT_TASK_BELL_RANGE)
                 .setSaveConsumer(value -> draft.taskBellRange = value)
                 .build());
-        bell.addEntry(entries.startIntSlider(
+        bell.add(entries.startIntSlider(
                         Component.translatable("gui.maid_storage_manager_extension.config.task_bell_timeout"),
                         current.taskBellTravelTimeoutSeconds(),
                         ExtensionConfigData.MIN_TASK_BELL_TRAVEL_TIMEOUT_SECONDS,
@@ -98,7 +101,7 @@ public final class ExtensionClothConfigScreen {
                         "gui.maid_storage_manager_extension.config.seconds", value))
                 .setSaveConsumer(value -> draft.taskBellTravelTimeoutSeconds = value)
                 .build());
-        bell.addEntry(entries.startIntSlider(
+        bell.add(entries.startIntSlider(
                         Component.translatable("gui.maid_storage_manager_extension.config.task_bell_stay"),
                         current.taskBellStaySeconds(),
                         ExtensionConfigData.MIN_TASK_BELL_STAY_SECONDS,
@@ -108,101 +111,152 @@ public final class ExtensionClothConfigScreen {
                         "gui.maid_storage_manager_extension.config.seconds", value))
                 .setSaveConsumer(value -> draft.taskBellStaySeconds = value)
                 .build());
+        extension.add(bell.build());
 
-        ConfigCategory feedback = builder.getOrCreateCategory(
-                Component.translatable("gui.maid_storage_manager_extension.config.category.feedback"));
-        feedback.addEntry(entries.startBooleanToggle(
+        SubCategoryBuilder feedback = entries.startSubCategory(Component.translatable(
+                "gui.maid_storage_manager_extension.config.category.feedback"));
+        feedback.setExpanded(true);
+        feedback.add(entries.startBooleanToggle(
                         Component.translatable("gui.maid_storage_manager_extension.config.refresh_frame_effects"),
                         current.refreshFrameEffects())
                 .setDefaultValue(true)
                 .setSaveConsumer(value -> draft.refreshFrameEffects = value)
                 .build());
-        feedback.addEntry(entries.startBooleanToggle(
-                        Component.translatable("gui.maid_storage_manager_extension.config.refresh_owner_notification"),
+        feedback.add(entries.startBooleanToggle(
+                        Component.translatable(
+                                "gui.maid_storage_manager_extension.config.refresh_owner_notification"),
                         current.refreshOwnerNotification())
                 .setDefaultValue(true)
                 .setSaveConsumer(value -> draft.refreshOwnerNotification = value)
                 .build());
+        extension.add(feedback.build());
 
-        ConfigCategory statusCategory = builder.getOrCreateCategory(
-                Component.translatable("gui.maid_storage_manager_extension.config.category.status"));
-        statusCategory.addEntry(entries.startTextDescription(Component.translatable(
+        SubCategoryBuilder statusCategory = entries.startSubCategory(Component.translatable(
+                "gui.maid_storage_manager_extension.config.category.status"));
+        statusCategory.setExpanded(true);
+        statusCategory.add(entries.startTextDescription(Component.translatable(
                         "gui.maid_storage_manager_extension.status.phase",
                         Component.translatable(status.phase().translationKey())))
                 .setColor(ChatFormatting.AQUA.getColor())
                 .build());
-        statusCategory.addEntry(entries.startTextDescription(Component.translatable(
+        statusCategory.add(entries.startTextDescription(Component.translatable(
                         "gui.maid_storage_manager_extension.status.last_result",
                         Component.translatable(status.lastResult().translationKey())))
                 .setColor(status.lastResult() == MaintenanceStatusData.Result.SUCCESS
                         ? ChatFormatting.GREEN.getColor()
                         : ChatFormatting.GOLD.getColor())
                 .build());
-        statusCategory.addEntry(entries.startTextDescription(Component.translatable(
+        statusCategory.add(entries.startTextDescription(Component.translatable(
                         "gui.maid_storage_manager_extension.status.last_time",
                         formatTime(status.lastCompletedEpochMillis())))
                 .build());
-        statusCategory.addEntry(entries.startTextDescription(Component.translatable(
+        statusCategory.add(entries.startTextDescription(Component.translatable(
                         "gui.maid_storage_manager_extension.status.counts",
                         status.scannedStorages(), status.publishedItemTypes()))
                 .build());
+        extension.add(statusCategory.build());
 
+        storageManager.addEntry(extension.build());
+        installSavingRunnable(builder, maid, draft);
+    }
+
+    public static Screen create(Screen parent, EntityMaid maid) {
+        ConfigBuilder builder = ConfigBuilder.create()
+                .setParentScreen(parent)
+                .setTitle(Component.translatable(
+                        "gui.maid_storage_manager_extension.config.title", maid.getName()));
+        ConfigEntryBuilder entries = builder.entryBuilder();
+        ExtensionConfigData.Data current = ExtensionConfigData.get(maid);
+        Draft draft = new Draft(current);
+
+        ConfigCategory periodic = builder.getOrCreateCategory(Component.translatable(
+                "gui.maid_storage_manager_extension.config.category.periodic"));
+        periodic.addEntry(entries.startTextDescription(Component.translatable(
+                        "gui.maid_storage_manager_extension.config.current_maid", maid.getName()))
+                .setColor(ChatFormatting.AQUA.getColor())
+                .build());
+        periodic.addEntry(entries.startEnumSelector(
+                        Component.translatable("gui.maid_storage_manager_extension.config.periodic_scan_interval"),
+                        PeriodicScanInterval.class,
+                        current.periodicScanInterval())
+                .setEnumNameProvider(value -> Component.translatable(
+                        ((PeriodicScanInterval) value).translationKey()))
+                .setDefaultValue(PeriodicScanInterval.DISABLED)
+                .setSaveConsumer(value -> draft.interval = value)
+                .build());
+
+        ConfigCategory approvals = builder.getOrCreateCategory(Component.translatable(
+                "gui.maid_storage_manager_extension.config.category.courier"));
+        appendApprovals(entries, approvals, maid, draft);
+        installSavingRunnable(builder, maid, draft);
+        return builder.build();
+    }
+
+    private static void appendApprovals(ConfigEntryBuilder entries, ConfigCategory approvals,
+                                        EntityMaid maid, Draft draft) {
         WarehouseCourierData.Data couriers = WarehouseCourierData.get(maid);
         WarehouseStationData.Data stations = WarehouseStationData.get(maid);
-        if (!couriers.pending().isEmpty() || !stations.pending().isEmpty()) {
-            ConfigCategory courierCategory = builder.getOrCreateCategory(
-                    Component.translatable("gui.maid_storage_manager_extension.config.category.courier"));
-            if (!couriers.pending().isEmpty()) courierCategory.addEntry(entries.startTextDescription(Component.translatable(
+        if (couriers.pending().isEmpty() && stations.pending().isEmpty()) {
+            approvals.addEntry(entries.startTextDescription(Component.translatable(
+                            "gui.maid_storage_manager_extension.courier.approval_none"))
+                    .setColor(ChatFormatting.GRAY.getColor())
+                    .build());
+            return;
+        }
+        if (!couriers.pending().isEmpty()) {
+            approvals.addEntry(entries.startTextDescription(Component.translatable(
                             "gui.maid_storage_manager_extension.courier.pending_help"))
                     .setColor(ChatFormatting.GOLD.getColor())
                     .build());
-            for (UUID courierId : couriers.pending()) {
-                courierCategory.addEntry(entries.startEnumSelector(
-                                Component.translatable(
-                                        "gui.maid_storage_manager_extension.courier.pending", shortId(courierId)),
-                                ApprovalChoice.class,
-                                ApprovalChoice.PENDING)
-                        .setEnumNameProvider(value -> Component.translatable(
-                                ((ApprovalChoice) value).translationKey()))
-                        .setSaveConsumer(value -> draft.approvals.put(courierId, value))
-                        .build());
-            }
-            if (!stations.pending().isEmpty()) {
-                courierCategory.addEntry(entries.startTextDescription(Component.translatable(
-                                "gui.maid_storage_manager_extension.courier_mailbox.pending_help"))
-                        .setColor(ChatFormatting.AQUA.getColor())
-                        .build());
-                for (WarehouseStationData.StationRequest request : stations.pending()) {
-                    var pos = request.key().mailboxPos();
-                    courierCategory.addEntry(entries.startEnumSelector(
-                                    Component.translatable(
-                                            "gui.maid_storage_manager_extension.courier_mailbox.pending",
-                                            request.placerName(), pos.getX(), pos.getY(), pos.getZ()),
-                                    ApprovalChoice.class,
-                                    ApprovalChoice.PENDING)
-                            .setEnumNameProvider(value -> Component.translatable(
-                                    ((ApprovalChoice) value).translationKey()))
-                            .setSaveConsumer(value -> draft.stationApprovals.put(request.key(), value))
-                            .build());
-                }
-            }
         }
+        for (UUID courierId : couriers.pending()) {
+            approvals.addEntry(entries.startEnumSelector(
+                            Component.translatable(
+                                    "gui.maid_storage_manager_extension.courier.pending", shortId(courierId)),
+                            ApprovalChoice.class,
+                            ApprovalChoice.PENDING)
+                    .setEnumNameProvider(value -> Component.translatable(
+                            ((ApprovalChoice) value).translationKey()))
+                    .setSaveConsumer(value -> draft.approvals.put(courierId, value))
+                    .build());
+        }
+        if (!stations.pending().isEmpty()) {
+            approvals.addEntry(entries.startTextDescription(Component.translatable(
+                            "gui.maid_storage_manager_extension.courier_mailbox.pending_help"))
+                    .setColor(ChatFormatting.AQUA.getColor())
+                    .build());
+        }
+        for (WarehouseStationData.StationRequest request : stations.pending()) {
+            var pos = request.key().mailboxPos();
+            approvals.addEntry(entries.startEnumSelector(
+                            Component.translatable(
+                                    "gui.maid_storage_manager_extension.courier_mailbox.pending",
+                                    request.placerName(), pos.getX(), pos.getY(), pos.getZ()),
+                            ApprovalChoice.class,
+                            ApprovalChoice.PENDING)
+                    .setEnumNameProvider(value -> Component.translatable(
+                            ((ApprovalChoice) value).translationKey()))
+                    .setSaveConsumer(value -> draft.stationApprovals.put(request.key(), value))
+                    .build());
+        }
+    }
 
+    private static void installSavingRunnable(ConfigBuilder builder, EntityMaid maid, Draft draft) {
         Runnable previousSave = builder.getSavingRunnable();
         builder.setSavingRunnable(() -> {
             if (previousSave != null) {
                 previousSave.run();
             }
             ExtensionNetwork.CHANNEL.sendToServer(new ExtensionMaidConfigPacket(
-                        maid.getId(),
-                        draft.interval.ordinal(),
-                        draft.localScanRadius,
-                        draft.taskBellRange,
-                        draft.taskBellTravelTimeoutSeconds,
-                        draft.taskBellStaySeconds,
-                        draft.refreshFrameEffects,
-                        draft.refreshOwnerNotification,
-                        draft.miscSortMatchNbt));
+                    maid.getId(),
+                    draft.interval.ordinal(),
+                    draft.localScanRadius,
+                    draft.taskBellRange,
+                    draft.taskBellTravelTimeoutSeconds,
+                    draft.taskBellStaySeconds,
+                    draft.refreshFrameEffects,
+                    draft.refreshOwnerNotification,
+                    draft.miscSortMatchNbt));
             draft.approvals.forEach((courierId, choice) -> {
                 if (choice == ApprovalChoice.APPROVE) {
                     ExtensionNetwork.CHANNEL.sendToServer(new CourierCommandPacket(

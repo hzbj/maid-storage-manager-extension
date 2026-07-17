@@ -42,7 +42,7 @@ class RequestItemUtilMixinContractTest {
         assertTrue(recover >= 0,
                 "A wall-stalled warehouse return must try Touhou Little Maid's safe teleport");
         assertTrue(virtualFallback > recover,
-                "Safe face-to-face recovery must run before the upstream virtual-item fallback");
+                "Safe nearby recovery must run before the upstream virtual-item fallback");
     }
 
     private static List<String> handlerCalls() throws IOException {

@@ -16,6 +16,7 @@ public final class ClientCompatibilityEvents {
 
     @SubscribeEvent
     public static void clientSetup(FMLClientSetupEvent event) {
+        event.enqueueWork(ConfigScreenBridge::validate);
         event.enqueueWork(() -> MenuScreens.register(
                 ExtensionMenus.COURIER_CONFIG.get(), CourierConfigScreen::new));
         event.enqueueWork(() -> MenuScreens.register(
