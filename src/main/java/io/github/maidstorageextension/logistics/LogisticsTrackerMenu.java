@@ -12,12 +12,12 @@ import java.util.UUID;
 
 public final class LogisticsTrackerMenu extends AbstractContainerMenu {
     private final Inventory inventory;
-    private final UUID courier;
+    private final UUID terminal;
 
-    public LogisticsTrackerMenu(int containerId, Inventory inventory, UUID courier) {
+    public LogisticsTrackerMenu(int containerId, Inventory inventory, UUID terminal) {
         super(ExtensionMenus.LOGISTICS_TRACKER.get(), containerId);
         this.inventory = inventory;
-        this.courier = courier;
+        this.terminal = terminal;
     }
 
     public static LogisticsTrackerMenu fromNetwork(int containerId, Inventory inventory,
@@ -25,8 +25,8 @@ public final class LogisticsTrackerMenu extends AbstractContainerMenu {
         return new LogisticsTrackerMenu(containerId, inventory, buffer.readUUID());
     }
 
-    public UUID courier() {
-        return courier;
+    public UUID terminal() {
+        return terminal;
     }
 
     @Override
@@ -38,8 +38,9 @@ public final class LogisticsTrackerMenu extends AbstractContainerMenu {
     public boolean stillValid(Player player) {
         for (int i = 0; i < inventory.getContainerSize(); i++) {
             ItemStack stack = inventory.getItem(i);
-            if (stack.getItem() instanceof LogisticsTrackerItem
-                    && courier.equals(LogisticsTrackerItem.getCourier(stack))) return true;
+            if (!(stack.getItem() instanceof LogisticsTrackerItem)) continue;
+            UUID itemTerminal = LogisticsTrackerItem.getTerminalId(stack);
+            if (terminal.equals(itemTerminal)) return true;
         }
         return false;
     }

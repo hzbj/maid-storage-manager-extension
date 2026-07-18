@@ -28,6 +28,13 @@ public final class CourierDeliveryPolicy {
         return hasRequestList || depositRequested;
     }
 
+    /** Ender Pocket completes owner delivery remotely, but cannot silently consume a chest order. */
+    public static boolean shouldCompleteRequestRemotely(boolean usesEnderPocket,
+                                                        boolean forceOwnerDelivery,
+                                                        boolean hasFixedDeliveryTarget) {
+        return usesEnderPocket && (forceOwnerDelivery || !hasFixedDeliveryTarget);
+    }
+
     /** An unloaded target is unknown, not destroyed. */
     public static boolean shouldInvalidateTarget(boolean targetChunkLoaded,
                                                  boolean hasItemHandler) {

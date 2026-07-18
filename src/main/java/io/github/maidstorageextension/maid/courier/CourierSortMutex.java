@@ -42,7 +42,10 @@ public final class CourierSortMutex {
                     WAITING_FOR_SAFE_LANDING,
                     TRAVEL_TO_WAREHOUSE_DEPOSIT,
                     DEPOSIT_HANDOFF, DEPOSIT_RUNNING, DEPOSIT_RETURNING,
-                    DEPOSIT_WAITING_SPACE -> true;
+                    DEPOSIT_WAITING_SPACE,
+                    TRANSPORT_TO_PICKUP, TRANSPORT_WAITING_RIDER,
+                    TRANSPORT_TO_DESTINATION, TRANSPORT_PLAYER_CONTROLLED,
+                    TRANSPORT_EMERGENCY_LANDING -> true;
             default -> false;
         };
     }
@@ -52,6 +55,15 @@ public final class CourierSortMutex {
         return warehouseId != null
                 && warehouseId.equals(linkedWarehouseId)
                 && authorized
-                && isActiveTransaction(phase);
+                && isActiveTransaction(phase)
+                && !isPassengerTransport(phase);
+    }
+
+    public static boolean isPassengerTransport(CourierData.Phase phase) {
+        return phase == CourierData.Phase.TRANSPORT_TO_PICKUP
+                || phase == CourierData.Phase.TRANSPORT_WAITING_RIDER
+                || phase == CourierData.Phase.TRANSPORT_TO_DESTINATION
+                || phase == CourierData.Phase.TRANSPORT_PLAYER_CONTROLLED
+                || phase == CourierData.Phase.TRANSPORT_EMERGENCY_LANDING;
     }
 }

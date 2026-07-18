@@ -6,6 +6,7 @@ import io.github.maidstorageextension.data.CourierData;
 import io.github.maidstorageextension.data.WarehouseCourierData;
 import io.github.maidstorageextension.maid.ExtensionMemoryUtil;
 import io.github.maidstorageextension.maid.task.CourierTask;
+import io.github.maidstorageextension.terminal.MaidTransportService;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
@@ -110,6 +111,70 @@ public final class CourierService {
         }
     }
 
+    public static void bindStationAuthorized(ServerPlayer actor, EntityMaid courier,
+                                             CourierData.WarehouseBinding binding) {
+        if (actor == null || courier == null || binding == null || binding.warehouse() == null
+                || !courier.getTask().getUid().equals(CourierTask.TASK_ID)
+                || !(courier.level() instanceof ServerLevel level)) return;
+        CourierData.Data courierData = CourierData.get(courier);
+        if (hasActiveTransaction(courier)) {
+            actor.sendSystemMessage(Component.translatable(
+                    "message.maid_storage_manager_extension.courier.transaction_active"));
+            return;
+        }
+        if (courierData.binding(binding.warehouse()) == null
+                && courierData.warehouses().size() >= CourierData.MAX_WAREHOUSES) {
+            actor.sendSystemMessage(Component.translatable(
+                    "message.maid_storage_manager_extension.courier.station_limit",
+                    CourierData.MAX_WAREHOUSES));
+            return;
+        }
+        EntityMaid warehouse = findMaid(level, binding.warehouse());
+        if (warehouse == null || !validWarehouseLinkTarget(warehouse)) {
+            actor.sendSystemMessage(Component.translatable(
+                    "message.maid_storage_manager_extension.courier.warehouse_not_loaded"));
+            return;
+        }
+        WarehouseCourierData.Data warehouseData = WarehouseCourierData.get(warehouse);
+        if (warehouseData.isAuthorized(courier.getUUID()) || warehouse.isOwnedBy(actor)) {
+            warehouseData.authorized().add(courier.getUUID());
+            bind(courierData, warehouse, binding);
+            sync(courier, courierData);
+            sync(warehouse, warehouseData);
+            actor.sendSystemMessage(Component.translatable(
+                    "message.maid_storage_manager_extension.courier.bound_station",
+                    warehouse.getName(), courierData.warehouses().size(), CourierData.MAX_WAREHOUSES));
+            return;
+        }
+        warehouseData.request(courier.getUUID());
+        courierData.requestApproval(binding);
+        sync(courier, courierData);
+        sync(warehouse, warehouseData);
+        actor.sendSystemMessage(Component.translatable(
+                "message.maid_storage_manager_extension.courier.approval_requested",
+                warehouse.getName()));
+        notifyOwner(warehouse, "message.maid_storage_manager_extension.courier.approval_pending",
+                courier.getName());
+    }
+
+    public static void unbindWarehouseAuthorized(ServerPlayer actor, EntityMaid courier,
+                                                 UUID warehouseId) {
+        if (courier == null || warehouseId == null || hasActiveTransaction(courier)) return;
+        CourierData.Data data = CourierData.get(courier);
+        if (!data.removeWarehouse(warehouseId)) return;
+        sync(courier, data);
+        if (courier.level() instanceof ServerLevel level) {
+            EntityMaid warehouse = findMaid(level, warehouseId);
+            if (warehouse != null) {
+                WarehouseCourierData.Data warehouseData = WarehouseCourierData.get(warehouse);
+                warehouseData.revoke(courier.getUUID());
+                sync(warehouse, warehouseData);
+            }
+        }
+        actor.sendSystemMessage(Component.translatable(
+                "message.maid_storage_manager_extension.courier.unbound"));
+    }
+
     public static void setBroomFlightDistance(ServerPlayer owner, EntityMaid courier, int value) {
         if (!isCourierOwnedBy(courier, owner)) return;
         CourierData.Data data = CourierData.get(courier);
@@ -137,9 +202,28 @@ public final class CourierService {
         return true;
     }
 
+    public static boolean setDeliveryChestAuthorized(ServerPlayer actor, UUID courierId,
+                                                     ServerLevel level, BlockPos position) {
+        EntityMaid courier = findMaid(level, courierId);
+        if (courier == null || !courier.getTask().getUid().equals(CourierTask.TASK_ID)
+                || deliveryHandler(level, position) == null) return false;
+        CourierData.Data data = CourierData.get(courier);
+        data.deliveryTarget(position, dimension(level));
+        redirectOwnerDeliveryToChest(courier, data);
+        sync(courier, data);
+        return true;
+    }
+
     public static boolean clearDeliveryChest(ServerPlayer owner, UUID courierId) {
         EntityMaid courier = findMaid(owner.serverLevel(), courierId);
         if (courier == null || !isCourierOwnedBy(courier, owner)) return false;
+        clearDeliveryTarget(courier, CourierData.get(courier));
+        return true;
+    }
+
+    public static boolean clearDeliveryChestAuthorized(UUID courierId, ServerLevel level) {
+        EntityMaid courier = findMaid(level, courierId);
+        if (courier == null || !courier.getTask().getUid().equals(CourierTask.TASK_ID)) return false;
         clearDeliveryTarget(courier, CourierData.get(courier));
         return true;
     }
@@ -222,6 +306,24 @@ public final class CourierService {
         if (data.selectWarehouse(warehouseId)) {
             sync(courier, data);
             owner.sendSystemMessage(Component.translatable(
+                    "message.maid_storage_manager_extension.courier.default_station_set",
+                    data.warehouseName()));
+        }
+    }
+
+    public static void selectWarehouseAuthorized(ServerPlayer actor, EntityMaid courier,
+                                                 UUID warehouseId) {
+        if (courier == null || warehouseId == null
+                || !courier.getTask().getUid().equals(CourierTask.TASK_ID)) return;
+        if (hasActiveTransaction(courier)) {
+            actor.sendSystemMessage(Component.translatable(
+                    "message.maid_storage_manager_extension.courier.transaction_active"));
+            return;
+        }
+        CourierData.Data data = CourierData.get(courier);
+        if (data.selectWarehouse(warehouseId)) {
+            sync(courier, data);
+            actor.sendSystemMessage(Component.translatable(
                     "message.maid_storage_manager_extension.courier.default_station_set",
                     data.warehouseName()));
         }
@@ -332,8 +434,30 @@ public final class CourierService {
                 "message.maid_storage_manager_extension.courier.deposit_confirmed"));
     }
 
+    public static void confirmDepositAuthorized(ServerPlayer actor, EntityMaid courier) {
+        if (courier == null || !courier.getTask().getUid().equals(CourierTask.TASK_ID)) return;
+        CourierData.Data data = CourierData.get(courier);
+        if (data.phase() != CourierData.Phase.IDLE
+                && data.phase() != CourierData.Phase.WAITING_AT_DELIVERY_CHEST) {
+            actor.sendSystemMessage(Component.translatable(
+                    "message.maid_storage_manager_extension.courier.transaction_active"));
+            return;
+        }
+        if (data.phase() == CourierData.Phase.WAITING_AT_DELIVERY_CHEST) {
+            data.phase(CourierData.Phase.IDLE);
+        }
+        data.depositRequested(true);
+        sync(courier, data);
+        actor.sendSystemMessage(Component.translatable(
+                "message.maid_storage_manager_extension.courier.deposit_confirmed"));
+    }
+
     public static void tick(ServerLevel level, EntityMaid courier) {
         CourierData.Data data = CourierData.get(courier);
+        if (CourierSortMutex.isPassengerTransport(data.phase())) {
+            pauseMovement(courier);
+            return;
+        }
         validateDeliveryTarget(level, courier, data);
         if (!CourierSortMutex.mayCourierUseOwnInventory(
                 ExtensionMemoryUtil.getMiscSort(courier).hasInFlight())) {
@@ -445,6 +569,11 @@ public final class CourierService {
      */
     public static void tickBroomFlight(ServerLevel level, EntityMaid courier) {
         CourierData.Data data = CourierData.get(courier);
+        if (CourierSortMutex.isPassengerTransport(data.phase())) {
+            CourierBroomFlightService.keepActiveCourierLoaded(level, courier);
+            MaidTransportService.tick(level, courier, data);
+            return;
+        }
         enforceCourierNavigationOwnership(courier, data);
         boolean courierTaskSelected = courier.getTask().getUid().equals(CourierTask.TASK_ID);
         if (CourierRuntimePolicy.shouldKeepCourierChunkLoaded(courierTaskSelected,
@@ -685,7 +814,7 @@ public final class CourierService {
 
     private static boolean beginRequest(ServerLevel level, EntityMaid courier, CourierData.Data data,
                                         EntityMaid warehouse) {
-        IItemHandlerModifiable source = courier.getAvailableInv(false);
+        IItemHandlerModifiable source = courier.getAvailableInv(true);
         for (int slot = 0; slot < source.getSlots(); slot++) {
             ItemStack list = source.getStackInSlot(slot);
             if (!list.is(ItemRegistry.REQUEST_LIST_ITEM.get())
@@ -739,9 +868,8 @@ public final class CourierService {
                                                              CourierData.Data data,
                                                              EntityMaid warehouse) {
         CourierData.TransportMode required = requiredStartMode(level, courier, data, warehouse);
-        CourierData.TransportMode selected = CourierTransportPolicy.hasRequiredItems(required,
-                EnderPocketCompat.isEquipped(courier), EnderPocketCompat.hasBroom(courier))
-                ? required : CourierData.TransportMode.NONE;
+        CourierData.TransportMode selected = CourierTransportPolicy.select(required,
+                EnderPocketCompat.isEquipped(courier), EnderPocketCompat.hasBroom(courier));
         return selected.usesBroom() && !broomRouteAvailable(level, courier, data)
                 ? CourierData.TransportMode.NONE : selected;
     }
@@ -803,6 +931,7 @@ public final class CourierService {
 
     private static void rememberRequestOwnerTarget(ServerLevel level, EntityMaid courier,
                                                    CourierData.Data data, ItemStack list) {
+        data.forceOwnerDelivery(CourierRequestTarget.isForceOwnerDelivery(list));
         CourierRequestTarget.Target marked = CourierRequestTarget.read(list);
         if (marked != null) {
             data.ownerTarget(marked.position(), marked.dimension());
@@ -1315,7 +1444,8 @@ public final class CourierService {
 
     private static boolean redirectOwnerDeliveryToChest(EntityMaid courier,
                                                          CourierData.Data data) {
-        boolean hasTarget = data.deliveryPos() != null && data.deliveryDimension() != null;
+        boolean hasTarget = !data.forceOwnerDelivery()
+                && data.deliveryPos() != null && data.deliveryDimension() != null;
         boolean hasCargo = hasDeliveryCargo(data);
         if (!CourierDeliveryPolicy.shouldRedirectToChest(
                 data.phase(), hasTarget, hasCargo)) return false;
@@ -1389,7 +1519,7 @@ public final class CourierService {
     }
 
     private static boolean hasDispatchableRequest(EntityMaid courier) {
-        IItemHandlerModifiable inventory = courier.getAvailableInv(false);
+        IItemHandlerModifiable inventory = courier.getAvailableInv(true);
         for (int slot = 0; slot < inventory.getSlots(); slot++) {
             ItemStack stack = inventory.getStackInSlot(slot);
             if (stack.is(ItemRegistry.REQUEST_LIST_ITEM.get())
@@ -1404,7 +1534,7 @@ public final class CourierService {
                                         CourierData.Data data) {
         if (!mayMutateWarehouseForCourier(warehouse)) return;
         pauseMovement(courier);
-        IItemHandlerModifiable source = courier.getAvailableInv(false);
+        IItemHandlerModifiable source = courier.getAvailableInv(true);
         for (int slot = 0; slot < source.getSlots(); slot++) {
             ItemStack list = source.getStackInSlot(slot);
             if (!list.is(ItemRegistry.REQUEST_LIST_ITEM.get())
@@ -1450,6 +1580,11 @@ public final class CourierService {
                 && root.getCompound(META).hasUUID(META_COURIER);
     }
 
+    public static boolean canEditHeldRequestList(ItemStack list) {
+        return list != null && list.is(ItemRegistry.REQUEST_LIST_ITEM.get())
+                && !isActiveCourierList(list);
+    }
+
     private static void prepareRequestTag(ItemStack list, EntityMaid courier) {
         CompoundTag root = list.getOrCreateTag();
         CompoundTag meta = new CompoundTag();
@@ -1489,8 +1624,10 @@ public final class CourierService {
 
         if (!returnList(courier, list, !success)) data.pendingList(list);
         data.requestFinished(true);
-        data.phase(data.transportMode().usesEnderPocket()
-                ? CourierData.Phase.IDLE : physicalDeliveryPhase(data));
+        boolean completeRemotely = CourierDeliveryPolicy.shouldCompleteRequestRemotely(
+                data.transportMode().usesEnderPocket(), data.forceOwnerDelivery(),
+                data.deliveryPos() != null && data.deliveryDimension() != null);
+        data.phase(completeRemotely ? CourierData.Phase.IDLE : physicalDeliveryPhase(data));
         data.spaceWarningSent(false);
         resetHandoff(data);
         sync(courier, data);
@@ -1501,7 +1638,7 @@ public final class CourierService {
         MemoryUtil.getRequestProgress(warehouse).clearTarget();
         MemoryUtil.getRequestProgress(warehouse).stopWork();
         warehouse.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
-        if (data.transportMode().usesEnderPocket()) {
+        if (completeRemotely) {
             completeRemoteTransaction(courier, data);
         }
         return true;
@@ -1763,7 +1900,8 @@ public final class CourierService {
     }
 
     private static CourierData.Phase physicalDeliveryPhase(CourierData.Data data) {
-        return data.deliveryPos() != null && data.deliveryDimension() != null
+        return !data.forceOwnerDelivery()
+                && data.deliveryPos() != null && data.deliveryDimension() != null
                 ? CourierData.Phase.TRAVEL_TO_DELIVERY_CHEST
                 : CourierData.Phase.TRAVEL_TO_OWNER;
     }
@@ -1811,6 +1949,11 @@ public final class CourierService {
         return warehouse.isAlive()
                 && warehouse.getTask().getUid().equals(StorageManageTask.TASK_ID)
                 && WarehouseCourierData.get(warehouse).isAuthorized(courier.getUUID());
+    }
+
+    private static boolean validWarehouseLinkTarget(EntityMaid warehouse) {
+        return warehouse.isAlive()
+                && warehouse.getTask().getUid().equals(StorageManageTask.TASK_ID);
     }
 
     private static void bind(CourierData.Data data, EntityMaid warehouse,

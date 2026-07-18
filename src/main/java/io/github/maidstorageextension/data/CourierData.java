@@ -48,6 +48,11 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
         DEPOSIT_RUNNING,
         DEPOSIT_RETURNING,
         DEPOSIT_WAITING_SPACE,
+        TRANSPORT_TO_PICKUP,
+        TRANSPORT_WAITING_RIDER,
+        TRANSPORT_TO_DESTINATION,
+        TRANSPORT_PLAYER_CONTROLLED,
+        TRANSPORT_EMERGENCY_LANDING,
         LINK_UNAVAILABLE
     }
 
@@ -115,6 +120,7 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
         private ResourceLocation deliveryDimension;
         private BlockPos ownerTargetPos;
         private ResourceLocation ownerTargetDimension;
+        private boolean forceOwnerDelivery;
         private Phase phase = Phase.UNBOUND;
         private boolean depositRequested;
         private boolean spaceWarningSent;
@@ -148,6 +154,12 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
         private BlockPos groundApproachPos;
         private long groundApproachProgressGameTime = -1L;
         private int groundTeleportFailures;
+        private UUID transportRider;
+        private BlockPos transportPickupAnchor;
+        private BlockPos transportPickup;
+        private BlockPos transportDestinationAnchor;
+        private BlockPos transportDestination;
+        private ResourceLocation transportDimension;
 
         public UUID warehouse() { return warehouse; }
         public UUID pendingWarehouse() { return pendingWarehouse; }
@@ -174,6 +186,7 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
         public ResourceLocation deliveryDimension() { return deliveryDimension; }
         public BlockPos ownerTargetPos() { return ownerTargetPos; }
         public ResourceLocation ownerTargetDimension() { return ownerTargetDimension; }
+        public boolean forceOwnerDelivery() { return forceOwnerDelivery; }
         public Phase phase() { return phase; }
         public boolean depositRequested() { return depositRequested; }
         public boolean spaceWarningSent() { return spaceWarningSent; }
@@ -207,6 +220,12 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
         public BlockPos groundApproachPos() { return groundApproachPos; }
         public long groundApproachProgressGameTime() { return groundApproachProgressGameTime; }
         public int groundTeleportFailures() { return groundTeleportFailures; }
+        public UUID transportRider() { return transportRider; }
+        public BlockPos transportPickupAnchor() { return transportPickupAnchor; }
+        public BlockPos transportPickup() { return transportPickup; }
+        public BlockPos transportDestinationAnchor() { return transportDestinationAnchor; }
+        public BlockPos transportDestination() { return transportDestination; }
+        public ResourceLocation transportDimension() { return transportDimension; }
 
         public void bind(UUID value, BlockPos pos, ResourceLocation dimension) {
             warehouses.clear();
@@ -341,6 +360,7 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
             targetWarningSent = false;
             clearGroundApproach();
         }
+        public void forceOwnerDelivery(boolean value) { forceOwnerDelivery = value; }
         public void beginFollowOverride(boolean homeMode) {
             if (followOverrideActive) return;
             homeModeBeforeCourier = homeMode;
@@ -441,6 +461,47 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
             groundTeleportFailures = 0;
         }
 
+        public void beginPassengerTransport(UUID rider, BlockPos pickupAnchor,
+                                            BlockPos destinationAnchor,
+                                            ResourceLocation dimension) {
+            transportRider = rider;
+            transportPickupAnchor = pickupAnchor == null ? null : pickupAnchor.immutable();
+            transportPickup = null;
+            transportDestinationAnchor = destinationAnchor == null
+                    ? null : destinationAnchor.immutable();
+            transportDestination = null;
+            transportDimension = dimension;
+            transportMode = TransportMode.BROOM;
+            phase = Phase.TRANSPORT_TO_PICKUP;
+            clearFlight();
+            clearGroundApproach();
+        }
+
+        public void transportPickup(BlockPos value) {
+            transportPickup = value == null ? null : value.immutable();
+        }
+
+        public void transportDestination(BlockPos value) {
+            transportDestination = value == null ? null : value.immutable();
+        }
+
+        public void transportDestinationAnchor(BlockPos value) {
+            transportDestinationAnchor = value == null ? null : value.immutable();
+        }
+
+        public void clearPassengerTransport() {
+            transportRider = null;
+            transportPickupAnchor = null;
+            transportPickup = null;
+            transportDestinationAnchor = null;
+            transportDestination = null;
+            transportDimension = null;
+            transportMode = TransportMode.NONE;
+            clearFlight();
+            clearGroundApproach();
+            phase = warehouse == null ? Phase.UNBOUND : Phase.IDLE;
+        }
+
         public void rememberWarehouse(BlockPos pos, ResourceLocation dimension) {
             warehousePos = pos;
             warehouseDimension = dimension;
@@ -468,6 +529,7 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
             originOwner = false;
             ownerTargetPos = null;
             ownerTargetDimension = null;
+            forceOwnerDelivery = false;
             targetWarningSent = false;
             handoffStartedGameTime = -1L;
             transportMode = TransportMode.NONE;
@@ -513,6 +575,7 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
         if (data.ownerTargetDimension != null) {
             tag.putString("ownerTargetDimension", data.ownerTargetDimension.toString());
         }
+        tag.putBoolean("forceOwnerDelivery", data.forceOwnerDelivery);
         tag.putString("phase", data.phase.name());
         tag.putBoolean("depositRequested", data.depositRequested);
         tag.putBoolean("spaceWarningSent", data.spaceWarningSent);
@@ -550,6 +613,12 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
         }
         tag.putLong("groundApproachProgressGameTime", data.groundApproachProgressGameTime);
         tag.putInt("groundTeleportFailures", data.groundTeleportFailures);
+        if (data.transportRider != null) tag.putUUID("transportRider", data.transportRider);
+        if (data.transportPickupAnchor != null) tag.putLong("transportPickupAnchor", data.transportPickupAnchor.asLong());
+        if (data.transportPickup != null) tag.putLong("transportPickup", data.transportPickup.asLong());
+        if (data.transportDestinationAnchor != null) tag.putLong("transportDestinationAnchor", data.transportDestinationAnchor.asLong());
+        if (data.transportDestination != null) tag.putLong("transportDestination", data.transportDestination.asLong());
+        if (data.transportDimension != null) tag.putString("transportDimension", data.transportDimension.toString());
         return tag;
     }
 
@@ -600,6 +669,7 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
         if (tag.contains("ownerTargetDimension", Tag.TAG_STRING)) {
             data.ownerTargetDimension = ResourceLocation.tryParse(tag.getString("ownerTargetDimension"));
         }
+        data.forceOwnerDelivery = tag.getBoolean("forceOwnerDelivery");
         try {
             data.phase = Phase.valueOf(tag.getString("phase"));
         } catch (IllegalArgumentException ignored) {
@@ -664,6 +734,22 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
                 "groundApproachProgressGameTime", Tag.TAG_LONG)
                 ? tag.getLong("groundApproachProgressGameTime") : -1L;
         data.groundTeleportFailures = Math.max(0, tag.getInt("groundTeleportFailures"));
+        if (tag.hasUUID("transportRider")) data.transportRider = tag.getUUID("transportRider");
+        if (tag.contains("transportPickupAnchor", Tag.TAG_LONG)) {
+            data.transportPickupAnchor = BlockPos.of(tag.getLong("transportPickupAnchor"));
+        }
+        if (tag.contains("transportPickup", Tag.TAG_LONG)) {
+            data.transportPickup = BlockPos.of(tag.getLong("transportPickup"));
+        }
+        if (tag.contains("transportDestinationAnchor", Tag.TAG_LONG)) {
+            data.transportDestinationAnchor = BlockPos.of(tag.getLong("transportDestinationAnchor"));
+        }
+        if (tag.contains("transportDestination", Tag.TAG_LONG)) {
+            data.transportDestination = BlockPos.of(tag.getLong("transportDestination"));
+        }
+        if (tag.contains("transportDimension", Tag.TAG_STRING)) {
+            data.transportDimension = ResourceLocation.tryParse(tag.getString("transportDimension"));
+        }
         return data;
     }
 

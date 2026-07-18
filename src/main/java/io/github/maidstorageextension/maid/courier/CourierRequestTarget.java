@@ -11,6 +11,7 @@ import org.jetbrains.annotations.Nullable;
 public final class CourierRequestTarget {
     public static final String TAG_POSITION = "CourierOwnerTargetPos";
     public static final String TAG_DIMENSION = "CourierOwnerTargetDimension";
+    public static final String TAG_FORCE_OWNER_DELIVERY = "CourierForceOwnerDelivery";
 
     private CourierRequestTarget() {
     }
@@ -35,6 +36,17 @@ public final class CourierRequestTarget {
                 || !tag.contains(TAG_DIMENSION, Tag.TAG_STRING)) return null;
         ResourceLocation dimension = ResourceLocation.tryParse(tag.getString(TAG_DIMENSION));
         return dimension == null ? null : new Target(BlockPos.of(tag.getLong(TAG_POSITION)), dimension);
+    }
+
+    /** Per-request override used when a fixed delivery chest is also configured. */
+    public static void forceOwnerDelivery(ItemStack stack, boolean value) {
+        if (stack == null || stack.isEmpty()) return;
+        stack.getOrCreateTag().putBoolean(TAG_FORCE_OWNER_DELIVERY, value);
+    }
+
+    public static boolean isForceOwnerDelivery(ItemStack stack) {
+        return stack != null && !stack.isEmpty() && stack.hasTag()
+                && stack.getTag().getBoolean(TAG_FORCE_OWNER_DELIVERY);
     }
 
     public record Target(BlockPos position, ResourceLocation dimension) {

@@ -11,8 +11,22 @@ public final class CourierTransportPolicy {
                                                    boolean nearWarehouse,
                                                    boolean nearOwner) {
         CourierData.TransportMode required = requiredMode(nearWarehouse, nearOwner);
-        return hasRequiredItems(required, hasEnderPocket, hasBroom)
-                ? required
+        return select(required, hasEnderPocket, hasBroom);
+    }
+
+    public static CourierData.TransportMode select(CourierData.TransportMode required,
+                                                   boolean hasEnderPocket,
+                                                   boolean hasBroom) {
+        // Distance decides the minimum route. An equipped Ender Pocket is still preferred for
+        // the owner-facing leg so the courier can finish remotely at the warehouse.
+        CourierData.TransportMode selected = switch (required) {
+            case WALK -> hasEnderPocket ? CourierData.TransportMode.ENDER_POCKET : required;
+            case BROOM -> hasEnderPocket
+                    ? CourierData.TransportMode.BROOM_ENDER_POCKET : required;
+            default -> required;
+        };
+        return hasRequiredItems(selected, hasEnderPocket, hasBroom)
+                ? selected
                 : CourierData.TransportMode.NONE;
     }
 
