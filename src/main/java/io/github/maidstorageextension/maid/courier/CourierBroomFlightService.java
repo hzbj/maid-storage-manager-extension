@@ -2,6 +2,7 @@ package io.github.maidstorageextension.maid.courier;
 
 import com.github.tartaricacid.touhoulittlemaid.entity.item.EntityBroom;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
+import io.github.maidstorageextension.compat.touhoulittlemaid.BroomAutopilotAccess;
 import io.github.maidstorageextension.data.CourierData;
 import io.github.maidstorageextension.scan.StorageScanService;
 import net.minecraft.core.BlockPos;
@@ -489,11 +490,13 @@ public final class CourierBroomFlightService {
     private static EntityBroom findExisting(ServerLevel level, EntityMaid courier,
                                             CourierData.Data data) {
         if (courier.getVehicle() instanceof EntityBroom mounted && isCourierBroom(mounted)) {
+            setAutopilot(mounted, true);
             return mounted;
         }
         UUID known = data.courierBroom();
         if (known != null && level.getEntity(known) instanceof EntityBroom existing
                 && isCourierBroom(existing)) {
+            setAutopilot(existing, true);
             courier.startRiding(existing, true);
             return existing;
         }
@@ -510,6 +513,7 @@ public final class CourierBroomFlightService {
         broom.setInvulnerable(true);
         broom.noPhysics = true;
         broom.getPersistentData().putUUID(TAG_COURIER_BROOM, courier.getUUID());
+        setAutopilot(broom, true);
         if (!level.addFreshEntity(broom) || !courier.startRiding(broom, true)) {
             broom.discard();
             return null;
@@ -538,6 +542,7 @@ public final class CourierBroomFlightService {
         broom.noPhysics = true;
         broom.getPersistentData().putUUID(TAG_COURIER_BROOM, courier.getUUID());
         if (rider != null) broom.getPersistentData().putUUID(TAG_TRANSPORT_RIDER, rider);
+        setAutopilot(broom, true);
         if (!level.addFreshEntity(broom) || !courier.startRiding(broom, true)) {
             broom.discard();
             return null;
@@ -567,6 +572,7 @@ public final class CourierBroomFlightService {
                                              ServerPlayer rider, CourierData.Data data) {
         if (broom == null || courier == null || rider == null
                 || !broom.getPassengers().contains(rider)) return false;
+        setAutopilot(broom, false);
         broom.ejectPassengers();
         broom.getPersistentData().remove(TAG_COURIER_BROOM);
         broom.getPersistentData().putBoolean(TAG_PLAYER_CONTROLLED, true);
@@ -575,6 +581,7 @@ public final class CourierBroomFlightService {
         broom.setNoGravity(false);
         broom.noPhysics = false;
         if (!rider.startRiding(broom, true) || !courier.startRiding(broom, true)) {
+            setAutopilot(broom, true);
             broom.getPersistentData().remove(TAG_PLAYER_CONTROLLED);
             broom.getPersistentData().putUUID(TAG_COURIER_BROOM, courier.getUUID());
             broom.setNoGravity(true);
@@ -592,6 +599,7 @@ public final class CourierBroomFlightService {
     public static void resumeTransportAutopilot(EntityBroom broom, EntityMaid courier,
                                                 CourierData.Data data) {
         if (broom == null || courier == null) return;
+        setAutopilot(broom, true);
         broom.ejectPassengers();
         broom.getPersistentData().remove(TAG_PLAYER_CONTROLLED);
         broom.getPersistentData().putUUID(TAG_COURIER_BROOM, courier.getUUID());
@@ -603,6 +611,10 @@ public final class CourierBroomFlightService {
         data.flight(broom.getUUID(), CourierData.Phase.TRANSPORT_EMERGENCY_LANDING,
                 Math.max(data.flightCruiseY(), Mth.ceil(broom.getY() + 8.0)));
         sync(courier, data);
+    }
+
+    private static void setAutopilot(EntityBroom broom, boolean autopilot) {
+        ((BroomAutopilotAccess) broom).maidStorageExtension$setAutopilot(autopilot);
     }
 
     public static void discardTransportBroom(EntityMaid courier, CourierData.Data data) {

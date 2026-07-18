@@ -18,8 +18,6 @@ public final class MaidTransportBoardingService {
         BOARDED
     }
 
-    private static final double MAX_INTERACTION_DISTANCE_SQUARED = 64.0D;
-
     private MaidTransportBoardingService() {
     }
 
@@ -63,7 +61,7 @@ public final class MaidTransportBoardingService {
         if (player.isPassenger()) {
             return player.getVehicle() == broom ? Result.BOARDED : Result.REJECTED;
         }
-        if (player.distanceToSqr(broom) > MAX_INTERACTION_DISTANCE_SQUARED
+        if (!MaidTransportBoardingPolicy.withinRange(player.distanceToSqr(broom))
                 || broom.getPassengers().size() != 1
                 || broom.getFirstPassenger() != driver) {
             return Result.REJECTED;

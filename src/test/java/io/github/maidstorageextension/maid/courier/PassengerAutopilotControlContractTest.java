@@ -15,15 +15,22 @@ class PassengerAutopilotControlContractTest {
             "src/main/java/io/github/maidstorageextension/maid/courier/CourierBroomFlightService.java");
 
     @Test
-    void maidFirstPassengerSuppressesClientVanillaControlUntilHandoff() throws Exception {
+    void synchronizedAutopilotAuthoritySuppressesVanillaControlUntilHandoff() throws Exception {
         String mixin = Files.readString(MIXIN, StandardCharsets.UTF_8);
         String flight = Files.readString(FLIGHT, StandardCharsets.UTF_8);
 
-        assertTrue(mixin.contains("getFirstPassenger() instanceof EntityMaid"),
-                "Client persistent data does not contain the server courier tag; passenger order must identify autopilot");
-        assertTrue(flight.indexOf("rider.startRiding(broom, true)")
-                        < flight.indexOf("courier.startRiding(broom, true)",
-                        flight.indexOf("handControlToRider")),
-                "Explicit handoff must make the player first passenger before restoring vanilla control");
+        assertTrue(mixin.contains("EntityDataAccessor<Boolean> AUTOPILOT"),
+                "Autopilot authority must be synchronized instead of inferred from passenger order");
+        assertTrue(mixin.contains("method = \"getControllingPassenger\"")
+                        && mixin.contains("cir.setReturnValue(null)"),
+                "Autopilot must revoke vanilla's controlling passenger before movement packets are accepted");
+        assertTrue(flight.contains("setAutopilot(broom, true)"),
+                "Courier flight must explicitly acquire broom control");
+
+        int handoff = flight.indexOf("handControlToRider");
+        int release = flight.indexOf("setAutopilot(broom, false)", handoff);
+        int riderMount = flight.indexOf("rider.startRiding(broom, true)", handoff);
+        assertTrue(release >= handoff && release < riderMount,
+                "Explicit handoff must release autopilot authority before the rider mounts");
     }
 }
