@@ -25,6 +25,14 @@ class CourierTransportPolicyTest {
     }
 
     @Test
+    void equippedEnderPocketKeepsRemoteDeliveryEvenWhenOwnerIsNearby() {
+        assertEquals(CourierData.TransportMode.ENDER_POCKET,
+                CourierTransportPolicy.select(true, false, true, true));
+        assertEquals(CourierData.TransportMode.BROOM_ENDER_POCKET,
+                CourierTransportPolicy.select(true, true, false, true));
+    }
+
+    @Test
     void routeIsUnavailableOnlyWhenItsSelectedModeIsMissingAnItem() {
         assertEquals(CourierData.TransportMode.NONE,
                 CourierTransportPolicy.select(false, false, false, true));

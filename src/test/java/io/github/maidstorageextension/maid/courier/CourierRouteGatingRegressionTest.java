@@ -18,6 +18,8 @@ class CourierRouteGatingRegressionTest {
 
         assertFalse(service.contains("EnderPocketCompat.hasBroom(courier) || mode.usesBroom()"));
         assertTrue(service.contains("if (mode.usesBroom() && !validStation"));
+        assertTrue(service.contains("CourierTransportPolicy.select(required,"),
+                "The live route selector must preserve optional Ender Pocket transport");
         assertFalse(tracker.contains(": !EnderPocketCompat.hasBroom(courier) && warehouse != null"));
     }
 

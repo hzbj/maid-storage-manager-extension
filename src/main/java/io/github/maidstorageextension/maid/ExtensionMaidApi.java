@@ -12,6 +12,7 @@ import io.github.maidstorageextension.data.CourierData;
 import io.github.maidstorageextension.data.MaintenanceStatusData;
 import io.github.maidstorageextension.data.WarehouseCourierData;
 import io.github.maidstorageextension.data.WarehouseStationData;
+import io.github.maidstorageextension.data.WarehouseNetworkData;
 import io.github.maidstorageextension.maid.task.CourierTask;
 import io.github.maidstorageextension.registry.ExtensionItems;
 import io.github.maidstorageextension.registry.ExtensionMemoryModules;
@@ -54,5 +55,6 @@ public final class ExtensionMaidApi implements ILittleMaid {
         CourierData.KEY = register.register(new CourierData());
         WarehouseCourierData.KEY = register.register(new WarehouseCourierData());
         WarehouseStationData.KEY = register.register(new WarehouseStationData());
+        WarehouseNetworkData.KEY = register.register(new WarehouseNetworkData());
     }
 }

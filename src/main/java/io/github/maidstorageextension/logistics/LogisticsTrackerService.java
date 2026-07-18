@@ -15,7 +15,6 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.decoration.ItemFrame;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.network.PacketDistributor;
 
@@ -50,22 +49,13 @@ public final class LogisticsTrackerService {
                 new LogisticsTrackerPacket(courierId, snapshot));
     }
 
-    /** Broadcasts one frame-safe snapshot; the frame itself is never replaced or re-synced. */
-    public static void updateMounted(ItemFrame frame, MinecraftServer server,
-                                     UUID courierId, UUID boundOwnerId) {
-        EntityMaid courier = findMaid(server, courierId);
-        LogisticsSnapshot.Snapshot snapshot;
-        if (courier == null) {
-            snapshot = LAST_SNAPSHOT.getOrDefault(courierId,
-                    LogisticsSnapshot.Snapshot.empty()).offline();
-        } else if (boundOwnerId == null || !boundOwnerId.equals(courier.getOwnerUUID())) {
-            snapshot = unauthorized(courier, CourierData.get(courier),
-                    server.overworld().getGameTime());
-        } else {
-            snapshot = build(server, courier);
-            LAST_SNAPSHOT.put(courierId, snapshot);
-        }
-        ExtensionNetwork.CHANNEL.send(PacketDistributor.TRACKING_ENTITY.with(() -> frame),
+    public static void updateAuthorized(ServerPlayer viewer, UUID courierId) {
+        EntityMaid courier = findMaid(viewer.getServer(), courierId);
+        LogisticsSnapshot.Snapshot snapshot = courier == null
+                ? LAST_SNAPSHOT.getOrDefault(courierId, LogisticsSnapshot.Snapshot.empty()).offline()
+                : build(viewer.getServer(), courier);
+        if (courier != null) LAST_SNAPSHOT.put(courierId, snapshot);
+        ExtensionNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> viewer),
                 new LogisticsTrackerPacket(courierId, snapshot));
     }
 
@@ -210,8 +200,14 @@ public final class LogisticsTrackerService {
             boolean valid = locationValid && (warehouse == null
                     || io.github.maidstorageextension.data.WarehouseCourierData.get(warehouse)
                     .isAuthorized(courier.getUUID()));
+            BlockPos warehousePosition = warehouse == null ? binding.warehousePos()
+                    : warehouse.hasRestriction() ? warehouse.getRestrictCenter()
+                    : warehouse.blockPosition();
+            ResourceLocation warehouseDimension = warehouse == null
+                    ? binding.warehouseDimension() : warehouse.level().dimension().location();
             stations.add(new LogisticsSnapshot.Station(binding.warehouse(), name,
-                    binding.warehouse().equals(data.warehouse()), valid));
+                    binding.warehouse().equals(data.warehouse()), valid,
+                    warehouseDimension, warehousePosition));
         }
         return List.copyOf(stations);
     }

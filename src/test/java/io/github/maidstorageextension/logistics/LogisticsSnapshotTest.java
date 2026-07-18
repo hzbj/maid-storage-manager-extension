@@ -2,6 +2,8 @@ package io.github.maidstorageextension.logistics;
 
 import io.github.maidstorageextension.data.CourierData;
 import net.minecraft.SharedConstants;
+import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.Bootstrap;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -23,11 +25,14 @@ class LogisticsSnapshotTest {
     @Test
     void destinationModeAndWarehouseStationsRoundTripThroughPacketTag() {
         UUID warehouse = UUID.randomUUID();
+        ResourceLocation dimension = new ResourceLocation("minecraft", "overworld");
+        BlockPos position = new BlockPos(128, 70, -48);
         LogisticsSnapshot.Snapshot source = new LogisticsSnapshot.Snapshot(
                 true, true, "Courier", "TRAVEL_TO_WAREHOUSE_REQUEST",
                 CourierData.TransportMode.BROOM, LogisticsSnapshot.TargetKind.WAREHOUSE,
                 "Warehouse", 84, true, true, 12_345L,
-                List.of(new LogisticsSnapshot.Station(warehouse, "Warehouse", true, true)), 6);
+                List.of(new LogisticsSnapshot.Station(warehouse, "Warehouse", true, true,
+                        dimension, position)), 6);
 
         LogisticsSnapshot.Snapshot decoded = LogisticsSnapshot.fromTag(
                 LogisticsSnapshot.toTag(source));
@@ -48,6 +53,8 @@ class LogisticsSnapshotTest {
         assertEquals("Warehouse", decoded.stations().get(0).name());
         assertTrue(decoded.stations().get(0).selected());
         assertTrue(decoded.stations().get(0).valid());
+        assertEquals(dimension, decoded.stations().get(0).dimension());
+        assertEquals(position, decoded.stations().get(0).position());
     }
 
     @Test

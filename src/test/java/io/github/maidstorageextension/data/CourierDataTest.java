@@ -38,6 +38,7 @@ class CourierDataTest {
         source.beginRoute(ownerDeparture, overworld, true);
         source.deliveryTarget(deliveryChest, overworld);
         source.ownerTarget(ownerTarget, overworld);
+        source.forceOwnerDelivery(true);
         source.phase(CourierData.Phase.OWNER_HANDOFF);
         source.handoffStartedGameTime(12_345L);
         BlockPos groundCheckpoint = new BlockPos(80, 70, -8);
@@ -70,6 +71,7 @@ class CourierDataTest {
         assertEquals(overworld, decoded.deliveryDimension());
         assertEquals(ownerTarget, decoded.ownerTargetPos());
         assertEquals(overworld, decoded.ownerTargetDimension());
+        assertTrue(decoded.forceOwnerDelivery());
         assertEquals(CourierData.Phase.OWNER_HANDOFF, decoded.phase());
         assertEquals(12_345L, decoded.handoffStartedGameTime());
         assertEquals(CourierData.Phase.OWNER_HANDOFF, decoded.groundApproachPhase());
@@ -180,5 +182,26 @@ class CourierDataTest {
         assertEquals(warehouse, decoded.warehouses().get(0).warehouse());
         assertNull(decoded.warehouses().get(0).mailboxPos());
         assertNull(decoded.warehouses().get(0).stationPos());
+    }
+
+    @Test
+    void passengerTransportJournalKeepsCallerAndUnknownDestinationAcrossRestart() {
+        CourierData.Data source = new CourierData.Data();
+        UUID rider = UUID.randomUUID();
+        ResourceLocation overworld = new ResourceLocation("minecraft", "overworld");
+        BlockPos pickup = new BlockPos(4, 70, 8);
+        BlockPos destination = new BlockPos(240_000, 70, -180_000);
+        source.beginPassengerTransport(rider, pickup, destination, overworld);
+        source.transportPickup(new BlockPos(6, 71, 9));
+
+        CourierData.Data decoded = key.readSaveData(key.writeSaveData(source));
+
+        assertEquals(CourierData.Phase.TRANSPORT_TO_PICKUP, decoded.phase());
+        assertEquals(CourierData.TransportMode.BROOM, decoded.transportMode());
+        assertEquals(rider, decoded.transportRider());
+        assertEquals(pickup, decoded.transportPickupAnchor());
+        assertEquals(new BlockPos(6, 71, 9), decoded.transportPickup());
+        assertEquals(destination, decoded.transportDestinationAnchor());
+        assertEquals(overworld, decoded.transportDimension());
     }
 }

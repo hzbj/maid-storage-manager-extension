@@ -16,6 +16,7 @@ import studio.fantasyit.maid_storage_manager.capability.InventoryListDataProvide
 import studio.fantasyit.maid_storage_manager.data.InventoryItem;
 import io.github.maidstorageextension.item.InventoryMaintenanceDevice;
 import io.github.maidstorageextension.data.MaintenanceStatusData;
+import io.github.maidstorageextension.data.WarehouseNetworkData;
 import studio.fantasyit.maid_storage_manager.items.WrittenInvListItem;
 import studio.fantasyit.maid_storage_manager.registry.ItemRegistry;
 import studio.fantasyit.maid_storage_manager.util.MemoryUtil;
@@ -164,6 +165,10 @@ public final class InventoryListRefreshService {
         if (!published[0]) {
             frame.setItem(oldItem, false);
             return RefreshResult.failed(Outcome.PUBLISH_FAILED);
+        }
+        WarehouseNetworkData.Data networkData = WarehouseNetworkData.get(maid);
+        if (networkData.publish(newUuid, level.getDayTime())) {
+            maid.setAndSyncData(WarehouseNetworkData.KEY, networkData);
         }
         return new RefreshResult(Outcome.SUCCESS, contents.size());
     }

@@ -1,9 +1,11 @@
 package io.github.maidstorageextension.logistics;
 
 import io.github.maidstorageextension.data.CourierData;
+import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
@@ -24,9 +26,15 @@ public final class LogisticsSnapshot {
         WAREHOUSE_AREA
     }
 
-    public record Station(UUID warehouse, String name, boolean selected, boolean valid) {
+    public record Station(UUID warehouse, String name, boolean selected, boolean valid,
+                          ResourceLocation dimension, BlockPos position) {
         public Station {
             name = name == null ? "" : name;
+            position = position == null ? null : position.immutable();
+        }
+
+        public boolean hasMapPosition() {
+            return dimension != null && position != null;
         }
     }
 
@@ -81,6 +89,10 @@ public final class LogisticsSnapshot {
             entry.putString("name", value.name());
             entry.putBoolean("selected", value.selected());
             entry.putBoolean("valid", value.valid());
+            if (value.hasMapPosition()) {
+                entry.putString("dimension", value.dimension().toString());
+                entry.putLong("position", value.position().asLong());
+            }
             stations.add(entry);
         }
         tag.put("stations", stations);
@@ -95,8 +107,12 @@ public final class LogisticsSnapshot {
         for (int i = 0; i < list.size(); i++) {
             CompoundTag entry = list.getCompound(i);
             if (!entry.hasUUID("warehouse")) continue;
+            ResourceLocation dimension = ResourceLocation.tryParse(entry.getString("dimension"));
+            BlockPos position = entry.contains("position", Tag.TAG_LONG)
+                    ? BlockPos.of(entry.getLong("position")) : null;
             stations.add(new Station(entry.getUUID("warehouse"), entry.getString("name"),
-                    entry.getBoolean("selected"), entry.getBoolean("valid")));
+                    entry.getBoolean("selected"), entry.getBoolean("valid"),
+                    dimension, position));
         }
         return new Snapshot(
                 tag.getBoolean("online"),

@@ -28,8 +28,13 @@ import java.util.UUID;
 /** Drives safe staged walking, high flight, and open-air landing for broom courier legs. */
 public final class CourierBroomFlightService {
     public static final String TAG_COURIER_BROOM = "MaidStorageExtensionCourierBroom";
+    public static final String TAG_TRANSPORT_RIDER = "MaidStorageExtensionTransportRider";
+    public static final String TAG_PLAYER_CONTROLLED = "MaidStorageExtensionPlayerControlled";
     private static final double CRUISE_CLEARANCE = 32.0;
     private static final double TERRAIN_CLEARANCE = 8.0;
+    private static final double PASSENGER_CRUISE_CLEARANCE = 56.0;
+    private static final double PASSENGER_TERRAIN_CLEARANCE = 24.0;
+    private static final int PASSENGER_LANDING_RADIUS = 12;
     private static final double STAGING_ARRIVAL = 1.5;
     private static final double LANDING_ARRIVAL = 0.8;
     private static final TicketType<UUID> FLIGHT_TICKET = TicketType.create(
@@ -53,6 +58,24 @@ public final class CourierBroomFlightService {
     public static TickResult tick(ServerLevel level, EntityMaid courier, CourierData.Data data,
                                   CourierData.Phase leg, Vec3 target,
                                   BlockPos requiredTakeoff, BlockPos requiredLanding) {
+        return tickInternal(level, courier, data, leg, target, requiredTakeoff, requiredLanding,
+                data.broomFlightDistance(), false, CRUISE_CLEARANCE, TERRAIN_CLEARANCE);
+    }
+
+    public static TickResult tickPassenger(ServerLevel level, EntityMaid courier,
+                                           CourierData.Data data, CourierData.Phase leg,
+                                           Vec3 target) {
+        return tickInternal(level, courier, data, leg, target, null, null,
+                PASSENGER_LANDING_RADIUS, true, PASSENGER_CRUISE_CLEARANCE,
+                PASSENGER_TERRAIN_CLEARANCE);
+    }
+
+    private static TickResult tickInternal(ServerLevel level, EntityMaid courier,
+                                           CourierData.Data data, CourierData.Phase leg,
+                                           Vec3 target, BlockPos requiredTakeoff,
+                                           BlockPos requiredLanding, int searchRadius,
+                                           boolean forceBroom, double cruiseClearance,
+                                           double terrainClearance) {
         if (!data.transportMode().usesBroom() || target == null) {
             cleanup(courier, data);
             return TickResult.CONTINUE;
@@ -66,7 +89,7 @@ public final class CourierBroomFlightService {
         if (data.flightLanded()) return TickResult.LANDED;
 
         EntityBroom broom = findExisting(level, courier, data);
-        if (broom == null && !CourierFlightPolicy.shouldUseBroom(
+        if (broom == null && !forceBroom && !CourierFlightPolicy.shouldUseBroom(
                 target.x - courier.getX(), target.z - courier.getZ(),
                 data.broomFlightDistance())) {
             // Do not create a second pathfinder here. Mark the flight portion complete so the
@@ -80,7 +103,7 @@ public final class CourierBroomFlightService {
         keepLoaded(level, targetPos, courier.getUUID());
         if (!level.hasChunkAt(targetPos)) return TickResult.CONTINUE;
 
-        int searchRadius = data.broomFlightDistance();
+        searchRadius = Math.max(1, searchRadius);
         if (broom == null) {
             BlockPos takeoff = data.flightTakeoffPos();
             if (requiredTakeoff != null
@@ -172,7 +195,7 @@ public final class CourierBroomFlightService {
         }
 
         if (broom == null) {
-            broom = create(level, courier, data, leg, landing);
+            broom = create(level, courier, data, leg, landing, cruiseClearance);
             if (broom == null) {
                 warnOnce(courier, data,
                         "message.maid_storage_manager_extension.courier.broom_spawn_failed");
@@ -181,7 +204,7 @@ public final class CourierBroomFlightService {
         }
         clearWarning(courier, data);
 
-        return fly(level, courier, broom, data, landing);
+        return fly(level, courier, broom, data, landing, terrainClearance);
     }
 
     public static boolean landedFor(CourierData.Data data, CourierData.Phase phase) {
@@ -273,7 +296,8 @@ public final class CourierBroomFlightService {
     }
 
     private static TickResult fly(ServerLevel level, EntityMaid courier, EntityBroom broom,
-                                  CourierData.Data data, BlockPos landing) {
+                                  CourierData.Data data, BlockPos landing,
+                                  double terrainClearance) {
         Vec3 destination = Vec3.atBottomCenterOf(landing).add(0.0, 0.2, 0.0);
         Vec3 position = broom.position();
         Vec3 horizontal = new Vec3(destination.x - position.x, 0.0, destination.z - position.z);
@@ -288,7 +312,7 @@ public final class CourierBroomFlightService {
                 ? Vec3.ZERO : horizontal.scale(1.0 / horizontalDistance);
         int terrainCruise = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
                 Mth.floor(position.x + direction.x), Mth.floor(position.z + direction.z))
-                + Mth.ceil(TERRAIN_CLEARANCE);
+                + Mth.ceil(terrainClearance);
         if (horizontalDistance > 6.0 && terrainCruise > data.flightCruiseY()) {
             data.flight(broom.getUUID(), data.flightLeg(),
                     Math.min(terrainCruise, level.getMaxBuildHeight() - 8));
@@ -351,7 +375,15 @@ public final class CourierBroomFlightService {
         Vec3 movement = next.subtract(current);
         AABB broomBox = broom.getBoundingBox().move(movement).inflate(0.05);
         AABB courierBox = courier.getBoundingBox().move(movement).inflate(0.05);
-        return level.noCollision(broom, broomBox) && level.noCollision(courier, courierBox);
+        if (!level.noCollision(broom, broomBox) || !level.noCollision(courier, courierBox)) {
+            return false;
+        }
+        for (Entity passenger : broom.getPassengers()) {
+            if (passenger == courier) continue;
+            if (!level.noCollision(passenger,
+                    passenger.getBoundingBox().move(movement).inflate(0.05))) return false;
+        }
+        return true;
     }
 
     private static boolean withinHorizontalRadius(BlockPos position, BlockPos target, int radius) {
@@ -470,7 +502,7 @@ public final class CourierBroomFlightService {
 
     private static EntityBroom create(ServerLevel level, EntityMaid courier,
                                       CourierData.Data data, CourierData.Phase leg,
-                                      BlockPos landing) {
+                                      BlockPos landing, double cruiseClearance) {
         EntityBroom broom = new EntityBroom(level);
         broom.setPos(courier.getX(), courier.getY() + 0.2, courier.getZ());
         broom.setOwnerUUID(courier.getOwnerUUID());
@@ -483,21 +515,120 @@ public final class CourierBroomFlightService {
             return null;
         }
         data.flight(broom.getUUID(), leg,
-                cruiseHeight(level, courier.getY(), landing.getY()));
+                cruiseHeight(level, courier.getY(), landing.getY(), cruiseClearance));
         sync(courier, data);
         return broom;
     }
 
-    private static int cruiseHeight(ServerLevel level, double startY, double targetY) {
-        int desired = Mth.ceil(Math.max(startY, targetY) + CRUISE_CLEARANCE);
+    private static int cruiseHeight(ServerLevel level, double startY, double targetY,
+                                    double clearance) {
+        int desired = Mth.ceil(Math.max(startY, targetY) + clearance);
         return Mth.clamp(desired, level.getMinBuildHeight() + 8, level.getMaxBuildHeight() - 8);
+    }
+
+    public static EntityBroom createWaitingTransportBroom(ServerLevel level,
+                                                           EntityMaid courier,
+                                                           CourierData.Data data,
+                                                           UUID rider) {
+        EntityBroom broom = new EntityBroom(level);
+        broom.setPos(courier.getX(), courier.getY() + 0.2, courier.getZ());
+        broom.setOwnerUUID(courier.getOwnerUUID());
+        broom.setNoGravity(true);
+        broom.setInvulnerable(true);
+        broom.noPhysics = true;
+        broom.getPersistentData().putUUID(TAG_COURIER_BROOM, courier.getUUID());
+        if (rider != null) broom.getPersistentData().putUUID(TAG_TRANSPORT_RIDER, rider);
+        if (!level.addFreshEntity(broom) || !courier.startRiding(broom, true)) {
+            broom.discard();
+            return null;
+        }
+        data.flight(broom.getUUID(), CourierData.Phase.TRANSPORT_WAITING_RIDER,
+                cruiseHeight(level, courier.getY(), courier.getY(), PASSENGER_CRUISE_CLEARANCE));
+        sync(courier, data);
+        return broom;
+    }
+
+    public static EntityBroom transportBroom(ServerLevel level, EntityMaid courier,
+                                              CourierData.Data data) {
+        if (courier.getVehicle() instanceof EntityBroom broom
+                && (isCourierBroom(broom) || isPlayerControlledTransportBroom(broom))) return broom;
+        Entity entity = data.courierBroom() == null ? null : level.getEntity(data.courierBroom());
+        return entity instanceof EntityBroom broom
+                && (isCourierBroom(broom) || isPlayerControlledTransportBroom(broom)) ? broom : null;
+    }
+
+    public static boolean isPlayerControlledTransportBroom(Entity entity) {
+        return entity instanceof EntityBroom
+                && entity.getPersistentData().getBoolean(TAG_PLAYER_CONTROLLED);
+    }
+
+    /** Changes the temporary vehicle to normal player control without changing any broom item. */
+    public static boolean handControlToRider(EntityBroom broom, EntityMaid courier,
+                                             ServerPlayer rider, CourierData.Data data) {
+        if (broom == null || courier == null || rider == null
+                || !broom.getPassengers().contains(rider)) return false;
+        broom.ejectPassengers();
+        broom.getPersistentData().remove(TAG_COURIER_BROOM);
+        broom.getPersistentData().putBoolean(TAG_PLAYER_CONTROLLED, true);
+        broom.getPersistentData().putUUID(TAG_TRANSPORT_RIDER, rider.getUUID());
+        broom.setOwnerUUID(rider.getUUID());
+        broom.setNoGravity(false);
+        broom.noPhysics = false;
+        if (!rider.startRiding(broom, true) || !courier.startRiding(broom, true)) {
+            broom.getPersistentData().remove(TAG_PLAYER_CONTROLLED);
+            broom.getPersistentData().putUUID(TAG_COURIER_BROOM, courier.getUUID());
+            broom.setNoGravity(true);
+            broom.noPhysics = true;
+            if (!courier.isPassenger()) courier.startRiding(broom, true);
+            return false;
+        }
+        data.flight(broom.getUUID(), CourierData.Phase.TRANSPORT_PLAYER_CONTROLLED,
+                data.flightCruiseY());
+        sync(courier, data);
+        return true;
+    }
+
+    /** Restores server autopilot after the rider dismounts, disconnects, or dies. */
+    public static void resumeTransportAutopilot(EntityBroom broom, EntityMaid courier,
+                                                CourierData.Data data) {
+        if (broom == null || courier == null) return;
+        broom.ejectPassengers();
+        broom.getPersistentData().remove(TAG_PLAYER_CONTROLLED);
+        broom.getPersistentData().putUUID(TAG_COURIER_BROOM, courier.getUUID());
+        broom.setOwnerUUID(courier.getOwnerUUID());
+        broom.setNoGravity(true);
+        broom.setInvulnerable(true);
+        broom.noPhysics = true;
+        courier.startRiding(broom, true);
+        data.flight(broom.getUUID(), CourierData.Phase.TRANSPORT_EMERGENCY_LANDING,
+                Math.max(data.flightCruiseY(), Mth.ceil(broom.getY() + 8.0)));
+        sync(courier, data);
+    }
+
+    public static void discardTransportBroom(EntityMaid courier, CourierData.Data data) {
+        EntityBroom broom = courier.level() instanceof ServerLevel level
+                ? transportBroom(level, courier, data) : null;
+        if (broom != null) {
+            broom.ejectPassengers();
+            broom.discard();
+        }
+        if (courier.isPassenger()) courier.stopRiding();
+        data.clearFlight();
+        sync(courier, data);
     }
 
     private static void land(EntityMaid courier, EntityBroom broom, CourierData.Data data,
                              BlockPos landing) {
+        List<Entity> passengers = new ArrayList<>(broom.getPassengers());
+        broom.ejectPassengers();
         courier.stopRiding();
         courier.setPos(landing.getX() + 0.5, landing.getY(), landing.getZ() + 0.5);
         courier.setDeltaMovement(Vec3.ZERO);
+        for (Entity passenger : passengers) {
+            if (passenger == courier) continue;
+            passenger.setPos(landing.getX() + 0.5, landing.getY(), landing.getZ() + 0.5);
+            passenger.setDeltaMovement(Vec3.ZERO);
+        }
         broom.discard();
         data.finishFlight();
         sync(courier, data);

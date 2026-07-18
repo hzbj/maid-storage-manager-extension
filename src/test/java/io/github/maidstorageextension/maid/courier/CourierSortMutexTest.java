@@ -30,7 +30,12 @@ class CourierSortMutexTest {
             CourierData.Phase.DEPOSIT_HANDOFF,
             CourierData.Phase.DEPOSIT_RUNNING,
             CourierData.Phase.DEPOSIT_RETURNING,
-            CourierData.Phase.DEPOSIT_WAITING_SPACE);
+            CourierData.Phase.DEPOSIT_WAITING_SPACE,
+            CourierData.Phase.TRANSPORT_TO_PICKUP,
+            CourierData.Phase.TRANSPORT_WAITING_RIDER,
+            CourierData.Phase.TRANSPORT_TO_DESTINATION,
+            CourierData.Phase.TRANSPORT_PLAYER_CONTROLLED,
+            CourierData.Phase.TRANSPORT_EMERGENCY_LANDING);
 
     @Test
     void activeCourierBlocksOnlyNewMiscBatches() {
@@ -75,5 +80,9 @@ class CourierSortMutexTest {
                 CourierData.Phase.REQUEST_RUNNING));
         assertFalse(CourierSortMutex.isActiveForWarehouse(warehouse, warehouse, true,
                 CourierData.Phase.IDLE));
+        assertFalse(CourierSortMutex.isActiveForWarehouse(warehouse, warehouse, true,
+                CourierData.Phase.TRANSPORT_TO_DESTINATION));
+        assertTrue(CourierSortMutex.isPassengerTransport(
+                CourierData.Phase.TRANSPORT_PLAYER_CONTROLLED));
     }
 }

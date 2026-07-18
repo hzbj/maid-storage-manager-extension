@@ -40,6 +40,14 @@ class CourierDeliveryPolicyTest {
     }
 
     @Test
+    void enderPocketDoesNotEraseAnExplicitFixedChestDelivery() {
+        assertFalse(CourierDeliveryPolicy.shouldCompleteRequestRemotely(true, false, true));
+        assertTrue(CourierDeliveryPolicy.shouldCompleteRequestRemotely(true, true, true));
+        assertTrue(CourierDeliveryPolicy.shouldCompleteRequestRemotely(true, false, false));
+        assertFalse(CourierDeliveryPolicy.shouldCompleteRequestRemotely(false, true, false));
+    }
+
+    @Test
     void onlyALoadedDestroyedDeliveryTargetIsInvalidated() {
         assertTrue(CourierDeliveryPolicy.shouldInvalidateTarget(true, false));
         assertFalse(CourierDeliveryPolicy.shouldInvalidateTarget(true, true));
