@@ -115,7 +115,7 @@
   "gui.maid_storage_manager_extension.compass.world_map": "世界地图",
   "gui.maid_storage_manager_extension.compass.center_player": "回到玩家",
   "gui.maid_storage_manager_extension.compass.map_unavailable": "当前世界地图不可用",
-  "gui.maid_storage_manager_extension.compass.terrain_unloaded": "这里的地形尚未在客户端加载",
+  "gui.maid_storage_manager_extension.compass.terrain_unloaded": "这里的地形尚未探索或缓存",
   "gui.maid_storage_manager_extension.compass.map_coordinates": "X %s  Z %s  %s%%",
   "gui.maid_storage_manager_extension.compass.legend.self": "自己",
   "gui.maid_storage_manager_extension.compass.legend.maid": "女仆",

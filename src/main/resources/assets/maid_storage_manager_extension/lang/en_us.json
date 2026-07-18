@@ -115,7 +115,7 @@
   "gui.maid_storage_manager_extension.compass.world_map": "World Map",
   "gui.maid_storage_manager_extension.compass.center_player": "Center Player",
   "gui.maid_storage_manager_extension.compass.map_unavailable": "The world map is currently unavailable",
-  "gui.maid_storage_manager_extension.compass.terrain_unloaded": "Terrain here is not loaded on the client",
+  "gui.maid_storage_manager_extension.compass.terrain_unloaded": "Terrain here has not been explored or cached",
   "gui.maid_storage_manager_extension.compass.map_coordinates": "X %s  Z %s  %s%%",
   "gui.maid_storage_manager_extension.compass.legend.self": "You",
   "gui.maid_storage_manager_extension.compass.legend.maid": "Maid",

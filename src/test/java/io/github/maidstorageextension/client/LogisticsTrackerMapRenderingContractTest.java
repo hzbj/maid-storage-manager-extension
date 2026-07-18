@@ -12,6 +12,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class LogisticsTrackerMapRenderingContractTest {
     private static final Path SCREEN = Path.of(
             "src/main/java/io/github/maidstorageextension/client/LogisticsTrackerScreen.java");
+    private static final Path TERRAIN = Path.of(
+            "src/main/java/io/github/maidstorageextension/client/TerrainMapTexture.java");
+    private static final Path CACHE = Path.of(
+            "src/main/java/io/github/maidstorageextension/client/ExploredTerrainClientCache.java");
 
     @Test
     void terrainUsesTheWholeTextureWhenScaledToTheMapViewport() throws Exception {
@@ -24,5 +28,21 @@ class LogisticsTrackerMapRenderingContractTest {
                         + "TerrainMapTexture.TEXTURE_SIZE,"));
         assertFalse(source.contains(
                 "graphics.blit(terrainView.texture(), x, y, 0.0F, 0.0F, w, h,"));
+    }
+
+    @Test
+    void terrainSeenWhileWalkingIsCachedBeyondTheCurrentViewDistance() throws Exception {
+        String terrain = Files.readString(TERRAIN, StandardCharsets.UTF_8);
+        String cache = Files.readString(CACHE, StandardCharsets.UTF_8);
+
+        assertTrue(terrain.contains("ExploredTerrainClientCache.sample("),
+                "Map rendering must fall back to explored terrain when a chunk is no longer loaded");
+        assertTrue(cache.contains("ChunkEvent.Load")
+                        && cache.contains("ClientTickEvent")
+                        && cache.contains("LoggingOut"),
+                "The client must observe walked chunks continuously and flush them on logout");
+        assertTrue(cache.contains("ExploredTerrainStore.load(")
+                        && cache.contains(".save("),
+                "Explored terrain must survive closing the map and restarting the client");
     }
 }

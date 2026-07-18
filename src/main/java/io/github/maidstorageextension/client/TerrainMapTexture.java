@@ -4,13 +4,7 @@ import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.texture.DynamicTexture;
-import net.minecraft.core.BlockPos;
-import net.minecraft.core.SectionPos;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.chunk.ChunkStatus;
-import net.minecraft.world.level.chunk.LevelChunk;
-import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.material.MapColor;
 
 /** Client-only terrain tile used by the communication terminal without loading remote chunks. */
@@ -62,6 +56,7 @@ final class TerrainMapTexture implements AutoCloseable {
         displayWidth = requestedDisplayWidth;
         displayHeight = requestedDisplayHeight;
         dimension = requestedDimension;
+        ExploredTerrainClientCache.activate(minecraft, level);
         rebuild(level);
         lastRefresh = gameTime;
         dirty = false;
@@ -92,7 +87,6 @@ final class TerrainMapTexture implements AutoCloseable {
         double sampleZ = blocksPerScreenPixel * displayHeight / TEXTURE_SIZE;
         int[] previousHeights = new int[TEXTURE_SIZE];
         java.util.Arrays.fill(previousHeights, Integer.MIN_VALUE);
-        BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
 
         for (int imageY = 0; imageY < TEXTURE_SIZE; imageY++) {
             int worldZ = (int) Math.floor(centerZ
@@ -100,18 +94,17 @@ final class TerrainMapTexture implements AutoCloseable {
             for (int imageX = 0; imageX < TEXTURE_SIZE; imageX++) {
                 int worldX = (int) Math.floor(centerX
                         + (imageX + 0.5D - TEXTURE_SIZE / 2.0D) * sampleX);
-                LevelChunk chunk = level.getChunkSource().getChunk(
-                        SectionPos.blockToSectionCoord(worldX),
-                        SectionPos.blockToSectionCoord(worldZ), ChunkStatus.FULL, false);
-                if (chunk == null || chunk.isEmpty()) {
+                ExploredTerrainStore.Sample sample =
+                        ExploredTerrainClientCache.sample(level, worldX, worldZ);
+                if (!sample.known()) {
                     pixels.setPixelRGBA(imageX, imageY,
                             ((imageX >> 3) + (imageY >> 3) & 1) == 0 ? UNKNOWN_A : UNKNOWN_B);
                     previousHeights[imageX] = Integer.MIN_VALUE;
                     continue;
                 }
 
-                int height = chunk.getHeight(Heightmap.Types.WORLD_SURFACE, worldX, worldZ);
-                MapColor mapColor = surfaceColor(level, chunk, cursor, worldX, worldZ, height);
+                int height = sample.height();
+                MapColor mapColor = MapColor.byId(sample.mapColorId());
                 if (mapColor == MapColor.NONE) {
                     pixels.setPixelRGBA(imageX, imageY, VOID);
                     previousHeights[imageX] = height;
@@ -125,20 +118,6 @@ final class TerrainMapTexture implements AutoCloseable {
             }
         }
         texture.upload();
-    }
-
-    private static MapColor surfaceColor(ClientLevel level, LevelChunk chunk,
-                                         BlockPos.MutableBlockPos cursor,
-                                         int worldX, int worldZ, int surfaceY) {
-        int minimum = level.getMinBuildHeight();
-        int y = Math.max(minimum, surfaceY);
-        for (int depth = 0; y >= minimum && depth < 32; depth++, y--) {
-            cursor.set(worldX, y, worldZ);
-            BlockState state = chunk.getBlockState(cursor);
-            MapColor color = state.getMapColor(level, cursor);
-            if (color != MapColor.NONE) return color;
-        }
-        return MapColor.NONE;
     }
 
     private static MapColor.Brightness brightness(int previousHeight, int height,

@@ -176,6 +176,12 @@ public final class MaidTransportService {
             cancelBeforeBoarding(driver, data);
             return;
         }
+        if (!CourierBroomFlightService.isAirborne(level, driver, data)
+                && MaidTransportBoardingPolicy.withinRange(
+                driver.distanceToSqr(target.getCenter()))) {
+            beginWaiting(level, driver, data, rider, driver.blockPosition());
+            return;
+        }
         CourierBroomFlightService.TickResult result = CourierBroomFlightService.tickPassenger(
                 level, driver, data, CourierData.Phase.TRANSPORT_TO_PICKUP, target.getCenter());
         if (result == CourierBroomFlightService.TickResult.LANDING_SEARCH_EXHAUSTED) {
@@ -185,7 +191,15 @@ public final class MaidTransportService {
             return;
         }
         if (result != CourierBroomFlightService.TickResult.LANDED) return;
-        data.transportPickup(data.flightLandingPos());
+        beginWaiting(level, driver, data, rider, data.flightLandingPos());
+    }
+
+    private static void beginWaiting(ServerLevel level, EntityMaid driver,
+                                     CourierData.Data data, ServerPlayer rider,
+                                     BlockPos pickup) {
+        CourierBroomFlightService.cleanup(driver, data);
+        CourierBroomFlightService.holdPosition(driver);
+        data.transportPickup(pickup);
         data.phase(CourierData.Phase.TRANSPORT_WAITING_RIDER);
         EntityBroom broom = CourierBroomFlightService.createWaitingTransportBroom(
                 level, driver, data, rider.getUUID());
