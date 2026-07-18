@@ -22,11 +22,19 @@ public final class ExtensionWorkControl {
     }
 
     public static boolean mayUsePeriodicIdleTime(EntityMaid maid) {
+        return !MemoryUtil.isWorking(maid) && mayContinuePeriodicIdleAction(maid);
+    }
+
+    /**
+     * Keeps an already-started periodic route eligible while its own behavior owns IS_WORKING.
+     * Other work gates still interrupt the route normally.
+     */
+    private static boolean mayContinuePeriodicIdleAction(EntityMaid maid) {
         if (!CourierSortMutex.mayStartMiscSort(
                 CourierService.hasActiveWarehouseTransaction(maid),
                 CourierService.hasActiveTransaction(maid))) return false;
         if (ExtensionMemoryUtil.getTaskBellCall(maid) != null) return false;
-        if (MemoryUtil.getViewedInventory(maid).isViewing() || MemoryUtil.isWorking(maid)) return false;
+        if (MemoryUtil.getViewedInventory(maid).isViewing()) return false;
         if (!MemoryUtil.getViewedInventory(maid).getMarkChanged().isEmpty()) return false;
         if (hasNonInterruptibleWork(maid)) return false;
         if (!Conditions.isNothingToPlace(maid)) return false;
@@ -61,7 +69,7 @@ public final class ExtensionWorkControl {
         }
         return phase == PeriodicScanMemory.Phase.REFRESH_PENDING
                 && !StorageScanService.hasManualChangedTarget(maid)
-                && mayUsePeriodicIdleTime(maid);
+                && mayContinuePeriodicIdleAction(maid);
     }
 
     public static void setBaseSchedule(EntityMaid maid, ScheduleBehavior.Schedule schedule) {
