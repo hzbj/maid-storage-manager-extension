@@ -3,6 +3,7 @@ package io.github.maidstorageextension.maid.courier;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import io.github.maidstorageextension.compat.EnderPocketCompat;
 import io.github.maidstorageextension.data.CourierData;
+import io.github.maidstorageextension.data.DriverData;
 import io.github.maidstorageextension.data.WarehouseCourierData;
 import io.github.maidstorageextension.maid.ExtensionMemoryUtil;
 import io.github.maidstorageextension.maid.task.CourierTask;
@@ -572,6 +573,11 @@ public final class CourierService {
         if (CourierSortMutex.isPassengerTransport(data.phase())) {
             CourierBroomFlightService.keepActiveCourierLoaded(level, courier);
             MaidTransportService.tick(level, courier);
+            return;
+        }
+        // 司机任务拥有独立的运输行程与扫帚（DriverData.flight）。快递员的扫帚清理逻辑
+        // 绝不能销毁司机管理的 transport 扫帚，否则女仆会在飞行中被踢下扫帚坠落摔死。
+        if (DriverData.get(courier).activeTrip()) {
             return;
         }
         enforceCourierNavigationOwnership(courier, data);
