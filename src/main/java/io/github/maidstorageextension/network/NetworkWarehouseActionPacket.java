@@ -1,6 +1,7 @@
 package io.github.maidstorageextension.network;
 
 import io.github.maidstorageextension.logistics.NetworkWarehouseService;
+import io.github.maidstorageextension.terminal.MailboxKey;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
@@ -13,6 +14,7 @@ import java.util.function.Supplier;
 
 /** Client intent for the communication terminal's warehouse page; every value is revalidated server-side. */
 public record NetworkWarehouseActionPacket(Action action, UUID terminal, UUID courier, UUID warehouse,
+                                           MailboxKey mailbox,
                                            DeliveryTarget deliveryTarget, boolean acceptStale,
                                            List<RequestedItem> requestedItems) {
     public static final int MAX_REQUEST_LINES = 10;
@@ -43,25 +45,31 @@ public record NetworkWarehouseActionPacket(Action action, UUID terminal, UUID co
         requestedItems = requestedItems == null ? List.of() : List.copyOf(requestedItems);
     }
 
-    public static NetworkWarehouseActionPacket refresh(UUID terminal, UUID courier) {
-        return new NetworkWarehouseActionPacket(Action.REFRESH, terminal, courier, null,
+    public static NetworkWarehouseActionPacket refresh(UUID terminal, UUID courier, MailboxKey mailbox) {
+        return new NetworkWarehouseActionPacket(Action.REFRESH, terminal, courier, null, mailbox,
                 DeliveryTarget.PLAYER, false, List.of());
     }
 
-    public static NetworkWarehouseActionPacket select(UUID terminal, UUID courier, UUID warehouse) {
-        return new NetworkWarehouseActionPacket(Action.SELECT_WAREHOUSE, terminal, courier, warehouse,
+    public static NetworkWarehouseActionPacket select(
+            UUID terminal, UUID courier, UUID warehouse, MailboxKey mailbox) {
+        return new NetworkWarehouseActionPacket(
+                Action.SELECT_WAREHOUSE, terminal, courier, warehouse, mailbox,
                 DeliveryTarget.PLAYER, false, List.of());
     }
 
     public static NetworkWarehouseActionPacket submit(
-            UUID terminal, UUID courier, UUID warehouse, DeliveryTarget target, boolean acceptStale,
+            UUID terminal, UUID courier, UUID warehouse, MailboxKey mailbox,
+            DeliveryTarget target, boolean acceptStale,
             List<RequestedItem> requestedItems) {
         return new NetworkWarehouseActionPacket(Action.SUBMIT_REQUEST, terminal, courier, warehouse,
+                mailbox,
                 target, acceptStale, requestedItems);
     }
 
-    public static NetworkWarehouseActionPacket confirmDeposit(UUID terminal, UUID courier, UUID warehouse) {
-        return new NetworkWarehouseActionPacket(Action.CONFIRM_DEPOSIT, terminal, courier, warehouse,
+    public static NetworkWarehouseActionPacket confirmDeposit(
+            UUID terminal, UUID courier, UUID warehouse, MailboxKey mailbox) {
+        return new NetworkWarehouseActionPacket(
+                Action.CONFIRM_DEPOSIT, terminal, courier, warehouse, mailbox,
                 DeliveryTarget.PLAYER, false, List.of());
     }
 
@@ -71,6 +79,11 @@ public record NetworkWarehouseActionPacket(Action action, UUID terminal, UUID co
         buffer.writeUUID(packet.courier);
         buffer.writeBoolean(packet.warehouse != null);
         if (packet.warehouse != null) buffer.writeUUID(packet.warehouse);
+        buffer.writeBoolean(packet.mailbox != null && packet.mailbox.valid());
+        if (packet.mailbox != null && packet.mailbox.valid()) {
+            buffer.writeResourceLocation(packet.mailbox.dimension());
+            buffer.writeBlockPos(packet.mailbox.position());
+        }
         buffer.writeEnum(packet.deliveryTarget);
         buffer.writeBoolean(packet.acceptStale);
         buffer.writeVarInt(packet.requestedItems.size());
@@ -85,6 +98,8 @@ public record NetworkWarehouseActionPacket(Action action, UUID terminal, UUID co
         UUID terminal = buffer.readUUID();
         UUID courier = buffer.readUUID();
         UUID warehouse = buffer.readBoolean() ? buffer.readUUID() : null;
+        MailboxKey mailbox = buffer.readBoolean()
+                ? new MailboxKey(buffer.readResourceLocation(), buffer.readBlockPos()) : null;
         DeliveryTarget delivery = buffer.readEnum(DeliveryTarget.class);
         boolean acceptStale = buffer.readBoolean();
         int size = buffer.readVarInt();
@@ -101,7 +116,7 @@ public record NetworkWarehouseActionPacket(Action action, UUID terminal, UUID co
             items.add(new RequestedItem(stack, amount));
         }
         return new NetworkWarehouseActionPacket(
-                action, terminal, courier, warehouse, delivery, acceptStale, items);
+                action, terminal, courier, warehouse, mailbox, delivery, acceptStale, items);
     }
 
     public static void handle(NetworkWarehouseActionPacket packet,

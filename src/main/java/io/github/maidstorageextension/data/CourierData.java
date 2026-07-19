@@ -72,6 +72,13 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
         }
     }
 
+    public enum DispatchSource {
+        DIRECT,
+        ENDER_POCKET,
+        TERMINAL,
+        LEGACY
+    }
+
     public static final class ManifestEntry {
         private final ItemStack prototype;
         private final int amount;
@@ -130,6 +137,7 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
         private TransportMode transportMode = TransportMode.NONE;
         private int broomFlightDistance = DEFAULT_BROOM_FLIGHT_DISTANCE;
         private boolean stayHomeAfterDelivery;
+        private DispatchSource dispatchSource = DispatchSource.LEGACY;
         private boolean followOverrideActive;
         private boolean homeModeBeforeCourier;
         private UUID courierBroom;
@@ -196,6 +204,7 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
         public TransportMode transportMode() { return transportMode; }
         public int broomFlightDistance() { return broomFlightDistance; }
         public boolean stayHomeAfterDelivery() { return stayHomeAfterDelivery; }
+        public DispatchSource dispatchSource() { return dispatchSource; }
         public boolean followOverrideActive() { return followOverrideActive; }
         public boolean homeModeBeforeCourier() { return homeModeBeforeCourier; }
         public UUID courierBroom() { return courierBroom; }
@@ -350,6 +359,9 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
         public void stayHomeAfterDelivery(boolean value) {
             stayHomeAfterDelivery = value;
         }
+        public void dispatchSource(DispatchSource value) {
+            dispatchSource = value == null ? DispatchSource.LEGACY : value;
+        }
         public void deliveryTarget(BlockPos pos, ResourceLocation dimension) {
             deliveryPos = pos == null ? null : pos.immutable();
             deliveryDimension = pos == null ? null : dimension;
@@ -497,6 +509,7 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
             transportDestination = null;
             transportDimension = null;
             transportMode = TransportMode.NONE;
+            dispatchSource = DispatchSource.LEGACY;
             clearFlight();
             clearGroundApproach();
             phase = warehouse == null ? Phase.UNBOUND : Phase.IDLE;
@@ -585,6 +598,7 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
         tag.putString("transportMode", data.transportMode.name());
         tag.putInt("broomFlightDistance", data.broomFlightDistance);
         tag.putBoolean("stayHomeAfterDelivery", data.stayHomeAfterDelivery);
+        tag.putString("dispatchSource", data.dispatchSource.name());
         tag.putBoolean("followOverrideActive", data.followOverrideActive);
         tag.putBoolean("homeModeBeforeCourier", data.homeModeBeforeCourier);
         if (data.courierBroom != null) tag.putUUID("courierBroom", data.courierBroom);
@@ -689,6 +703,11 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
                 ? clampBroomFlightDistance(tag.getInt("broomFlightDistance"))
                 : DEFAULT_BROOM_FLIGHT_DISTANCE;
         data.stayHomeAfterDelivery = tag.getBoolean("stayHomeAfterDelivery");
+        try {
+            data.dispatchSource = DispatchSource.valueOf(tag.getString("dispatchSource"));
+        } catch (IllegalArgumentException ignored) {
+            data.dispatchSource = DispatchSource.LEGACY;
+        }
         data.followOverrideActive = tag.getBoolean("followOverrideActive");
         data.homeModeBeforeCourier = tag.getBoolean("homeModeBeforeCourier");
         if (tag.hasUUID("courierBroom")) data.courierBroom = tag.getUUID("courierBroom");

@@ -1,6 +1,7 @@
 package io.github.maidstorageextension.network;
 
 import io.github.maidstorageextension.terminal.MaidTransportService;
+import io.github.maidstorageextension.terminal.MailboxKey;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
@@ -10,8 +11,9 @@ import java.util.UUID;
 import java.util.function.Supplier;
 
 public record MaidTransportActionPacket(Action action, UUID terminal,
-                                        BlockPos pickup, BlockPos destination) {
-    public enum Action { REFRESH, START, END }
+                                        BlockPos pickup, BlockPos destination,
+                                        MailboxKey mailbox) {
+    public enum Action { REFRESH, START, END, RETURN_TO_WAREHOUSE }
 
     public MaidTransportActionPacket {
         action = action == null ? Action.REFRESH : action;
@@ -21,16 +23,22 @@ public record MaidTransportActionPacket(Action action, UUID terminal,
     }
 
     public static MaidTransportActionPacket refresh(UUID terminal) {
-        return new MaidTransportActionPacket(Action.REFRESH, terminal, null, null);
+        return new MaidTransportActionPacket(Action.REFRESH, terminal, null, null, null);
     }
 
     public static MaidTransportActionPacket start(UUID terminal, BlockPos pickup,
                                                    BlockPos destination) {
-        return new MaidTransportActionPacket(Action.START, terminal, pickup, destination);
+        return new MaidTransportActionPacket(Action.START, terminal, pickup, destination, null);
     }
 
     public static MaidTransportActionPacket end(UUID terminal) {
-        return new MaidTransportActionPacket(Action.END, terminal, null, null);
+        return new MaidTransportActionPacket(Action.END, terminal, null, null, null);
+    }
+
+    public static MaidTransportActionPacket returnToWarehouse(
+            UUID terminal, MailboxKey mailbox) {
+        return new MaidTransportActionPacket(
+                Action.RETURN_TO_WAREHOUSE, terminal, null, null, mailbox);
     }
 
     public static void encode(MaidTransportActionPacket packet, FriendlyByteBuf buffer) {
@@ -40,6 +48,11 @@ public record MaidTransportActionPacket(Action action, UUID terminal,
         if (packet.pickup != null) buffer.writeBlockPos(packet.pickup);
         buffer.writeBoolean(packet.destination != null);
         if (packet.destination != null) buffer.writeBlockPos(packet.destination);
+        buffer.writeBoolean(packet.mailbox != null && packet.mailbox.valid());
+        if (packet.mailbox != null && packet.mailbox.valid()) {
+            buffer.writeResourceLocation(packet.mailbox.dimension());
+            buffer.writeBlockPos(packet.mailbox.position());
+        }
     }
 
     public static MaidTransportActionPacket decode(FriendlyByteBuf buffer) {
@@ -47,7 +60,9 @@ public record MaidTransportActionPacket(Action action, UUID terminal,
         UUID terminal = buffer.readUUID();
         BlockPos pickup = buffer.readBoolean() ? buffer.readBlockPos() : null;
         BlockPos destination = buffer.readBoolean() ? buffer.readBlockPos() : null;
-        return new MaidTransportActionPacket(action, terminal, pickup, destination);
+        MailboxKey mailbox = buffer.readBoolean()
+                ? new MailboxKey(buffer.readResourceLocation(), buffer.readBlockPos()) : null;
+        return new MaidTransportActionPacket(action, terminal, pickup, destination, mailbox);
     }
 
     public static void handle(MaidTransportActionPacket packet,

@@ -3,8 +3,15 @@ package io.github.maidstorageextension.block;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import io.github.maidstorageextension.data.CourierData;
 import io.github.maidstorageextension.data.WarehouseStationData;
+import io.github.maidstorageextension.data.WarehouseNetworkData;
+import io.github.maidstorageextension.item.InventoryMaintenanceDevice;
 import io.github.maidstorageextension.maid.courier.CourierWarehouseStationValidator;
 import io.github.maidstorageextension.registry.ExtensionBlockEntities;
+import io.github.maidstorageextension.terminal.MailboxKey;
+import io.github.maidstorageextension.terminal.MailboxWarehouseData;
+import io.github.maidstorageextension.terminal.TerminalAccountService;
+import io.github.maidstorageextension.maid.ExtensionMemoryUtil;
+import io.github.maidstorageextension.maid.courier.CourierService;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
@@ -22,6 +29,7 @@ import org.jetbrains.annotations.Nullable;
 import studio.fantasyit.maid_storage_manager.maid.task.StorageManageTask;
 
 import java.util.Comparator;
+import java.util.List;
 import java.util.UUID;
 
 /** Mailbox authority for a separately marked 3x3 courier flight pad. */
@@ -83,7 +91,9 @@ public final class CourierWarehouseStationBlockEntity extends BlockEntity {
 
         var candidates = serverLevel.getEntitiesOfClass(EntityMaid.class,
                         new net.minecraft.world.phys.AABB(worldPosition).inflate(BIND_RANGE),
-                        maid -> isWarehouseCandidate(maid, worldPosition));
+                        maid -> isWarehouseCandidate(maid, worldPosition)
+                                && MailboxWarehouseData.get(serverLevel.getServer())
+                                .mailboxOf(maid.getUUID()) == null);
         EntityMaid warehouse = candidates.stream()
                 .filter(maid -> maid.isOwnedBy(player))
                 .min(Comparator.comparingDouble(maid -> maid.distanceToSqr(worldPosition.getCenter())))
@@ -105,6 +115,14 @@ public final class CourierWarehouseStationBlockEntity extends BlockEntity {
         placerUuid = player.getUUID();
         placerName = player.getName().getString();
         if (warehouse.isOwnedBy(player)) {
+            MailboxWarehouseData.BindResult result = bindWarehouse(serverLevel, warehouse);
+            if (result != MailboxWarehouseData.BindResult.ADDED
+                    && result != MailboxWarehouseData.BindResult.ALREADY_BOUND) {
+                clearPendingWarehouse();
+                if (notify) player.sendSystemMessage(Component.translatable(
+                        bindFailureKey(result)));
+                return;
+            }
             approval = Approval.APPROVED;
             if (notify) player.sendSystemMessage(Component.translatable(
                     "message.maid_storage_manager_extension.courier_mailbox.auto_approved",
@@ -136,6 +154,9 @@ public final class CourierWarehouseStationBlockEntity extends BlockEntity {
                 || !validConfiguration(serverLevel)) {
             return false;
         }
+        MailboxWarehouseData.BindResult result = bindWarehouse(serverLevel, warehouse);
+        if (result != MailboxWarehouseData.BindResult.ADDED
+                && result != MailboxWarehouseData.BindResult.ALREADY_BOUND) return false;
         approval = Approval.APPROVED;
         warehouseName = warehouse.getName().getString();
         warehousePos = warehouse.hasRestriction()
@@ -156,19 +177,22 @@ public final class CourierWarehouseStationBlockEntity extends BlockEntity {
 
     public void describe(Player player) {
         if (!(level instanceof ServerLevel serverLevel)) return;
+        ensureLegacyBinding(serverLevel);
+        MailboxWarehouseData.WarehouseSnapshot warehouse =
+                MailboxWarehouseData.get(serverLevel.getServer()).warehouse(mailboxKey(serverLevel));
         if (landingPos == null || landingDimension == null) {
             player.sendSystemMessage(Component.translatable(
                     "message.maid_storage_manager_extension.courier_mailbox.unconfigured"));
         } else if (!validConfiguration(serverLevel)) {
             player.sendSystemMessage(Component.translatable(
                     "message.maid_storage_manager_extension.courier_mailbox.invalid_configuration"));
-        } else if (warehouseUuid == null) {
+        } else if (warehouse == null || warehouse.managers().isEmpty()) {
             player.sendSystemMessage(Component.translatable(
                     "message.maid_storage_manager_extension.courier_station.unbound"));
         } else {
             player.sendSystemMessage(Component.translatable(
                     "message.maid_storage_manager_extension.courier_mailbox.status",
-                    warehouseName, Component.translatable(
+                    warehouseName + " ×" + warehouse.managers().size(), Component.translatable(
                             "message.maid_storage_manager_extension.courier_mailbox.approval."
                                     + approval.name().toLowerCase(java.util.Locale.ROOT)),
                     landingPos.getX(), landingPos.getY(), landingPos.getZ()));
@@ -177,14 +201,17 @@ public final class CourierWarehouseStationBlockEntity extends BlockEntity {
 
     @Nullable
     public CourierData.WarehouseBinding binding(ServerLevel serverLevel) {
-        if (approval != Approval.APPROVED || warehouseUuid == null
-                || !validConfiguration(serverLevel)) return null;
-        EntityMaid warehouse = serverLevel.getEntity(warehouseUuid) instanceof EntityMaid maid
-                ? maid : null;
+        if (!validConfiguration(serverLevel)) return null;
+        ensureLegacyBinding(serverLevel);
+        MailboxWarehouseData.WarehouseSnapshot snapshot =
+                MailboxWarehouseData.get(serverLevel.getServer()).warehouse(mailboxKey(serverLevel));
+        if (snapshot == null || snapshot.managers().isEmpty()) return null;
+        EntityMaid warehouse = selectWarehouse(serverLevel, snapshot.managers());
+        UUID selected = warehouse == null ? snapshot.managers().get(0) : warehouse.getUUID();
         BlockPos currentWarehousePos = warehouse == null ? warehousePos
                 : warehouse.hasRestriction() ? warehouse.getRestrictCenter() : warehouse.blockPosition();
         String currentName = warehouse == null ? warehouseName : warehouse.getName().getString();
-        return new CourierData.WarehouseBinding(warehouseUuid, currentWarehousePos,
+        return new CourierData.WarehouseBinding(selected, currentWarehousePos,
                 serverLevel.dimension().location(), worldPosition,
                 serverLevel.dimension().location(), landingPos,
                 landingDimension, currentName);
@@ -198,7 +225,18 @@ public final class CourierWarehouseStationBlockEntity extends BlockEntity {
     }
 
     public boolean isBoundTo(UUID warehouse) {
-        return approval == Approval.APPROVED && warehouse != null && warehouse.equals(warehouseUuid);
+        if (!(level instanceof ServerLevel serverLevel) || warehouse == null) return false;
+        ensureLegacyBinding(serverLevel);
+        MailboxWarehouseData.WarehouseSnapshot snapshot =
+                MailboxWarehouseData.get(serverLevel.getServer()).warehouse(mailboxKey(serverLevel));
+        return snapshot != null && snapshot.managers().contains(warehouse);
+    }
+
+    public List<UUID> warehouseIds(ServerLevel serverLevel) {
+        ensureLegacyBinding(serverLevel);
+        MailboxWarehouseData.WarehouseSnapshot snapshot =
+                MailboxWarehouseData.get(serverLevel.getServer()).warehouse(mailboxKey(serverLevel));
+        return snapshot == null ? List.of() : snapshot.managers();
     }
 
     public Approval approval() {
@@ -217,6 +255,17 @@ public final class CourierWarehouseStationBlockEntity extends BlockEntity {
 
     public void detach() {
         removePendingRequest();
+        if (level instanceof ServerLevel serverLevel) {
+            MailboxWarehouseData data = MailboxWarehouseData.get(serverLevel.getServer());
+            MailboxKey key = mailboxKey(serverLevel);
+            MailboxWarehouseData.WarehouseSnapshot snapshot = data.warehouse(key);
+            if (snapshot != null) {
+                for (UUID manager : snapshot.managers()) {
+                    data.unbind(key, manager);
+                }
+                TerminalAccountService.refreshMailboxViewers(serverLevel.getServer(), key);
+            }
+        }
     }
 
     private void clearWarehouse(Approval next) {
@@ -225,6 +274,86 @@ public final class CourierWarehouseStationBlockEntity extends BlockEntity {
         warehousePos = null;
         approval = next;
         setChanged();
+    }
+
+    private void clearPendingWarehouse() {
+        warehouseUuid = null;
+        warehouseName = "";
+        warehousePos = null;
+        approval = Approval.UNBOUND;
+        setChanged();
+    }
+
+    private MailboxWarehouseData.BindResult bindWarehouse(ServerLevel serverLevel,
+                                                          EntityMaid warehouse) {
+        ItemStack device = InventoryMaintenanceDevice.findOn(warehouse).orElse(ItemStack.EMPTY);
+        if (device.isEmpty() || !InventoryMaintenanceDevice.isBound(device)) {
+            return MailboxWarehouseData.BindResult.INVALID;
+        }
+        MailboxWarehouseData.FrameBinding frame = new MailboxWarehouseData.FrameBinding(
+                InventoryMaintenanceDevice.getFrameDimension(device),
+                InventoryMaintenanceDevice.getFramePos(device),
+                InventoryMaintenanceDevice.getFrameUuid(device));
+        MailboxWarehouseData data = MailboxWarehouseData.get(serverLevel.getServer());
+        MailboxKey key = mailboxKey(serverLevel);
+        MailboxWarehouseData.WarehouseSnapshot previous = data.warehouse(key);
+        boolean firstManager = previous == null || !previous.hasManagers();
+        MailboxWarehouseData.BindResult result =
+                data.bind(key, warehouse.getUUID(), frame);
+        if (firstManager && (result == MailboxWarehouseData.BindResult.ADDED
+                || result == MailboxWarehouseData.BindResult.ALREADY_BOUND)) {
+            WarehouseNetworkData.Data legacy = WarehouseNetworkData.get(warehouse);
+            if (legacy.inventoryList() != null) {
+                // Migration is safe only after this maid's physical frame binding was verified.
+                data.publish(warehouse.getUUID(), frame, legacy.inventoryList(),
+                        legacy.publishedGameTime());
+            }
+        }
+        return result;
+    }
+
+    private void ensureLegacyBinding(ServerLevel serverLevel) {
+        if (approval != Approval.APPROVED || warehouseUuid == null
+                || isAlreadyAssigned(serverLevel, warehouseUuid)) return;
+        EntityMaid warehouse = TerminalAccountService.findMaid(serverLevel.getServer(), warehouseUuid);
+        if (warehouse != null && warehouse.level() == serverLevel) {
+            bindWarehouse(serverLevel, warehouse);
+        }
+    }
+
+    private boolean isAlreadyAssigned(ServerLevel serverLevel, UUID warehouse) {
+        MailboxKey assigned = MailboxWarehouseData.get(serverLevel.getServer()).mailboxOf(warehouse);
+        return mailboxKey(serverLevel).equals(assigned);
+    }
+
+    private MailboxKey mailboxKey(ServerLevel serverLevel) {
+        return new MailboxKey(serverLevel.dimension().location(), worldPosition);
+    }
+
+    @Nullable
+    private EntityMaid selectWarehouse(ServerLevel serverLevel, List<UUID> managers) {
+        return managers.stream()
+                .map(id -> TerminalAccountService.findMaid(serverLevel.getServer(), id))
+                .filter(java.util.Objects::nonNull)
+                .filter(EntityMaid::isAlive)
+                .filter(maid -> maid.level() == serverLevel)
+                .filter(maid -> maid.getTask().getUid().equals(StorageManageTask.TASK_ID))
+                .filter(maid -> !CourierService.hasActiveWarehouseTransaction(maid))
+                .filter(maid -> !ExtensionMemoryUtil.getMiscSort(maid).hasInFlight())
+                .min(Comparator.comparingDouble(maid ->
+                        maid.distanceToSqr(worldPosition.getCenter())))
+                .orElse(null);
+    }
+
+    private static String bindFailureKey(MailboxWarehouseData.BindResult result) {
+        return switch (result) {
+            case BOUND_ELSEWHERE ->
+                    "message.maid_storage_manager_extension.courier_mailbox.manager_bound_elsewhere";
+            case FRAME_MISMATCH ->
+                    "message.maid_storage_manager_extension.courier_mailbox.frame_mismatch";
+            default ->
+                    "message.maid_storage_manager_extension.courier_mailbox.device_required";
+        };
     }
 
     private void removePendingRequest() {

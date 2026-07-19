@@ -8,11 +8,15 @@ import io.github.maidstorageextension.data.WarehouseNetworkData;
 import io.github.maidstorageextension.maid.courier.CourierRequestTarget;
 import io.github.maidstorageextension.maid.courier.CourierService;
 import io.github.maidstorageextension.maid.task.CourierTask;
+import io.github.maidstorageextension.maid.MaidRoleService;
+import io.github.maidstorageextension.maid.ExtensionMemoryUtil;
 import io.github.maidstorageextension.network.ExtensionNetwork;
 import io.github.maidstorageextension.network.NetworkWarehouseActionPacket;
 import io.github.maidstorageextension.network.NetworkWarehouseSnapshotPacket;
 import io.github.maidstorageextension.scan.InventoryListRefreshService;
 import io.github.maidstorageextension.terminal.TerminalAccountService;
+import io.github.maidstorageextension.terminal.MailboxKey;
+import io.github.maidstorageextension.terminal.MailboxWarehouseData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -46,37 +50,46 @@ public final class NetworkWarehouseService {
 
     public static void handle(ServerPlayer sender, NetworkWarehouseActionPacket packet) {
         if (packet == null || packet.courier() == null || packet.terminal() == null
-                || !TerminalAccountService.authorizes(sender, packet.terminal(), packet.courier())) return;
+                || !TerminalAccountService.authorizesMailbox(
+                sender, packet.terminal(), packet.courier(), packet.mailbox())) return;
         switch (packet.action()) {
-            case REFRESH -> update(sender, packet.courier());
-            case SELECT_WAREHOUSE -> selectWarehouse(sender, packet.courier(), packet.warehouse());
+            case REFRESH -> update(sender, packet.courier(), packet.mailbox());
+            case SELECT_WAREHOUSE -> selectWarehouse(
+                    sender, packet.courier(), packet.warehouse(), packet.mailbox());
             case SUBMIT_REQUEST -> submitRequest(sender, packet);
-            case CONFIRM_DEPOSIT -> confirmDeposit(sender, packet.courier(), packet.warehouse());
+            case CONFIRM_DEPOSIT -> confirmDeposit(
+                    sender, packet.courier(), packet.warehouse(), packet.mailbox());
         }
     }
 
     public static void update(ServerPlayer viewer, UUID courierId) {
-        NetworkWarehouseSnapshot.Snapshot snapshot = build(viewer, courierId, false);
+        update(viewer, courierId, null);
+    }
+
+    private static void update(ServerPlayer viewer, UUID courierId, MailboxKey mailbox) {
+        NetworkWarehouseSnapshot.Snapshot snapshot = build(viewer, courierId, mailbox, false);
         ExtensionNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> viewer),
                 new NetworkWarehouseSnapshotPacket(courierId, snapshot));
     }
 
-    public static void updateAuthorized(ServerPlayer viewer, UUID courierId) {
-        NetworkWarehouseSnapshot.Snapshot snapshot = build(viewer, courierId, true);
+    public static void updateAuthorized(ServerPlayer viewer, UUID courierId, MailboxKey mailbox) {
+        NetworkWarehouseSnapshot.Snapshot snapshot = build(viewer, courierId, mailbox, true);
         ExtensionNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> viewer),
                 new NetworkWarehouseSnapshotPacket(courierId, snapshot));
     }
 
     private static NetworkWarehouseSnapshot.Snapshot build(ServerPlayer viewer, UUID courierId,
+                                                            MailboxKey selectedMailbox,
                                                             boolean accountAuthorized) {
         EntityMaid courier = findMaid(viewer.getServer(), courierId);
         if (courier == null) {
             return unavailable(viewer, NetworkWarehouseSnapshot.Blocker.COURIER_OFFLINE);
         }
-        if (!accountAuthorized && !courier.isOwnedBy(viewer)
-                || !courier.getTask().getUid().equals(CourierTask.TASK_ID)) {
+        if (!accountAuthorized && (!courier.isOwnedBy(viewer)
+                || !courier.getTask().getUid().equals(CourierTask.TASK_ID))) {
             return new NetworkWarehouseSnapshot.Snapshot(
-                    true, false, null, "", NetworkWarehouseSnapshot.InventoryState.UNAVAILABLE,
+                    true, false, selectedMailbox, null, 0L, null, "",
+                    NetworkWarehouseSnapshot.InventoryState.UNAVAILABLE,
                     -1L, 0L, List.of(), false, false, false, false, false,
                     NetworkWarehouseSnapshot.Blocker.UNAUTHORIZED,
                     point(viewer), point(courier), null, null, null);
@@ -85,9 +98,16 @@ public final class NetworkWarehouseService {
         CourierData.Data courierData = CourierData.get(courier);
         UUID warehouseId = courierData.warehouse();
         CourierData.WarehouseBinding binding = courierData.binding(warehouseId);
-        if (warehouseId == null || binding == null) {
+        MailboxKey mailbox = selectedMailbox != null ? selectedMailbox
+                : binding == null ? null
+                : new MailboxKey(binding.mailboxDimension(), binding.mailboxPos());
+        MailboxWarehouseData.WarehouseSnapshot warehouseSnapshot =
+                MailboxWarehouseData.get(viewer.getServer()).warehouse(mailbox);
+        if (mailbox == null || warehouseSnapshot == null || !warehouseSnapshot.hasManagers()) {
             return new NetworkWarehouseSnapshot.Snapshot(
-                    true, true, null, "", NetworkWarehouseSnapshot.InventoryState.UNAVAILABLE,
+                    true, true, mailbox, null,
+                    warehouseSnapshot == null ? 0L : warehouseSnapshot.generation(),
+                    null, "", NetworkWarehouseSnapshot.InventoryState.UNAVAILABLE,
                     -1L, 0L, List.of(), EnderPocketCompat.isEquipped(courier),
                     nearby(viewer, courier), hasFixedDelivery(courierData),
                     hasEditableHeldRequestList(courier),
@@ -96,66 +116,67 @@ public final class NetworkWarehouseService {
                     point(viewer), point(courier), null, null, deliveryPoint(courierData));
         }
 
-        EntityMaid warehouse = findMaid(viewer.getServer(), warehouseId);
-        if (warehouse == null) {
-            return new NetworkWarehouseSnapshot.Snapshot(
-                    true, true, warehouseId, binding.warehouseName(),
-                    NetworkWarehouseSnapshot.InventoryState.UNAVAILABLE,
-                    -1L, 0L, List.of(), EnderPocketCompat.isEquipped(courier),
-                    nearby(viewer, courier), hasFixedDelivery(courierData),
-                    hasEditableHeldRequestList(courier),
-                    CourierService.hasActiveTransaction(courier),
-                    NetworkWarehouseSnapshot.Blocker.WAREHOUSE_OFFLINE,
-                    point(viewer), point(courier), point(binding.warehouseDimension(),
-                    binding.warehousePos()), point(binding.mailboxDimension(), binding.mailboxPos()),
-                    deliveryPoint(courierData));
-        }
+        EntityMaid warehouse = selectManager(viewer.getServer(), warehouseSnapshot, mailbox.position());
+        warehouseId = warehouse == null ? warehouseSnapshot.managers().get(0) : warehouse.getUUID();
+        String warehouseName = warehouse == null
+                ? binding == null ? warehouseId.toString().substring(0, 8) : binding.warehouseName()
+                : warehouse.getName().getString();
 
-        boolean authorized = WarehouseCourierData.get(warehouse).isAuthorized(courier.getUUID());
-        if (!authorized || !warehouse.getTask().getUid().equals(StorageManageTask.TASK_ID)) {
+        boolean authorized = accountAuthorized || warehouse != null
+                && WarehouseCourierData.get(warehouse).isAuthorized(courier.getUUID());
+        if (!authorized || warehouse != null
+                && !warehouse.getTask().getUid().equals(StorageManageTask.TASK_ID)) {
             return new NetworkWarehouseSnapshot.Snapshot(
-                    true, false, warehouseId, warehouse.getName().getString(),
+                    true, false, mailbox, warehouseSnapshot.inventoryList(),
+                    warehouseSnapshot.generation(), warehouseId, warehouseName,
                     NetworkWarehouseSnapshot.InventoryState.UNAVAILABLE,
                     -1L, 0L, List.of(), EnderPocketCompat.isEquipped(courier),
                     nearby(viewer, courier), hasFixedDelivery(courierData),
                     hasEditableHeldRequestList(courier), false,
                     NetworkWarehouseSnapshot.Blocker.UNAUTHORIZED,
                     point(viewer), point(courier), point(warehouse),
-                    point(binding.mailboxDimension(), binding.mailboxPos()),
+                    point(mailbox.dimension(), mailbox.position()),
                     deliveryPoint(courierData));
         }
 
-        InventorySource source = inventorySource(warehouse);
+        InventorySource source = inventorySource(viewer.getServer(), warehouseSnapshot,
+                viewer.serverLevel().getDayTime());
         boolean active = CourierService.hasActiveTransaction(courier)
-                || CourierService.hasActiveWarehouseTransaction(warehouse);
+                || warehouseSnapshot.managers().stream()
+                .map(id -> findMaid(viewer.getServer(), id))
+                .filter(java.util.Objects::nonNull)
+                .anyMatch(CourierService::hasActiveWarehouseTransaction);
         NetworkWarehouseSnapshot.Blocker blocker = active
                 ? NetworkWarehouseSnapshot.Blocker.ACTIVE_TRANSACTION
                 : source.state == NetworkWarehouseSnapshot.InventoryState.UNAVAILABLE
                 ? NetworkWarehouseSnapshot.Blocker.INVENTORY_LIST_UNAVAILABLE
                 : NetworkWarehouseSnapshot.Blocker.NONE;
         return new NetworkWarehouseSnapshot.Snapshot(
-                true, true, warehouseId, warehouse.getName().getString(), source.state,
+                true, true, mailbox, warehouseSnapshot.inventoryList(),
+                warehouseSnapshot.generation(), warehouseId, warehouseName, source.state,
                 source.publishedGameTime, source.age, source.inventory,
                 EnderPocketCompat.isEquipped(courier), nearby(viewer, courier),
                 hasFixedDelivery(courierData), hasEditableHeldRequestList(courier),
                 active, blocker,
                 point(viewer), point(courier), point(warehouse),
-                point(binding.mailboxDimension(), binding.mailboxPos()),
+                point(mailbox.dimension(), mailbox.position()),
                 deliveryPoint(courierData));
     }
 
     private static NetworkWarehouseSnapshot.Snapshot unavailable(
             ServerPlayer viewer, NetworkWarehouseSnapshot.Blocker blocker) {
         return new NetworkWarehouseSnapshot.Snapshot(
-                false, true, null, "", NetworkWarehouseSnapshot.InventoryState.UNAVAILABLE,
+                false, true, null, null, 0L, null, "",
+                NetworkWarehouseSnapshot.InventoryState.UNAVAILABLE,
                 -1L, 0L, List.of(), false, false, false, false, false, blocker,
                 point(viewer), null, null, null, null);
     }
 
-    private static void selectWarehouse(ServerPlayer sender, UUID courierId, UUID warehouseId) {
+    private static void selectWarehouse(
+            ServerPlayer sender, UUID courierId, UUID warehouseId, MailboxKey mailbox) {
         EntityMaid courier = findAuthorizedCourier(sender, courierId);
         if (courier == null || warehouseId == null) {
-            update(sender, courierId);
+            update(sender, courierId, mailbox);
             return;
         }
         CourierData.Data data = CourierData.get(courier);
@@ -163,58 +184,63 @@ public final class NetworkWarehouseService {
             CourierService.selectWarehouseAuthorized(sender, courier, warehouseId);
         }
         LogisticsTrackerService.update(sender, courierId);
-        update(sender, courierId);
+        update(sender, courierId, mailbox);
     }
 
     private static void submitRequest(ServerPlayer sender,
                                       NetworkWarehouseActionPacket packet) {
         EntityMaid courier = findAuthorizedCourier(sender, packet.courier());
-        if (courier == null || packet.warehouse() == null) {
+        MailboxWarehouseData.WarehouseSnapshot mailboxWarehouse =
+                MailboxWarehouseData.get(sender.getServer()).warehouse(packet.mailbox());
+        if (courier == null || mailboxWarehouse == null) {
             fail(sender, "message.maid_storage_manager_extension.network_warehouse.invalid_courier");
-            update(sender, packet.courier());
+            update(sender, packet.courier(), packet.mailbox());
+            return;
+        }
+        if (!TerminalAccountService.prepareCourierForMailbox(
+                sender, courier, packet.mailbox())) {
+            fail(sender, "message.maid_storage_manager_extension.network_warehouse.invalid_warehouse");
+            update(sender, packet.courier(), packet.mailbox());
             return;
         }
         CourierData.Data courierData = CourierData.get(courier);
-        if (!packet.warehouse().equals(courierData.warehouse())) {
-            if (CourierService.hasActiveTransaction(courier)
-                    || courierData.binding(packet.warehouse()) == null) {
-                fail(sender, "message.maid_storage_manager_extension.network_warehouse.invalid_warehouse");
-                update(sender, packet.courier());
-                return;
-            }
-            CourierService.selectWarehouseAuthorized(sender, courier, packet.warehouse());
-            courierData = CourierData.get(courier);
+        UUID selectedManager = courierData.warehouse();
+        if (selectedManager == null || !mailboxWarehouse.managers().contains(selectedManager)) {
+            fail(sender, "message.maid_storage_manager_extension.network_warehouse.invalid_warehouse");
+            update(sender, packet.courier(), packet.mailbox());
+            return;
         }
 
-        EntityMaid warehouse = findMaid(sender.getServer(), packet.warehouse());
+        EntityMaid warehouse = findMaid(sender.getServer(), selectedManager);
         if (warehouse == null || !warehouse.getTask().getUid().equals(StorageManageTask.TASK_ID)
                 || !WarehouseCourierData.get(warehouse).isAuthorized(courier.getUUID())) {
             fail(sender, "message.maid_storage_manager_extension.network_warehouse.invalid_warehouse");
-            updateBoth(sender, packet.courier());
+            updateBoth(sender, packet.courier(), packet.mailbox());
             return;
         }
         if (CourierService.hasActiveTransaction(courier)
                 || CourierService.hasActiveWarehouseTransaction(warehouse)) {
             fail(sender, "message.maid_storage_manager_extension.network_warehouse.busy");
-            updateBoth(sender, packet.courier());
+            updateBoth(sender, packet.courier(), packet.mailbox());
             return;
         }
 
-        InventorySource source = inventorySource(warehouse);
+        InventorySource source = inventorySource(
+                sender.getServer(), mailboxWarehouse, sender.serverLevel().getDayTime());
         if (source.state == NetworkWarehouseSnapshot.InventoryState.UNAVAILABLE) {
             fail(sender, "message.maid_storage_manager_extension.network_warehouse.no_inventory_list");
-            updateBoth(sender, packet.courier());
+            updateBoth(sender, packet.courier(), packet.mailbox());
             return;
         }
         if (source.state == NetworkWarehouseSnapshot.InventoryState.STALE && !packet.acceptStale()) {
             fail(sender, "message.maid_storage_manager_extension.network_warehouse.stale_confirm");
-            updateBoth(sender, packet.courier());
+            updateBoth(sender, packet.courier(), packet.mailbox());
             return;
         }
         if (packet.deliveryTarget() == NetworkWarehouseActionPacket.DeliveryTarget.FIXED_CHEST
                 && !hasFixedDelivery(courierData)) {
             fail(sender, "message.maid_storage_manager_extension.network_warehouse.no_delivery_chest");
-            updateBoth(sender, packet.courier());
+            updateBoth(sender, packet.courier(), packet.mailbox());
             return;
         }
 
@@ -222,17 +248,19 @@ public final class NetworkWarehouseService {
                 packet.requestedItems(), source.inventory);
         if (normalized.isEmpty()) {
             fail(sender, "message.maid_storage_manager_extension.network_warehouse.invalid_items");
-            updateBoth(sender, packet.courier());
+            updateBoth(sender, packet.courier(), packet.mailbox());
             return;
         }
 
         InteractionHand requestHand = editableHeldRequestHand(courier);
         if (requestHand == null) {
             fail(sender, "message.maid_storage_manager_extension.network_warehouse.no_held_request_list");
-            updateBoth(sender, packet.courier());
+            updateBoth(sender, packet.courier(), packet.mailbox());
             return;
         }
         ItemStack request = courier.getItemInHand(requestHand);
+        courierData.dispatchSource(CourierData.DispatchSource.TERMINAL);
+        courier.setAndSyncData(CourierData.KEY, courierData);
         NetworkWarehouseRequestFactory.update(
                 request, sender.getUUID(), courier.getUUID(),
                 warehouse.getUUID(), sender.serverLevel().getGameTime(),
@@ -246,23 +274,27 @@ public final class NetworkWarehouseService {
         courier.swing(requestHand, true);
         sender.sendSystemMessage(Component.translatable(
                 "message.maid_storage_manager_extension.network_warehouse.request_list_updated"));
-        updateBoth(sender, packet.courier());
+        updateBoth(sender, packet.courier(), packet.mailbox());
     }
 
-    private static void confirmDeposit(ServerPlayer sender, UUID courierId, UUID warehouseId) {
+    private static void confirmDeposit(
+            ServerPlayer sender, UUID courierId, UUID warehouseId, MailboxKey mailbox) {
         EntityMaid courier = findAuthorizedCourier(sender, courierId);
         if (courier == null || warehouseId == null) {
             fail(sender, "message.maid_storage_manager_extension.network_warehouse.invalid_courier");
-            update(sender, courierId);
+            update(sender, courierId, mailbox);
+            return;
+        }
+        if (!TerminalAccountService.prepareCourierForMailbox(sender, courier, mailbox)) {
+            fail(sender, "message.maid_storage_manager_extension.network_warehouse.invalid_warehouse");
+            update(sender, courierId, mailbox);
             return;
         }
         CourierData.Data data = CourierData.get(courier);
-        if (!warehouseId.equals(data.warehouse()) && data.binding(warehouseId) != null
-                && !CourierService.hasActiveTransaction(courier)) {
-            CourierService.selectWarehouseAuthorized(sender, courier, warehouseId);
-        }
+        data.dispatchSource(CourierData.DispatchSource.TERMINAL);
+        courier.setAndSyncData(CourierData.KEY, data);
         CourierService.confirmDepositAuthorized(sender, courier);
-        updateBoth(sender, courierId);
+        updateBoth(sender, courierId, mailbox);
     }
 
     private static List<NetworkWarehouseActionPacket.RequestedItem> normalize(
@@ -306,40 +338,43 @@ public final class NetworkWarehouseService {
         return List.copyOf(result);
     }
 
-    private static InventorySource inventorySource(EntityMaid warehouse) {
-        if (!(warehouse.level() instanceof ServerLevel level)) return InventorySource.unavailable();
-        WarehouseNetworkData.Data reference = WarehouseNetworkData.get(warehouse);
-        UUID listUuid = reference.inventoryList();
-        long published = reference.publishedGameTime();
-
-        InventoryListRefreshService.FrameLookup frameLookup =
-                InventoryListRefreshService.resolveFrame(level, warehouse);
-        if (frameLookup.success()) {
-            ItemStack displayed = frameLookup.frame().getItem();
-            if (displayed.is(ItemRegistry.WRITTEN_INVENTORY_LIST.get()) && displayed.hasTag()
-                    && displayed.getTag().hasUUID(WrittenInvListItem.TAG_UUID)) {
-                listUuid = displayed.getTag().getUUID(WrittenInvListItem.TAG_UUID);
-                published = displayed.getTag().contains(WrittenInvListItem.TAG_TIME)
-                        ? Math.max(0L, displayed.getTag().getLong(WrittenInvListItem.TAG_TIME)) : -1L;
-                if (reference.publish(listUuid, published)) {
-                    warehouse.setAndSyncData(WarehouseNetworkData.KEY, reference);
-                }
-            }
-        }
+    private static InventorySource inventorySource(
+            MinecraftServer server, MailboxWarehouseData.WarehouseSnapshot warehouse,
+            long currentGameTime) {
+        if (warehouse == null || !warehouse.hasManagers()) return InventorySource.unavailable();
+        UUID listUuid = warehouse.inventoryList();
+        long published = warehouse.publishedGameTime();
         if (listUuid == null) return InventorySource.unavailable();
 
-        var data = level.getServer().overworld()
+        var data = server.overworld()
                 .getCapability(InventoryListDataProvider.INVENTORY_LIST_DATA_CAPABILITY)
                 .orElse(null);
         if (data == null || !data.dataMap.containsKey(listUuid)) return InventorySource.unavailable();
         List<NetworkWarehouseSnapshot.InventoryEntry> inventory = aggregate(
                 data.dataMap.get(listUuid));
-        long current = level.getDayTime();
-        long age = InventoryFreshnessPolicy.age(published, current);
+        long age = InventoryFreshnessPolicy.age(published, currentGameTime);
         NetworkWarehouseSnapshot.InventoryState state = InventoryFreshnessPolicy.isStale(
-                published, current) ? NetworkWarehouseSnapshot.InventoryState.STALE
+                published, currentGameTime) ? NetworkWarehouseSnapshot.InventoryState.STALE
                 : NetworkWarehouseSnapshot.InventoryState.FRESH;
         return new InventorySource(state, published, age, inventory);
+    }
+
+    private static EntityMaid selectManager(
+            MinecraftServer server, MailboxWarehouseData.WarehouseSnapshot warehouse,
+            BlockPos mailboxPos) {
+        if (warehouse == null) return null;
+        return warehouse.managers().stream()
+                .map(id -> findMaid(server, id))
+                .filter(java.util.Objects::nonNull)
+                .filter(EntityMaid::isAlive)
+                .filter(maid -> maid.getTask().getUid().equals(StorageManageTask.TASK_ID))
+                .filter(maid -> !CourierService.hasActiveWarehouseTransaction(maid))
+                .filter(maid -> !ExtensionMemoryUtil.getMiscSort(maid).hasInFlight())
+                .filter(maid -> maid.level().dimension().location().equals(
+                        warehouse.key().dimension()))
+                .min(Comparator.comparingDouble(maid ->
+                        maid.distanceToSqr(mailboxPos.getCenter())))
+                .orElse(null);
     }
 
     static List<NetworkWarehouseSnapshot.InventoryEntry> aggregate(
@@ -379,17 +414,13 @@ public final class NetworkWarehouseService {
 
     private static EntityMaid findAuthorizedCourier(ServerPlayer viewer, UUID courierId) {
         EntityMaid courier = findMaid(viewer.getServer(), courierId);
-        return courier != null && courier.getTask().getUid().equals(CourierTask.TASK_ID)
+        if (courier == null || !(courier.level() instanceof ServerLevel level)) return null;
+        return MaidRoleService.ensureCourier(level, courier) == MaidRoleService.Result.READY
                 ? courier : null;
     }
 
     private static EntityMaid findMaid(MinecraftServer server, UUID id) {
-        if (server == null || id == null) return null;
-        for (ServerLevel level : server.getAllLevels()) {
-            Entity entity = level.getEntity(id);
-            if (entity instanceof EntityMaid maid && maid.isAlive()) return maid;
-        }
-        return null;
+        return TerminalAccountService.findMaid(server, id);
     }
 
     private static boolean nearby(ServerPlayer player, EntityMaid courier) {
@@ -431,9 +462,10 @@ public final class NetworkWarehouseService {
                 ? null : new NetworkWarehouseSnapshot.MapPoint(dimension, position);
     }
 
-    private static void updateBoth(ServerPlayer sender, UUID courierId) {
+    private static void updateBoth(
+            ServerPlayer sender, UUID courierId, MailboxKey mailbox) {
         LogisticsTrackerService.update(sender, courierId);
-        update(sender, courierId);
+        update(sender, courierId, mailbox);
     }
 
     private static void fail(ServerPlayer sender, String key) {

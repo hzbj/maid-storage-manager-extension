@@ -16,6 +16,9 @@ public final class MaidTransportSnapshot {
         NO_BROOM,
         BUSY,
         READY,
+        FOLLOWING_OWNER,
+        RETURNING_TO_WAREHOUSE,
+        WAREHOUSE_STANDBY,
         TO_PICKUP,
         WAITING_RIDER,
         TO_DESTINATION,
@@ -44,7 +47,7 @@ public final class MaidTransportSnapshot {
         public boolean active() {
             return switch (state) {
                 case TO_PICKUP, WAITING_RIDER, TO_DESTINATION,
-                        PLAYER_CONTROLLED, EMERGENCY_LANDING -> true;
+                        RETURNING_TO_WAREHOUSE, PLAYER_CONTROLLED, EMERGENCY_LANDING -> true;
                 default -> false;
             };
         }

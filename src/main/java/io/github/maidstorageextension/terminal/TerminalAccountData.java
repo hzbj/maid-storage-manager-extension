@@ -42,6 +42,7 @@ public final class TerminalAccountData extends SavedData {
         private final Map<UUID, byte[]> deviceGrants = new LinkedHashMap<>();
         private UUID selectedCourier;
         private UUID selectedDriver;
+        private MailboxKey selectedMailbox;
 
         private Account(UUID id, String username, byte[] passwordSalt, byte[] passwordHash) {
             this.id = id;
@@ -55,6 +56,7 @@ public final class TerminalAccountData extends SavedData {
         public Set<UUID> maids() { return Set.copyOf(maids); }
         public UUID selectedCourier() { return selectedCourier; }
         public UUID selectedDriver() { return selectedDriver; }
+        public MailboxKey selectedMailbox() { return selectedMailbox; }
         public List<Mailbox> mailboxes() { return List.copyOf(mailboxes); }
         public boolean passwordResetRequired() { return passwordResetRequired; }
     }
@@ -155,6 +157,21 @@ public final class TerminalAccountData extends SavedData {
         return byId(accountNames.get(normalizeUsername(username)));
     }
 
+    public Set<UUID> registeredMaidIds() {
+        return Set.copyOf(maidAccounts.keySet());
+    }
+
+    public Set<MailboxKey> registeredMailboxKeys() {
+        LinkedHashSet<MailboxKey> keys = new LinkedHashSet<>();
+        for (Account account : accounts.values()) {
+            for (Mailbox mailbox : account.mailboxes) {
+                MailboxKey key = new MailboxKey(mailbox.dimension(), mailbox.position());
+                if (key.valid()) keys.add(key);
+            }
+        }
+        return Set.copyOf(keys);
+    }
+
     public byte[] grant(Account account, UUID terminalId) {
         if (account == null || terminalId == null) return new byte[0];
         byte[] token = TerminalPassword.token();
@@ -243,12 +260,18 @@ public final class TerminalAccountData extends SavedData {
         for (int i = 0; i < account.mailboxes.size(); i++) {
             if (account.mailboxes.get(i).sameLocation(mailbox.dimension(), mailbox.position())) {
                 account.mailboxes.set(i, mailbox);
+                if (account.selectedMailbox == null) {
+                    account.selectedMailbox = new MailboxKey(mailbox.dimension(), mailbox.position());
+                }
                 setDirty();
                 return true;
             }
         }
         if (account.mailboxes.size() >= MAX_MAILBOXES) return false;
         account.mailboxes.add(mailbox);
+        if (account.selectedMailbox == null) {
+            account.selectedMailbox = new MailboxKey(mailbox.dimension(), mailbox.position());
+        }
         setDirty();
         return true;
     }
@@ -256,8 +279,28 @@ public final class TerminalAccountData extends SavedData {
     public boolean unregisterMailbox(Account account, ResourceLocation dimension, BlockPos position) {
         if (account == null) return false;
         boolean changed = account.mailboxes.removeIf(value -> value.sameLocation(dimension, position));
-        if (changed) setDirty();
+        if (changed) {
+            MailboxKey removed = new MailboxKey(dimension, position);
+            if (removed.equals(account.selectedMailbox)) {
+                account.selectedMailbox = account.mailboxes.stream()
+                        .findFirst()
+                        .map(mailbox -> new MailboxKey(mailbox.dimension(), mailbox.position()))
+                        .orElse(null);
+            }
+            setDirty();
+        }
         return changed;
+    }
+
+    public boolean selectMailbox(Account account, MailboxKey key) {
+        if (account == null || key == null || !key.valid()
+                || account.mailboxes.stream().noneMatch(
+                mailbox -> mailbox.sameLocation(key.dimension(), key.position()))) return false;
+        if (!key.equals(account.selectedMailbox)) {
+            account.selectedMailbox = key;
+            setDirty();
+        }
+        return true;
     }
 
     public boolean forceUnregister(UUID maid) {
@@ -315,6 +358,9 @@ public final class TerminalAccountData extends SavedData {
             tag.put("mailboxes", mailboxes);
             if (account.selectedCourier != null) tag.putUUID("selectedCourier", account.selectedCourier);
             if (account.selectedDriver != null) tag.putUUID("selectedDriver", account.selectedDriver);
+            if (account.selectedMailbox != null) {
+                tag.put("selectedMailbox", account.selectedMailbox.toTag());
+            }
             list.add(tag);
         }
         root.put("accounts", list);
@@ -362,6 +408,15 @@ public final class TerminalAccountData extends SavedData {
                     ? tag.getUUID("selectedCourier") : null) ? tag.getUUID("selectedCourier") : first(account.maids);
             account.selectedDriver = account.maids.contains(tag.hasUUID("selectedDriver")
                     ? tag.getUUID("selectedDriver") : null) ? tag.getUUID("selectedDriver") : first(account.maids);
+            MailboxKey selectedMailbox = tag.contains("selectedMailbox", Tag.TAG_COMPOUND)
+                    ? MailboxKey.fromTag(tag.getCompound("selectedMailbox")) : null;
+            account.selectedMailbox = selectedMailbox != null
+                    && account.mailboxes.stream().anyMatch(mailbox -> mailbox.sameLocation(
+                    selectedMailbox.dimension(), selectedMailbox.position()))
+                    ? selectedMailbox
+                    : account.mailboxes.stream().findFirst()
+                    .map(mailbox -> new MailboxKey(mailbox.dimension(), mailbox.position()))
+                    .orElse(null);
             data.accounts.put(account.id, account);
             data.accountNames.put(normalizeUsername(account.username), account.id);
         }

@@ -17,6 +17,8 @@ import studio.fantasyit.maid_storage_manager.data.InventoryItem;
 import io.github.maidstorageextension.item.InventoryMaintenanceDevice;
 import io.github.maidstorageextension.data.MaintenanceStatusData;
 import io.github.maidstorageextension.data.WarehouseNetworkData;
+import io.github.maidstorageextension.terminal.MailboxWarehouseData;
+import io.github.maidstorageextension.terminal.TerminalAccountService;
 import studio.fantasyit.maid_storage_manager.items.WrittenInvListItem;
 import studio.fantasyit.maid_storage_manager.registry.ItemRegistry;
 import studio.fantasyit.maid_storage_manager.util.MemoryUtil;
@@ -127,6 +129,7 @@ public final class InventoryListRefreshService {
         if (!lookup.success() || !lookup.frame().getUUID().equals(frame.getUUID())) {
             return RefreshResult.failed(lookup.outcome());
         }
+        StorageScanService.pruneOutsideCurrentScope(level, maid);
         ItemStack oldItem = frame.getItem().copy();
         UUID oldUuid = oldItem.hasTag() && oldItem.getTag().hasUUID(WrittenInvListItem.TAG_UUID)
                 ? oldItem.getTag().getUUID(WrittenInvListItem.TAG_UUID)
@@ -169,6 +172,14 @@ public final class InventoryListRefreshService {
         WarehouseNetworkData.Data networkData = WarehouseNetworkData.get(maid);
         if (networkData.publish(newUuid, level.getDayTime())) {
             maid.setAndSyncData(WarehouseNetworkData.KEY, networkData);
+        }
+        MailboxWarehouseData.FrameBinding frameBinding =
+                new MailboxWarehouseData.FrameBinding(level.dimension().location(),
+                        frame.blockPosition(), frame.getUUID());
+        MailboxWarehouseData mailboxData = MailboxWarehouseData.get(level.getServer());
+        if (mailboxData.publish(maid.getUUID(), frameBinding, newUuid, level.getDayTime())) {
+            TerminalAccountService.refreshMailboxViewers(
+                    level.getServer(), mailboxData.mailboxOf(maid.getUUID()));
         }
         return new RefreshResult(Outcome.SUCCESS, contents.size());
     }

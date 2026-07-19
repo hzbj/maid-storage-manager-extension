@@ -571,7 +571,7 @@ public final class CourierService {
         CourierData.Data data = CourierData.get(courier);
         if (CourierSortMutex.isPassengerTransport(data.phase())) {
             CourierBroomFlightService.keepActiveCourierLoaded(level, courier);
-            MaidTransportService.tick(level, courier, data);
+            MaidTransportService.tick(level, courier);
             return;
         }
         enforceCourierNavigationOwnership(courier, data);
@@ -860,8 +860,14 @@ public final class CourierService {
     }
 
     private static void captureOrigin(ServerLevel level, EntityMaid courier, CourierData.Data data) {
-        boolean besideOwner = isNearOwnerForTransport(level, courier, data.broomFlightDistance());
-        data.beginRoute(courier.blockPosition(), dimension(level), besideOwner);
+        ServerPlayer owner = ownerPlayer(level, courier);
+        if (data.dispatchSource() != CourierData.DispatchSource.TERMINAL
+                && owner != null && EnderPocketCompat.isRemoteSessionActive(
+                owner, courier)) {
+            data.dispatchSource(CourierData.DispatchSource.ENDER_POCKET);
+        }
+        boolean ownerAnchor = data.dispatchSource() == CourierData.DispatchSource.DIRECT;
+        data.beginRoute(courier.blockPosition(), dimension(level), ownerAnchor);
     }
 
     private static CourierData.TransportMode selectStartMode(ServerLevel level, EntityMaid courier,
@@ -1232,7 +1238,10 @@ public final class CourierService {
 
     private static void beginReturn(EntityMaid courier, CourierData.Data data) {
         resetHandoff(data);
-        if (data.transportMode().usesEnderPocket()) {
+        if (data.dispatchSource() != CourierData.DispatchSource.DIRECT
+                && (data.dispatchSource() == CourierData.DispatchSource.TERMINAL
+                || data.dispatchSource() == CourierData.DispatchSource.ENDER_POCKET
+                || data.transportMode().usesEnderPocket())) {
             completeRemoteTransaction(courier, data);
             return;
         }

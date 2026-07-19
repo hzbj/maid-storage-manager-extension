@@ -7,6 +7,8 @@ import io.github.maidstorageextension.debug.ReachabilityDebugManager;
 import io.github.maidstorageextension.item.InventoryMaintenanceDevice;
 import io.github.maidstorageextension.maid.courier.CourierBroomFlightService;
 import io.github.maidstorageextension.maid.courier.CourierRequestTarget;
+import io.github.maidstorageextension.data.CourierData;
+import io.github.maidstorageextension.maid.task.CourierTask;
 import io.github.maidstorageextension.registry.ExtensionItems;
 import net.minecraft.network.chat.Component;
 import net.minecraft.nbt.CompoundTag;
@@ -45,6 +47,11 @@ public final class InteractionEvents {
         if (ReachabilityDebugManager.consumeClick(player, maid)) {
             event.setCanceled(true);
             return;
+        }
+        if (maid.isOwnedBy(player) && maid.getTask().getUid().equals(CourierTask.TASK_ID)) {
+            CourierData.Data courier = CourierData.get(maid);
+            courier.dispatchSource(CourierData.DispatchSource.DIRECT);
+            maid.setAndSyncData(CourierData.KEY, courier);
         }
         ItemStack held = player.getMainHandItem();
         if (!held.is(ItemRegistry.CHANGE_FLAG.get())
