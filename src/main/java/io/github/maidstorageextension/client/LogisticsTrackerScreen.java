@@ -12,6 +12,7 @@ import io.github.maidstorageextension.network.TerminalAccountActionPacket;
 import io.github.maidstorageextension.network.TerminalMailboxActionPacket;
 import io.github.maidstorageextension.terminal.TerminalAccountSnapshot;
 import io.github.maidstorageextension.terminal.MaidTransportSnapshot;
+import io.github.maidstorageextension.terminal.MailboxKey;
 import net.minecraft.core.BlockPos;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -99,6 +100,7 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
     private Button chooseDestinationButton;
     private Button startTransportButton;
     private Button endTransportButton;
+    private Button returnWarehouseButton;
     private int inventoryScroll;
     private int refreshTicker;
     private boolean staleConfirmed;
@@ -290,7 +292,14 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
                         ExtensionNetwork.CHANNEL.sendToServer(MaidTransportActionPacket.start(
                                 menu.terminal(), selectedPickup, selectedDestination)))
                 .bounds(transportX, layout.contentBottom - 48,
-                        transportWidth, 20).build());
+                        transportButtonWidth, 20).build());
+        returnWarehouseButton = addRenderableWidget(Button.builder(Component.translatable(
+                        "gui.maid_storage_manager_extension.transport.return_warehouse"), ignored ->
+                        ExtensionNetwork.CHANNEL.sendToServer(
+                                MaidTransportActionPacket.returnToWarehouse(
+                                        menu.terminal(), activeMailbox())))
+                .bounds(transportX + transportButtonWidth + 4, layout.contentBottom - 48,
+                        transportButtonWidth, 20).build());
         endTransportButton = addRenderableWidget(Button.builder(Component.translatable(
                         "gui.maid_storage_manager_extension.transport.end"), ignored ->
                         ExtensionNetwork.CHANNEL.sendToServer(
@@ -302,7 +311,8 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
                 TerminalAccountActionPacket.refresh(menu.terminal()));
         if (isBound()) {
             ExtensionNetwork.CHANNEL.sendToServer(
-                    NetworkWarehouseActionPacket.refresh(menu.terminal(), activeCourier()));
+                    NetworkWarehouseActionPacket.refresh(
+                            menu.terminal(), activeCourier(), activeMailbox()));
         }
         updateWidgetState();
     }
@@ -399,6 +409,11 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
         startTransportButton.visible = transport && !ride.active();
         startTransportButton.active = ride.state() == MaidTransportSnapshot.State.READY
                 && selectedDestination != null;
+        returnWarehouseButton.visible = transport && !ride.active();
+        returnWarehouseButton.active = activeMailbox() != null
+                && (ride.state() == MaidTransportSnapshot.State.READY
+                || ride.state() == MaidTransportSnapshot.State.FOLLOWING_OWNER
+                || ride.state() == MaidTransportSnapshot.State.WAREHOUSE_STANDBY);
         endTransportButton.visible = transport && ride.active();
         endTransportButton.active = ride.state() != MaidTransportSnapshot.State.EMERGENCY_LANDING
                 && ride.state() != MaidTransportSnapshot.State.PLAYER_CONTROLLED;
@@ -418,7 +433,8 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
         if (warehouseMode == WarehouseMode.DEPOSIT) {
             ExtensionNetwork.CHANNEL.sendToServer(
                     NetworkWarehouseActionPacket.confirmDeposit(
-                            menu.terminal(), activeCourier(), snapshot.warehouse()));
+                            menu.terminal(), activeCourier(), snapshot.warehouse(),
+                            snapshot.mailboxKey()));
             return;
         }
         if (snapshot.inventoryState() == NetworkWarehouseSnapshot.InventoryState.STALE
@@ -436,7 +452,8 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
         }
         if (items.isEmpty()) return;
         ExtensionNetwork.CHANNEL.sendToServer(NetworkWarehouseActionPacket.submit(
-                menu.terminal(), activeCourier(), snapshot.warehouse(), deliveryTarget,
+                menu.terminal(), activeCourier(), snapshot.warehouse(),
+                snapshot.mailboxKey(), deliveryTarget,
                 staleConfirmed, items));
         staleConfirmed = false;
     }
@@ -635,7 +652,7 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
                     maid.online() ? TEXT : MUTED, false);
             String stateKey = !maid.online()
                     ? "gui.maid_storage_manager_extension.terminal.offline"
-                    : !maid.courierTask()
+                    : !maid.driverTask()
                     ? "gui.maid_storage_manager_extension.transport.driver_wrong_task"
                     : !maid.hasBroom()
                     ? "gui.maid_storage_manager_extension.transport.no_broom"
@@ -645,7 +662,7 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
             Component state = Component.translatable(stateKey);
             graphics.drawString(font, trim(state, layout.leftWidth - 16),
                     layout.leftX + 8, y + 14,
-                    maid.busy() ? WARN : maid.online() && maid.courierTask()
+                    maid.busy() ? WARN : maid.online() && maid.driverTask()
                             && maid.hasBroom() ? GOOD : MUTED, false);
             y += 27;
         }
@@ -761,6 +778,32 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
                     false);
             y += 33;
             if (!expanded) continue;
+            for (TerminalAccountSnapshot.WarehouseManager manager : mailbox.managers()) {
+                if (y + 25 > layout.contentBottom - 4) break;
+                graphics.fill(layout.leftX + 10, y,
+                        layout.leftX + layout.leftWidth - 4, y + 23, 0xE82A2420);
+                outline(graphics, layout.leftX + 10, y, layout.leftWidth - 14, 23,
+                        0xFF665747);
+                graphics.drawString(font, trim(LogisticsDisplayName.decode(manager.name()),
+                                layout.leftWidth - 28), layout.leftX + 14, y + 3,
+                        "offline".equals(manager.status()) ? MUTED : TEXT, false);
+                Component managerState = Component.translatable(
+                        "gui.maid_storage_manager_extension.terminal.manager_status."
+                                + manager.status());
+                if (!manager.detail().isBlank()) {
+                    managerState = managerState.copy().append(" · ")
+                            .append(Component.translatable(manager.detail()));
+                }
+                graphics.drawString(font, trim(managerState, layout.leftWidth - 28),
+                        layout.leftX + 14, y + 13,
+                        "failed".equals(manager.status()) ? ERROR
+                                : "completed".equals(manager.status())
+                                || "on_duty".equals(manager.status()) ? GOOD
+                                : "offline".equals(manager.status())
+                                || "off_duty".equals(manager.status()) ? MUTED : WARN,
+                        false);
+                y += 25;
+            }
             for (TerminalAccountSnapshot.Maid maid : account.maids()) {
                 if (y + 31 > layout.contentBottom - 4) break;
                 boolean selected = maid.id().equals(account.selectedCourier());
@@ -1098,6 +1141,12 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
             }
             rowY += 33;
             if (expandedMailbox != i) continue;
+            for (TerminalAccountSnapshot.WarehouseManager ignored : mailbox.managers()) {
+                if (rowY + 25 > layout.contentBottom - 4) break;
+                if (inside(mouseX, mouseY, layout.leftX + 10, rowY,
+                        layout.leftWidth - 14, 23)) return true;
+                rowY += 25;
+            }
             for (TerminalAccountSnapshot.Maid maid : account.maids()) {
                 if (rowY + 31 > layout.contentBottom - 4) break;
                 if (inside(mouseX, mouseY, layout.leftX + 10, rowY,
@@ -1258,7 +1307,8 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
                 .findFirst().orElse(null);
         if (mailbox != null) activateMailbox(mailbox);
         else ExtensionNetwork.CHANNEL.sendToServer(
-                NetworkWarehouseActionPacket.select(menu.terminal(), activeCourier(), warehouse));
+                NetworkWarehouseActionPacket.select(
+                        menu.terminal(), activeCourier(), warehouse, activeMailbox()));
     }
 
     @Override
@@ -1632,7 +1682,7 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
     }
 
     private NetworkWarehouseSnapshot.Snapshot warehouseSnapshot() {
-        return NetworkWarehouseClientData.get(activeCourier());
+        return NetworkWarehouseClientData.get(activeCourier(), activeMailbox());
     }
 
     private MaidTransportSnapshot.Snapshot transportSnapshot() {
@@ -1645,6 +1695,10 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
 
     private UUID activeCourier() {
         return accountSnapshot().selectedCourier();
+    }
+
+    private MailboxKey activeMailbox() {
+        return accountSnapshot().selectedMailbox();
     }
 
     private TerminalAccountSnapshot.Snapshot accountSnapshot() {

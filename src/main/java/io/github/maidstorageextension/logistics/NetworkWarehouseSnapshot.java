@@ -6,6 +6,7 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import io.github.maidstorageextension.terminal.MailboxKey;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -47,7 +48,8 @@ public final class NetworkWarehouseSnapshot {
         }
     }
 
-    public record Snapshot(boolean online, boolean authorized, UUID warehouse,
+    public record Snapshot(boolean online, boolean authorized, MailboxKey mailboxKey,
+                           UUID inventoryList, long generation, UUID warehouse,
                            String warehouseName, InventoryState inventoryState,
                            long publishedGameTime, long inventoryAge,
                            List<InventoryEntry> inventory, boolean enderPocketAvailable,
@@ -58,6 +60,7 @@ public final class NetworkWarehouseSnapshot {
                            MapPoint mailbox, MapPoint delivery) {
         public Snapshot {
             warehouseName = warehouseName == null ? "" : warehouseName;
+            generation = Math.max(0L, generation);
             inventoryState = inventoryState == null
                     ? InventoryState.UNAVAILABLE : inventoryState;
             publishedGameTime = Math.max(-1L, publishedGameTime);
@@ -67,13 +70,14 @@ public final class NetworkWarehouseSnapshot {
         }
 
         public static Snapshot empty() {
-            return new Snapshot(false, true, null, "", InventoryState.UNAVAILABLE,
+            return new Snapshot(false, true, null, null, 0L, null, "", InventoryState.UNAVAILABLE,
                     -1L, 0L, List.of(), false, false, false, false,
                     false, Blocker.UNBOUND, null, null, null, null, null);
         }
 
         public Snapshot offline() {
-            return new Snapshot(false, authorized, warehouse, warehouseName, inventoryState,
+            return new Snapshot(false, authorized, mailboxKey, inventoryList, generation,
+                    warehouse, warehouseName, inventoryState,
                     publishedGameTime, inventoryAge, inventory, enderPocketAvailable,
                     nearbyHandoffAvailable, fixedDeliveryAvailable, heldRequestListAvailable,
                     activeTransaction,
@@ -89,6 +93,9 @@ public final class NetworkWarehouseSnapshot {
         CompoundTag tag = new CompoundTag();
         tag.putBoolean("online", snapshot.online());
         tag.putBoolean("authorized", snapshot.authorized());
+        if (snapshot.mailboxKey() != null) tag.put("mailboxKey", snapshot.mailboxKey().toTag());
+        if (snapshot.inventoryList() != null) tag.putUUID("inventoryList", snapshot.inventoryList());
+        tag.putLong("generation", snapshot.generation());
         if (snapshot.warehouse() != null) tag.putUUID("warehouse", snapshot.warehouse());
         tag.putString("warehouseName", snapshot.warehouseName());
         tag.putString("inventoryState", snapshot.inventoryState().name());
@@ -132,6 +139,10 @@ public final class NetworkWarehouseSnapshot {
         return new Snapshot(
                 tag.getBoolean("online"),
                 !tag.contains("authorized") || tag.getBoolean("authorized"),
+                tag.contains("mailboxKey", Tag.TAG_COMPOUND)
+                        ? MailboxKey.fromTag(tag.getCompound("mailboxKey")) : null,
+                tag.hasUUID("inventoryList") ? tag.getUUID("inventoryList") : null,
+                tag.getLong("generation"),
                 tag.hasUUID("warehouse") ? tag.getUUID("warehouse") : null,
                 tag.getString("warehouseName"),
                 parseInventoryState(tag.getString("inventoryState")),

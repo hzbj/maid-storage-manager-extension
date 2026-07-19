@@ -4,6 +4,7 @@ import com.github.tartaricacid.touhoulittlemaid.entity.item.EntityBroom;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import io.github.maidstorageextension.compat.touhoulittlemaid.BroomAutopilotAccess;
 import io.github.maidstorageextension.data.CourierData;
+import io.github.maidstorageextension.data.DriverData;
 import io.github.maidstorageextension.scan.StorageScanService;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
@@ -66,7 +67,14 @@ public final class CourierBroomFlightService {
     public static TickResult tickPassenger(ServerLevel level, EntityMaid courier,
                                            CourierData.Data data, CourierData.Phase leg,
                                            Vec3 target) {
-        return tickInternal(level, courier, data, leg, target, null, null,
+        return tickPassenger(level, courier, data, leg, target, null, null);
+    }
+
+    public static TickResult tickPassenger(ServerLevel level, EntityMaid courier,
+                                           CourierData.Data data, CourierData.Phase leg,
+                                           Vec3 target, BlockPos requiredTakeoff,
+                                           BlockPos requiredLanding) {
+        return tickInternal(level, courier, data, leg, target, requiredTakeoff, requiredLanding,
                 PASSENGER_LANDING_RADIUS, true, PASSENGER_CRUISE_CLEARANCE,
                 PASSENGER_TERRAIN_CLEARANCE);
     }
@@ -699,6 +707,8 @@ public final class CourierBroomFlightService {
     }
 
     private static void sync(EntityMaid courier, CourierData.Data data) {
-        courier.setAndSyncData(CourierData.KEY, data);
+        if (!DriverData.syncFlight(courier, data)) {
+            courier.setAndSyncData(CourierData.KEY, data);
+        }
     }
 }

@@ -4,7 +4,9 @@ import io.github.maidstorageextension.MaidStorageManagerExtension;
 import io.github.maidstorageextension.debug.ReachabilityDebugManager;
 import io.github.maidstorageextension.scan.StorageScanService;
 import io.github.maidstorageextension.scan.MiscSortRecoveryService;
+import io.github.maidstorageextension.remote.RemoteMaidService;
 import io.github.maidstorageextension.terminal.MaidTransportBoardingService;
+import io.github.maidstorageextension.terminal.MaidTransportService;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.EntityLeaveLevelEvent;
@@ -27,6 +29,9 @@ public final class ServerEvents {
     public static void serverTick(TickEvent.ServerTickEvent event) {
         if (event.phase == TickEvent.Phase.END) {
             ReachabilityDebugManager.tick(event.getServer());
+            if (event.getServer().getTickCount() % 20 == 0) {
+                RemoteMaidService.tick(event.getServer());
+            }
         }
     }
 
@@ -58,6 +63,8 @@ public final class ServerEvents {
             return;
         }
         MiscSortRecoveryService.tick(level, maid);
+        RemoteMaidService.observe(level.getServer(), maid);
+        MaidTransportService.tick(level, maid);
         CourierService.tickBroomFlight(level, maid);
         if (maid.tickCount % 10 != 0 || !CourierService.hasActiveTransaction(maid)) return;
         if (!maid.getTask().getUid().equals(CourierTask.TASK_ID)) {

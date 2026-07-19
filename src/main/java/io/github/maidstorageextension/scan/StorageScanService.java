@@ -253,7 +253,7 @@ public final class StorageScanService {
     }
 
     private static void finishDiscovery(ServerLevel level, EntityMaid maid, ScanSession session) {
-        removeDisappearedLoadedStorages(level, maid, session.scope());
+        pruneOutsideScopeAndRemoveDisappeared(level, maid, session.scope());
         LinkedHashSet<Target> targets = new LinkedHashSet<>(session.reachableTargets());
         PeriodicScanMemory memory = ExtensionMemoryUtil.getPeriodicScan(maid);
         memory.beginInspection(targets);
@@ -269,11 +269,24 @@ public final class StorageScanService {
         }
     }
 
-    private static void removeDisappearedLoadedStorages(ServerLevel level, EntityMaid maid, ScanScope scope) {
+    /**
+     * An upstream viewed-inventory cache survives work-area changes. Remove entries that no longer
+     * belong to the current patrol before publishing so a mailbox never advertises old locations.
+     */
+    public static void pruneOutsideCurrentScope(ServerLevel level, EntityMaid maid) {
+        pruneOutsideScopeAndRemoveDisappeared(level, maid, getScope(maid));
+    }
+
+    private static void pruneOutsideScopeAndRemoveDisappeared(
+            ServerLevel level, EntityMaid maid, ScanScope scope) {
         List<Target> cached = new ArrayList<>(MemoryUtil.getViewedInventory(maid).positionFlatten().keySet());
         for (Target target : cached) {
             BlockPos pos = target.getPos();
-            if (!scope.contains(pos) || !level.hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) {
+            if (!scope.contains(pos)) {
+                MemoryUtil.getViewedInventory(maid).resetViewedInvForPosAsRemoved(target);
+                continue;
+            }
+            if (!level.hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) {
                 continue;
             }
             if (MaidStorage.getInstance().isValidTarget(level, maid, target) == null) {
@@ -355,6 +368,7 @@ public final class StorageScanService {
                                      @Nullable ItemFrame frame) {
         PeriodicScanMemory memory = ExtensionMemoryUtil.getPeriodicScan(maid);
         PeriodicScanInterval interval = ExtensionConfigData.get(maid).periodicScanInterval();
+        boolean queuedRefresh = memory.consumeQueuedRefreshRequest();
         int scannedStorages = memory.getScanTotal();
         MaintenanceFeedbackService.complete(level, maid, result, scannedStorages, frame);
         ExtensionMemoryUtil.getMiscSort(maid).resetAfterPublish();
@@ -362,6 +376,7 @@ public final class StorageScanService {
         memory.clearForceScanRequest();
         memory.setNextScanGameTime(interval == PeriodicScanInterval.DISABLED
                 ? 0L : level.getGameTime() + interval.ticks());
+        if (queuedRefresh) memory.requestImmediateScan();
         PERIODIC_SESSIONS.remove(maid.getUUID());
         INSPECTION_DISPATCHES.remove(maid.getUUID());
     }

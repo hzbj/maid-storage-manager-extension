@@ -12,7 +12,7 @@ import java.util.UUID;
 
 /** Client-safe account roster. Password hashes and device grants never enter this payload. */
 public final class TerminalAccountSnapshot {
-    public record Maid(UUID id, String name, boolean online, boolean courierTask,
+    public record Maid(UUID id, String name, boolean online, boolean courierTask, boolean driverTask,
                        boolean hasBroom, boolean busy, String phase, String transportMode,
                        ResourceLocation dimension, BlockPos position) {
         public Maid {
@@ -27,16 +27,26 @@ public final class TerminalAccountSnapshot {
 
     public record Mailbox(ResourceLocation dimension, BlockPos position, UUID warehouse,
                           String warehouseName, boolean valid,
-                          boolean warehouseOnline, boolean warehouseOnDuty) {
+                          boolean warehouseOnline, boolean warehouseOnDuty,
+                          List<WarehouseManager> managers) {
         public Mailbox {
             warehouseName = warehouseName == null ? "" : warehouseName;
             position = position == null ? null : position.immutable();
+            managers = managers == null ? List.of() : List.copyOf(managers);
+        }
+    }
+
+    public record WarehouseManager(UUID id, String name, String status, String detail) {
+        public WarehouseManager {
+            name = name == null ? "" : name;
+            status = status == null || status.isBlank() ? "offline" : status;
+            detail = detail == null ? "" : detail;
         }
     }
 
     public record Snapshot(boolean authenticated, boolean passwordChangeRequired,
                            String username, UUID account,
-                           UUID selectedCourier, UUID selectedDriver,
+                           UUID selectedCourier, UUID selectedDriver, MailboxKey selectedMailbox,
                            List<Maid> maids, List<Mailbox> mailboxes, String error) {
         public Snapshot {
             username = username == null ? "" : username;
@@ -46,7 +56,7 @@ public final class TerminalAccountSnapshot {
         }
 
         public static Snapshot loggedOut(String error) {
-            return new Snapshot(false, false, "", null, null, null,
+            return new Snapshot(false, false, "", null, null, null, null,
                     List.of(), List.of(), error);
         }
     }
@@ -62,6 +72,9 @@ public final class TerminalAccountSnapshot {
         if (snapshot.account() != null) tag.putUUID("account", snapshot.account());
         if (snapshot.selectedCourier() != null) tag.putUUID("selectedCourier", snapshot.selectedCourier());
         if (snapshot.selectedDriver() != null) tag.putUUID("selectedDriver", snapshot.selectedDriver());
+        if (snapshot.selectedMailbox() != null) {
+            tag.put("selectedMailbox", snapshot.selectedMailbox().toTag());
+        }
         tag.putString("error", snapshot.error());
         ListTag maids = new ListTag();
         for (Maid maid : snapshot.maids()) {
@@ -70,6 +83,7 @@ public final class TerminalAccountSnapshot {
             entry.putString("name", maid.name());
             entry.putBoolean("online", maid.online());
             entry.putBoolean("courierTask", maid.courierTask());
+            entry.putBoolean("driverTask", maid.driverTask());
             entry.putBoolean("hasBroom", maid.hasBroom());
             entry.putBoolean("busy", maid.busy());
             entry.putString("phase", maid.phase());
@@ -92,6 +106,17 @@ public final class TerminalAccountSnapshot {
             entry.putBoolean("valid", mailbox.valid());
             entry.putBoolean("warehouseOnline", mailbox.warehouseOnline());
             entry.putBoolean("warehouseOnDuty", mailbox.warehouseOnDuty());
+            ListTag managers = new ListTag();
+            for (WarehouseManager manager : mailbox.managers()) {
+                if (manager.id() == null) continue;
+                CompoundTag managerTag = new CompoundTag();
+                managerTag.putUUID("id", manager.id());
+                managerTag.putString("name", manager.name());
+                managerTag.putString("status", manager.status());
+                managerTag.putString("detail", manager.detail());
+                managers.add(managerTag);
+            }
+            entry.put("managers", managers);
             mailboxes.add(entry);
         }
         tag.put("mailboxes", mailboxes);
@@ -110,6 +135,7 @@ public final class TerminalAccountSnapshot {
                     ? BlockPos.of(entry.getLong("position")) : null;
             maids.add(new Maid(entry.getUUID("id"), entry.getString("name"),
                     entry.getBoolean("online"), entry.getBoolean("courierTask"),
+                    entry.getBoolean("driverTask"),
                     entry.getBoolean("hasBroom"), entry.getBoolean("busy"),
                     entry.getString("phase"), entry.getString("transportMode"),
                     dimension, position));
@@ -122,17 +148,28 @@ public final class TerminalAccountSnapshot {
             BlockPos position = entry.contains("position", Tag.TAG_LONG)
                     ? BlockPos.of(entry.getLong("position")) : null;
             if (dimension == null || position == null) continue;
+            List<WarehouseManager> managers = new ArrayList<>();
+            ListTag managerTags = entry.getList("managers", Tag.TAG_COMPOUND);
+            for (int j = 0; j < managerTags.size(); j++) {
+                CompoundTag manager = managerTags.getCompound(j);
+                if (!manager.hasUUID("id")) continue;
+                managers.add(new WarehouseManager(manager.getUUID("id"),
+                        manager.getString("name"), manager.getString("status"),
+                        manager.getString("detail")));
+            }
             mailboxes.add(new Mailbox(dimension, position,
                     entry.hasUUID("warehouse") ? entry.getUUID("warehouse") : null,
                     entry.getString("warehouseName"), entry.getBoolean("valid"),
                     entry.getBoolean("warehouseOnline"),
-                    entry.getBoolean("warehouseOnDuty")));
+                    entry.getBoolean("warehouseOnDuty"), managers));
         }
         return new Snapshot(tag.getBoolean("authenticated"),
                 tag.getBoolean("passwordChangeRequired"), tag.getString("username"),
                 tag.hasUUID("account") ? tag.getUUID("account") : null,
                 tag.hasUUID("selectedCourier") ? tag.getUUID("selectedCourier") : null,
                 tag.hasUUID("selectedDriver") ? tag.getUUID("selectedDriver") : null,
+                tag.contains("selectedMailbox", Tag.TAG_COMPOUND)
+                        ? MailboxKey.fromTag(tag.getCompound("selectedMailbox")) : null,
                 maids, mailboxes, tag.getString("error"));
     }
 }

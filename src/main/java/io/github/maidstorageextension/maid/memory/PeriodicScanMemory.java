@@ -37,7 +37,9 @@ public final class PeriodicScanMemory {
             Codec.LONG.optionalFieldOf("scan_generation", 0L)
                     .forGetter(PeriodicScanMemory::getScanGeneration),
             Codec.BOOL.optionalFieldOf("force_scan_requested", false)
-                    .forGetter(PeriodicScanMemory::isForceScanRequested)
+                    .forGetter(PeriodicScanMemory::isForceScanRequested),
+            Codec.BOOL.optionalFieldOf("queued_refresh_requested", false)
+                    .forGetter(PeriodicScanMemory::isQueuedRefreshRequested)
     ).apply(instance, PeriodicScanMemory::new));
 
     private long nextScanGameTime;
@@ -48,10 +50,12 @@ public final class PeriodicScanMemory {
     private int scanTotal;
     private long scanGeneration;
     private boolean forceScanRequested;
+    private boolean queuedRefreshRequested;
 
     private PeriodicScanMemory(long nextScanGameTime, Phase phase, List<Target> pendingTargets,
                                List<Target> successfulTargets, int scanProgress, int scanTotal,
-                               long scanGeneration, boolean forceScanRequested) {
+                               long scanGeneration, boolean forceScanRequested,
+                               boolean queuedRefreshRequested) {
         this.nextScanGameTime = nextScanGameTime;
         this.phase = phase == null ? Phase.IDLE : phase;
         this.pendingInspectionTargets = new LinkedHashSet<>(pendingTargets);
@@ -60,16 +64,18 @@ public final class PeriodicScanMemory {
         this.scanTotal = Math.max(this.scanProgress, scanTotal);
         this.scanGeneration = Math.max(0L, scanGeneration);
         this.forceScanRequested = forceScanRequested;
+        this.queuedRefreshRequested = queuedRefreshRequested;
     }
 
     /** Kept for source compatibility with status/tests created before the explicit-success ledger. */
     public PeriodicScanMemory(long nextScanGameTime, Phase phase, List<Target> pendingTargets,
                               int scanProgress, int scanTotal) {
-        this(nextScanGameTime, phase, pendingTargets, List.of(), scanProgress, scanTotal, 0L, false);
+        this(nextScanGameTime, phase, pendingTargets, List.of(), scanProgress, scanTotal,
+                0L, false, false);
     }
 
     public PeriodicScanMemory() {
-        this(0L, Phase.IDLE, List.of(), List.of(), 0, 0, 0L, false);
+        this(0L, Phase.IDLE, List.of(), List.of(), 0, 0, 0L, false, false);
     }
 
     private static Phase phaseFromName(String name) {
@@ -174,8 +180,12 @@ public final class PeriodicScanMemory {
 
     /** Schedules one complete patrol without enabling future periodic patrols. */
     public void requestImmediateScan() {
-        forceScanRequested = true;
-        nextScanGameTime = 0L;
+        if (phase == Phase.IDLE) {
+            forceScanRequested = true;
+            nextScanGameTime = 0L;
+        } else {
+            queuedRefreshRequested = true;
+        }
     }
 
     public boolean isForceScanRequested() {
@@ -184,6 +194,16 @@ public final class PeriodicScanMemory {
 
     public void clearForceScanRequest() {
         forceScanRequested = false;
+    }
+
+    public boolean isQueuedRefreshRequested() {
+        return queuedRefreshRequested;
+    }
+
+    public boolean consumeQueuedRefreshRequest() {
+        boolean queued = queuedRefreshRequested;
+        queuedRefreshRequested = false;
+        return queued;
     }
 
     public void setProgress(int progress, int total) {

@@ -2,7 +2,7 @@ package io.github.maidstorageextension.terminal;
 
 import com.github.tartaricacid.touhoulittlemaid.entity.item.EntityBroom;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
-import io.github.maidstorageextension.data.CourierData;
+import io.github.maidstorageextension.data.DriverData;
 import io.github.maidstorageextension.maid.courier.CourierBroomFlightService;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -29,11 +29,11 @@ public final class MaidTransportBoardingService {
         EntityBroom broom;
         if (target instanceof EntityMaid maid) {
             driver = maid;
-            CourierData.Data data = CourierData.get(driver);
-            if (data.phase() != CourierData.Phase.TRANSPORT_WAITING_RIDER) {
+            DriverData.Data data = DriverData.get(driver);
+            if (data.phase() != DriverData.Phase.WAITING_RIDER) {
                 return Result.NOT_TRANSPORT;
             }
-            broom = CourierBroomFlightService.transportBroom(level, driver, data);
+            broom = CourierBroomFlightService.transportBroom(level, driver, data.flight());
         } else if (target instanceof EntityBroom targetBroom
                 && targetBroom.getPersistentData().hasUUID(
                 CourierBroomFlightService.TAG_TRANSPORT_RIDER)) {
@@ -48,9 +48,9 @@ public final class MaidTransportBoardingService {
         if (driver == null || broom == null || !driver.isAlive() || !broom.isAlive()) {
             return Result.REJECTED;
         }
-        CourierData.Data data = CourierData.get(driver);
-        UUID intended = data.transportRider();
-        if (data.phase() != CourierData.Phase.TRANSPORT_WAITING_RIDER
+        DriverData.Data data = DriverData.get(driver);
+        UUID intended = data.rider();
+        if (data.phase() != DriverData.Phase.WAITING_RIDER
                 || intended == null || !intended.equals(player.getUUID())
                 || !broom.getPersistentData().hasUUID(
                 CourierBroomFlightService.TAG_TRANSPORT_RIDER)

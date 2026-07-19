@@ -9,6 +9,7 @@ import io.github.maidstorageextension.maid.courier.CourierRecallPolicy;
 import io.github.maidstorageextension.maid.courier.CourierTransportPolicy;
 import io.github.maidstorageextension.network.ExtensionNetwork;
 import io.github.maidstorageextension.network.LogisticsTrackerPacket;
+import io.github.maidstorageextension.terminal.TerminalAccountService;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
@@ -175,11 +176,7 @@ public final class LogisticsTrackerService {
     }
 
     private static EntityMaid findMaid(MinecraftServer server, UUID id) {
-        if (server == null || id == null) return null;
-        for (ServerLevel level : server.getAllLevels()) {
-            if (level.getEntity(id) instanceof EntityMaid maid) return maid;
-        }
-        return null;
+        return TerminalAccountService.findMaid(server, id);
     }
 
     private static List<LogisticsSnapshot.Station> collectStations(

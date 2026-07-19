@@ -51,6 +51,11 @@ public final class EnderPocketCompat {
         EnderPocketService.syncRemoteProxyBeforeMenu(player, maid);
     }
 
+    public static boolean isRemoteSessionActive(ServerPlayer player, EntityMaid maid) {
+        return player != null && maid != null && ModList.get().isLoaded(MOD_ID)
+                && EnderPocketService.isRemoteSessionActive(player, maid);
+    }
+
     public static boolean isEquipped(EntityMaid maid) {
         Item item = ForgeRegistries.ITEMS.getValue(ITEM_ID);
         if (item == null || item == Items.AIR) {

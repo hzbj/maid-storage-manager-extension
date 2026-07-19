@@ -6,7 +6,7 @@ import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.simple.SimpleChannel;
 
 public final class ExtensionNetwork {
-    private static final String PROTOCOL = "13";
+    private static final String PROTOCOL = "14";
     static final int EXTENSION_CONFIG_ID = 0;
     static final int REACHABILITY_DEBUG_ID = 1;
     static final int COURIER_COMMAND_ID = 2;
@@ -20,6 +20,7 @@ public final class ExtensionNetwork {
     static final int MAID_TRANSPORT_ACTION_ID = 10;
     static final int MAID_TRANSPORT_SNAPSHOT_ID = 11;
     static final int TERMINAL_NOTICE_ID = 12;
+    static final int MAID_PICKUP_GUIDANCE_ID = 13;
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(MaidStorageManagerExtension.MOD_ID, "main"),
             () -> PROTOCOL,
@@ -88,5 +89,9 @@ public final class ExtensionNetwork {
                 TerminalNoticePacket::encode,
                 TerminalNoticePacket::decode,
                 TerminalNoticePacket::handle);
+        CHANNEL.registerMessage(MAID_PICKUP_GUIDANCE_ID, MaidPickupGuidancePacket.class,
+                MaidPickupGuidancePacket::encode,
+                MaidPickupGuidancePacket::decode,
+                MaidPickupGuidancePacket::handle);
     }
 }

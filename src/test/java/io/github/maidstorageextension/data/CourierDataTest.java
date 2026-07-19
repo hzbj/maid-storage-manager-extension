@@ -46,6 +46,7 @@ class CourierDataTest {
         source.requestFinished(true);
         source.targetWarningSent(true);
         source.transportMode(CourierData.TransportMode.BROOM);
+        source.dispatchSource(CourierData.DispatchSource.TERMINAL);
         source.broomFlightDistance(56);
         source.stayHomeAfterDelivery(true);
         source.beginFollowOverride(true);
@@ -80,6 +81,7 @@ class CourierDataTest {
         assertTrue(decoded.requestFinished());
         assertTrue(decoded.targetWarningSent());
         assertEquals(CourierData.TransportMode.BROOM, decoded.transportMode());
+        assertEquals(CourierData.DispatchSource.TERMINAL, decoded.dispatchSource());
         assertEquals(56, decoded.broomFlightDistance());
         assertTrue(decoded.stayHomeAfterDelivery());
         assertTrue(decoded.followOverrideActive());
