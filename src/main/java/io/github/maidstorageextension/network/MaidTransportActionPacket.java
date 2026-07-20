@@ -13,7 +13,7 @@ import java.util.function.Supplier;
 public record MaidTransportActionPacket(Action action, UUID terminal,
                                         BlockPos pickup, BlockPos destination,
                                         MailboxKey mailbox) {
-    public enum Action { REFRESH, START, END, RETURN_TO_WAREHOUSE }
+    public enum Action { REFRESH, START, END, RETURN_TO_WAREHOUSE, CLEAR_STATUS }
 
     public MaidTransportActionPacket {
         action = action == null ? Action.REFRESH : action;
@@ -39,6 +39,10 @@ public record MaidTransportActionPacket(Action action, UUID terminal,
             UUID terminal, MailboxKey mailbox) {
         return new MaidTransportActionPacket(
                 Action.RETURN_TO_WAREHOUSE, terminal, null, null, mailbox);
+    }
+
+    public static MaidTransportActionPacket clearStatus(UUID terminal) {
+        return new MaidTransportActionPacket(Action.CLEAR_STATUS, terminal, null, null, null);
     }
 
     public static void encode(MaidTransportActionPacket packet, FriendlyByteBuf buffer) {

@@ -34,7 +34,7 @@ class ChineseRequestListTerminologyTest {
         for (Path relative : List.of(
                 Path.of("README.md"),
                 Path.of("CHANGELOG.md"),
-                Path.of("docs/gameplay/01_NETWORK_WAREHOUSE.md"))) {
+                Path.of("docs/design-maid-logistics.md"))) {
             assertFalse(Files.readString(ROOT.resolve(relative), StandardCharsets.UTF_8)
                     .contains("需求清单"), relative + " contains the obsolete term");
         }

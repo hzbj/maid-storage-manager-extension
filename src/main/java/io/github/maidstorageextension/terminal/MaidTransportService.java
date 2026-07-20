@@ -33,6 +33,8 @@ import java.util.UUID;
 public final class MaidTransportService {
     private static final double NEAR_OWNER_DISTANCE_SQR = 8.0D * 8.0D;
     private static final double ARRIVAL_DISTANCE_SQR = 3.0D * 3.0D;
+    private static final double NEAR_DESTINATION_DISTANCE_SQR = 16.0D * 16.0D;
+    private static final double PASSENGER_TERRAIN_CLEARANCE = 24.0D;
 
     private MaidTransportService() {
     }
@@ -51,6 +53,7 @@ public final class MaidTransportService {
             case END -> end(player, packet.terminal(), driverId);
             case RETURN_TO_WAREHOUSE -> returnToWarehouse(
                     player, packet.terminal(), driverId, packet.mailbox());
+            case CLEAR_STATUS -> clearStatus(player, packet.terminal(), driverId);
         }
     }
 
@@ -311,9 +314,18 @@ public final class MaidTransportService {
             beginEmergencyLanding(level, driver, data);
             return;
         }
+        Vec3 destCenter = data.destinationAnchor().getCenter();
+        // Fly toward the destination area first; only search for a landing spot upon arrival
+        // so the maid always departs even when the destination has no landing point yet.
+        if (horizontalDistanceSqr(broom.blockPosition(), data.destinationAnchor())
+                > NEAR_DESTINATION_DISTANCE_SQR) {
+            CourierBroomFlightService.flyToward(level, driver, broom, data.flight(),
+                    destCenter, PASSENGER_TERRAIN_CLEARANCE);
+            return;
+        }
         CourierBroomFlightService.TickResult result = CourierBroomFlightService.tickPassenger(
                 level, driver, data.flight(), CourierData.Phase.TRANSPORT_TO_DESTINATION,
-                data.destinationAnchor().getCenter());
+                destCenter);
         if (result == CourierBroomFlightService.TickResult.LANDED) {
             data.destination(data.flight().flightLandingPos());
             clearGuidance(rider);
@@ -338,6 +350,7 @@ public final class MaidTransportService {
                 && driver.distanceToSqr(target.getCenter()) <= ARRIVAL_DISTANCE_SQR) {
             CourierBroomFlightService.cleanup(driver, data.flight());
             data.standby();
+            setHomeAtCurrentPosition(driver);
             sync(driver, data);
             return;
         }
@@ -346,6 +359,7 @@ public final class MaidTransportService {
                 target.getCenter(), null, target);
         if (result == CourierBroomFlightService.TickResult.LANDED) {
             data.standby();
+            setHomeAtCurrentPosition(driver);
             sync(driver, data);
         }
     }
@@ -403,8 +417,56 @@ public final class MaidTransportService {
     private static void finishTrip(EntityMaid driver, DriverData.Data data, boolean followOwner) {
         CourierBroomFlightService.cleanup(driver, data.flight());
         data.finishTrip(followOwner);
-        if (followOwner) driver.setHomeModeEnable(false);
+        if (followOwner) {
+            driver.setHomeModeEnable(false);
+            // Clear the stale schedule position so TLM won't block the next Home-mode
+            // activation with "too far from recorded position" when the maid has followed
+            // the owner away from the previous work/idle/sleep anchor.
+            driver.getSchedulePos().clear(driver);
+        }
         sync(driver, data);
+    }
+
+    private static void clearStatus(ServerPlayer owner, UUID terminal, UUID driverId) {
+        EntityMaid driver = TerminalAccountService.findMaid(owner.getServer(), driverId);
+        if (driver == null || !(driver.level() instanceof ServerLevel level)) {
+            owner.sendSystemMessage(Component.translatable(
+                    "message.maid_storage_manager_extension.transport.driver_offline"));
+            update(owner, terminal);
+            return;
+        }
+        DriverData.Data data = DriverData.get(driver);
+        if (CourierBroomFlightService.isAirborne(level, driver, data.flight())) {
+            BlockPos landing = CourierFlightStandLocator.findLanding(level,
+                    driver.blockPosition(), 0, data.flight().broomFlightDistance(), 0);
+            if (landing == null) {
+                owner.sendSystemMessage(Component.translatable(
+                        "message.maid_storage_manager_extension.transport.clear_status_no_safe_landing"));
+                update(owner, terminal);
+                return;
+            }
+            CourierBroomFlightService.forceLand(driver, data.flight(), landing);
+        }
+        CourierBroomFlightService.discardTransportBroom(driver, data.flight());
+        CourierBroomFlightService.cleanup(driver, data.flight());
+        data.finishTrip(false);
+        setHomeAtCurrentPosition(driver);
+        sync(driver, data);
+        owner.sendSystemMessage(Component.translatable(
+                "message.maid_storage_manager_extension.transport.clear_status_complete"));
+        update(owner, terminal);
+    }
+
+    private static void setHomeAtCurrentPosition(EntityMaid maid) {
+        BlockPos home = maid.blockPosition();
+        var schedule = maid.getSchedulePos();
+        schedule.setWorkPos(home);
+        schedule.setIdlePos(home);
+        schedule.setSleepPos(home);
+        schedule.setDimension(maid.level().dimension().location());
+        schedule.setConfigured(true);
+        maid.setHomeModeEnable(true);
+        schedule.restrictTo(maid);
     }
 
     public static void update(ServerPlayer viewer, UUID terminal) {
@@ -438,7 +500,9 @@ public final class MaidTransportService {
             case TO_DESTINATION -> MaidTransportSnapshot.State.TO_DESTINATION;
             case RETURNING_TO_WAREHOUSE -> MaidTransportSnapshot.State.RETURNING_TO_WAREHOUSE;
             case WAREHOUSE_STANDBY -> MaidTransportSnapshot.State.WAREHOUSE_STANDBY;
-            case FOLLOWING_OWNER -> MaidTransportSnapshot.State.FOLLOWING_OWNER;
+            case FOLLOWING_OWNER -> driver.isHomeModeEnable()
+                    ? MaidTransportSnapshot.State.READY
+                    : MaidTransportSnapshot.State.FOLLOWING_OWNER;
             case PLAYER_CONTROLLED -> MaidTransportSnapshot.State.PLAYER_CONTROLLED;
             case EMERGENCY_LANDING -> MaidTransportSnapshot.State.EMERGENCY_LANDING;
             default -> !driver.getTask().getUid().equals(DriverTask.TASK_ID)
@@ -453,6 +517,7 @@ public final class MaidTransportService {
             case OFFLINE -> "gui.maid_storage_manager_extension.transport.driver_offline";
             case NO_BROOM -> "gui.maid_storage_manager_extension.transport.no_broom";
             case BUSY -> "gui.maid_storage_manager_extension.transport.driver_busy";
+            case WRONG_TASK -> "gui.maid_storage_manager_extension.transport.not_driver";
             default -> "";
         };
     }

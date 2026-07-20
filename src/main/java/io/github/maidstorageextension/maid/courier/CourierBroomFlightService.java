@@ -316,6 +316,28 @@ public final class CourierBroomFlightService {
             land(courier, broom, data, landing);
             return TickResult.LANDED;
         }
+        return cruise(level, courier, broom, data, destination, terrainClearance);
+    }
+
+    /**
+     * Moves an airborne broom toward a target position without attempting to land. Used by the
+     * driver transport service to fly toward the destination area before searching for a landing
+     * spot, so the maid always departs even when no landing point is found yet.
+     */
+    public static void flyToward(ServerLevel level, EntityMaid courier, EntityBroom broom,
+                                 CourierData.Data data, Vec3 target, double terrainClearance) {
+        Vec3 position = broom.position();
+        Vec3 horizontal = new Vec3(target.x - position.x, 0.0, target.z - position.z);
+        if (horizontal.lengthSqr() <= LANDING_ARRIVAL * LANDING_ARRIVAL) return;
+        cruise(level, courier, broom, data, target, terrainClearance);
+    }
+
+    private static TickResult cruise(ServerLevel level, EntityMaid courier, EntityBroom broom,
+                                     CourierData.Data data, Vec3 destination,
+                                     double terrainClearance) {
+        Vec3 position = broom.position();
+        Vec3 horizontal = new Vec3(destination.x - position.x, 0.0, destination.z - position.z);
+        double horizontalDistance = horizontal.length();
 
         Vec3 direction = horizontalDistance < 1.0e-4
                 ? Vec3.ZERO : horizontal.scale(1.0 / horizontalDistance);

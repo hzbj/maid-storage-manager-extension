@@ -18,7 +18,9 @@ public record TerminalAccountActionPacket(Action action, UUID terminal, String u
         SELECT_COURIER,
         SELECT_DRIVER,
         UNREGISTER_MAID,
-        CHANGE_PASSWORD
+        CHANGE_PASSWORD,
+        CONVERT_TO_COURIER,
+        CONVERT_TO_DRIVER
     }
 
     public TerminalAccountActionPacket {
@@ -41,6 +43,12 @@ public record TerminalAccountActionPacket(Action action, UUID terminal, String u
 
     public static TerminalAccountActionPacket select(UUID terminal, UUID maid, boolean driver) {
         return new TerminalAccountActionPacket(driver ? Action.SELECT_DRIVER : Action.SELECT_COURIER,
+                terminal, "", "", maid);
+    }
+
+    public static TerminalAccountActionPacket convert(UUID terminal, UUID maid, boolean toDriver) {
+        return new TerminalAccountActionPacket(
+                toDriver ? Action.CONVERT_TO_DRIVER : Action.CONVERT_TO_COURIER,
                 terminal, "", "", maid);
     }
 

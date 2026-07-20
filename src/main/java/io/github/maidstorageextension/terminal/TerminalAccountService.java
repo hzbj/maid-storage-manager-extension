@@ -1,6 +1,7 @@
 package io.github.maidstorageextension.terminal;
 
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
+import com.github.tartaricacid.touhoulittlemaid.entity.task.TaskManager;
 import io.github.maidstorageextension.block.CourierWarehouseStationBlockEntity;
 import io.github.maidstorageextension.compat.EnderPocketCompat;
 import io.github.maidstorageextension.data.CourierData;
@@ -13,6 +14,7 @@ import io.github.maidstorageextension.logistics.LogisticsTrackerService;
 import io.github.maidstorageextension.logistics.NetworkWarehouseService;
 import io.github.maidstorageextension.maid.ExtensionMemoryUtil;
 import io.github.maidstorageextension.maid.memory.PeriodicScanMemory;
+import io.github.maidstorageextension.maid.courier.CourierBroomFlightService;
 import io.github.maidstorageextension.maid.courier.CourierService;
 import io.github.maidstorageextension.maid.task.CourierTask;
 import io.github.maidstorageextension.maid.task.DriverTask;
@@ -68,6 +70,10 @@ public final class TerminalAccountService {
                     packet.action() == TerminalAccountActionPacket.Action.SELECT_DRIVER);
             case UNREGISTER_MAID -> unregister(sender, packet.terminal(), packet.target());
             case CHANGE_PASSWORD -> changePassword(sender, packet.terminal(), packet.secret());
+            case CONVERT_TO_COURIER -> convertTask(sender, packet.terminal(), packet.target(),
+                    CourierTask.TASK_ID);
+            case CONVERT_TO_DRIVER -> convertTask(sender, packet.terminal(), packet.target(),
+                    DriverTask.TASK_ID);
         }
     }
 
@@ -411,6 +417,57 @@ public final class TerminalAccountService {
         update(player, terminalId);
     }
 
+    private static void convertTask(ServerPlayer player, UUID terminalId, UUID maidId,
+                                    ResourceLocation task) {
+        Session session = authenticate(player, terminalId);
+        if (session == null || maidId == null) return;
+        if (!session.data.belongsTo(session.account, maidId)) return;
+        EntityMaid maid = findMaid(player.getServer(), maidId);
+        if (maid == null || !(maid.level() instanceof ServerLevel level)) {
+            message(player, "message.maid_storage_manager_extension.transport.driver_offline");
+            update(player, terminalId);
+            return;
+        }
+        if (maid.getTask().getUid().equals(task)) {
+            update(player, terminalId);
+            return;
+        }
+        if (MailboxWarehouseData.get(player.getServer()).mailboxOf(maidId) != null) {
+            message(player, "message.maid_storage_manager_extension.terminal.cannot_convert_manager");
+            update(player, terminalId);
+            return;
+        }
+        // Clean up active driver trip before converting
+        DriverData.Data driverData = DriverData.get(maid);
+        if (driverData.activeTrip()) {
+            CourierBroomFlightService.discardTransportBroom(maid, driverData.flight());
+            CourierBroomFlightService.cleanup(maid, driverData.flight());
+            driverData.finishTrip(false);
+            maid.setAndSyncData(DriverData.KEY, driverData);
+        }
+        // Clean up active courier work before converting
+        CourierData.Data courierData = CourierData.get(maid);
+        courierData.clearRequest();
+        courierData.clearDeposit();
+        courierData.clearRoute();
+        courierData.deliveryTarget(null, null);
+        courierData.phase(courierData.warehouse() == null
+                ? CourierData.Phase.UNBOUND : CourierData.Phase.IDLE);
+        maid.setAndSyncData(CourierData.KEY, courierData);
+        // Switch task
+        var next = TaskManager.findTask(task);
+        if (next.isEmpty()) return;
+        maid.setTask(next.get());
+        maid.refreshBrain(level);
+        player.sendSystemMessage(Component.translatable(
+                "message.maid_storage_manager_extension.terminal.converted",
+                maid.getName(),
+                Component.translatable(task.equals(DriverTask.TASK_ID)
+                        ? "message.maid_storage_manager_extension.terminal.profession_driver"
+                        : "message.maid_storage_manager_extension.terminal.profession_courier")));
+        update(player, terminalId);
+    }
+
     private static void changePassword(ServerPlayer player, UUID terminalId, String password) {
         Session session = authenticate(player, terminalId);
         if (session == null || !session.data.changePassword(session.account, password)) return;
@@ -427,17 +484,29 @@ public final class TerminalAccountService {
             DriverData.Data driverData = maid == null ? null : DriverData.get(maid);
             boolean courierTask = maid != null && maid.getTask().getUid().equals(CourierTask.TASK_ID);
             boolean driverTask = maid != null && maid.getTask().getUid().equals(DriverTask.TASK_ID);
+            boolean storageTask = maid != null
+                    && maid.getTask().getUid().equals(StorageManageTask.TASK_ID);
+            String managerStatus = storageTask ? managerSnapshot(viewer.getServer(), id).status() : null;
+            boolean managerBusy = managerStatus != null
+                    && (managerStatus.equals("queued") || managerStatus.equals("writing")
+                    || managerStatus.equals("inspecting"));
+            String phase = maid == null ? "offline"
+                    : storageTask ? managerStatus
+                    : driverTask
+                            ? (driverData.activeTrip()
+                                    ? driverData.phase().name().toLowerCase(java.util.Locale.ROOT)
+                                    : maid.isHomeModeEnable() ? "warehouse_standby" : "idle")
+                    : courierData == null ? "offline"
+                            : courierData.phase().name().toLowerCase(java.util.Locale.ROOT);
             maids.add(new TerminalAccountSnapshot.Maid(id,
                     maid == null ? id.toString().substring(0, 8) : LogisticsDisplayName.encode(maid.getName()),
                     maid != null, courierTask, driverTask,
                     maid != null && EnderPocketCompat.hasBroom(maid),
-                    maid != null && (CourierService.hasActiveTransaction(maid)
+                    maid != null && (managerBusy
+                            || CourierService.hasActiveTransaction(maid)
                             || driverData.activeTrip()
                             || ExtensionMemoryUtil.getMiscSort(maid).hasInFlight()),
-                    maid == null ? "offline" : driverTask
-                            ? driverData.phase().name().toLowerCase(java.util.Locale.ROOT)
-                            : courierData == null ? "offline"
-                            : courierData.phase().name().toLowerCase(java.util.Locale.ROOT),
+                    phase,
                     courierData == null ? "none"
                             : courierData.transportMode().name().toLowerCase(java.util.Locale.ROOT),
                     maid == null ? null : maid.level().dimension().location(),

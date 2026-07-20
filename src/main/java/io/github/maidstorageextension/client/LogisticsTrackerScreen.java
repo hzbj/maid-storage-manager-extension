@@ -101,6 +101,7 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
     private Button startTransportButton;
     private Button endTransportButton;
     private Button returnWarehouseButton;
+    private Button clearDriverStatusButton;
     private int inventoryScroll;
     private int refreshTicker;
     private boolean staleConfirmed;
@@ -119,6 +120,7 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
     private double transportMapPressY;
     private int expandedMailbox = -1;
     private boolean settingsPage;
+    private PendingConversion pendingConversion;
 
     public LogisticsTrackerScreen(LogisticsTrackerMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
@@ -269,6 +271,14 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
         clearWorkButton.setTooltip(Tooltip.create(Component.translatable(
                 "gui.maid_storage_manager_extension.logistics_tracker.clear_work_hint")));
 
+        clearDriverStatusButton = addRenderableWidget(Button.builder(Component.translatable(
+                        "gui.maid_storage_manager_extension.transport.clear_status"), ignored ->
+                        ExtensionNetwork.CHANNEL.sendToServer(
+                                MaidTransportActionPacket.clearStatus(menu.terminal())))
+                .bounds(8, footerY, 92, 20).build());
+        clearDriverStatusButton.setTooltip(Tooltip.create(Component.translatable(
+                "gui.maid_storage_manager_extension.transport.clear_status_hint")));
+
         int transportX = layout.rightX + 6;
         int transportWidth = layout.rightWidth - 12;
         int transportButtonWidth = Math.max(62, (transportWidth - 4) / 2);
@@ -402,12 +412,19 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
         locateButton.active = logistics.online() && logistics.authorized();
         clearWorkButton.active = logistics.online() && logistics.authorized();
 
+        clearDriverStatusButton.visible = transport;
+        clearDriverStatusButton.active = transport
+                && ride.state() != MaidTransportSnapshot.State.NO_DRIVER
+                && ride.state() != MaidTransportSnapshot.State.OFFLINE;
+
         choosePickupButton.visible = transport && !ride.active();
         chooseDestinationButton.visible = transport && !ride.active();
         choosePickupButton.active = transportPointMode != TransportPointMode.PICKUP;
         chooseDestinationButton.active = transportPointMode != TransportPointMode.DESTINATION;
         startTransportButton.visible = transport && !ride.active();
-        startTransportButton.active = ride.state() == MaidTransportSnapshot.State.READY
+        startTransportButton.active = (ride.state() == MaidTransportSnapshot.State.READY
+                || ride.state() == MaidTransportSnapshot.State.FOLLOWING_OWNER
+                || ride.state() == MaidTransportSnapshot.State.WAREHOUSE_STANDBY)
                 && selectedDestination != null;
         returnWarehouseButton.visible = transport && !ride.active();
         returnWarehouseButton.active = activeMailbox() != null
@@ -500,9 +517,10 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
         }
         if (serviceTab == ServiceTab.MAID_TRANSPORT) {
             renderMaidTransport(graphics, mouseX, mouseY);
-            return;
+        } else {
+            renderNetworkWarehouse(graphics, mouseX, mouseY);
         }
-        renderNetworkWarehouse(graphics, mouseX, mouseY);
+        renderConversionOverlay(graphics);
     }
 
     private void renderSettings(GuiGraphics graphics, int mouseX, int mouseY) {
@@ -653,7 +671,7 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
             String stateKey = !maid.online()
                     ? "gui.maid_storage_manager_extension.terminal.offline"
                     : !maid.driverTask()
-                    ? "gui.maid_storage_manager_extension.transport.driver_wrong_task"
+                    ? "gui.maid_storage_manager_extension.transport.not_driver"
                     : !maid.hasBroom()
                     ? "gui.maid_storage_manager_extension.transport.no_broom"
                     : maid.busy()
@@ -724,11 +742,111 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
 
     private void renderTransportFooter(GuiGraphics graphics) {
         MaidTransportSnapshot.Snapshot ride = transportSnapshot();
+        int footerX = 268;
+        int availableWidth = width - footerX - 8;
+        if (availableWidth <= 20) return;
+        Component driver = ride.driverName().isBlank()
+                ? Component.translatable("gui.maid_storage_manager_extension.transport.no_driver")
+                : LogisticsDisplayName.decode(ride.driverName());
+        if (availableWidth < 162) {
+            graphics.drawString(font, trim(driver, availableWidth),
+                    footerX, height - 23, ride.state() == MaidTransportSnapshot.State.NO_DRIVER
+                            ? MUTED : GOOD, false);
+            return;
+        }
+        int segment = availableWidth / 3;
+        graphics.drawString(font, trim(driver, segment - 5),
+                footerX, height - 23, ride.state() == MaidTransportSnapshot.State.NO_DRIVER
+                        ? MUTED : GOOD, false);
+        Component status = Component.translatable(
+                "gui.maid_storage_manager_extension.transport.state."
+                        + ride.state().name().toLowerCase(Locale.ROOT));
+        int stateColor = ride.state() == MaidTransportSnapshot.State.READY ? GOOD
+                : ride.active() ? WARN : TEXT;
+        graphics.drawString(font, trim(status, segment - 5),
+                footerX + segment, height - 23, stateColor, false);
         Component help = Component.translatable(ride.active()
                 ? "gui.maid_storage_manager_extension.transport.end_help"
                 : "gui.maid_storage_manager_extension.transport.map_help");
-        graphics.drawString(font, trim(help, Math.max(10, width - 274)),
-                268, height - 23, ride.active() ? WARN : MUTED, false);
+        graphics.drawString(font, trim(help, segment - 5),
+                footerX + segment * 2, height - 23, ride.active() ? WARN : MUTED, false);
+    }
+
+    private void beginConversion(UUID maidId, String maidName, boolean toDriver) {
+        TerminalAccountSnapshot.Snapshot account = accountSnapshot();
+        TerminalAccountSnapshot.Maid maid = account.maids().stream()
+                .filter(m -> m.id().equals(maidId)).findFirst().orElse(null);
+        if (maid == null) return;
+        if (!maid.busy()) {
+            ExtensionNetwork.CHANNEL.sendToServer(
+                    TerminalAccountActionPacket.convert(menu.terminal(), maidId, toDriver));
+            return;
+        }
+        pendingConversion = new PendingConversion(maidId, maidName, toDriver, 1);
+    }
+
+    private boolean handleConversionClick(double mouseX, double mouseY, int button) {
+        if (button != 0) return true;
+        int boxWidth = 300;
+        int boxHeight = 90;
+        int boxX = (width - boxWidth) / 2;
+        int boxY = (height - boxHeight) / 2;
+        int buttonY = boxY + boxHeight - 28;
+        int yesX = boxX + boxWidth / 2 - 70;
+        int noX = boxX + boxWidth / 2 + 10;
+        if (inside(mouseX, mouseY, yesX, buttonY, 60, 20)) {
+            if (pendingConversion.step() == 1) {
+                pendingConversion = new PendingConversion(pendingConversion.maidId(),
+                        pendingConversion.maidName(), pendingConversion.toDriver(), 2);
+            } else {
+                ExtensionNetwork.CHANNEL.sendToServer(TerminalAccountActionPacket.convert(
+                        menu.terminal(), pendingConversion.maidId(), pendingConversion.toDriver()));
+                pendingConversion = null;
+            }
+            return true;
+        }
+        if (inside(mouseX, mouseY, noX, buttonY, 60, 20)) {
+            pendingConversion = null;
+            return true;
+        }
+        return true;
+    }
+
+    private void renderConversionOverlay(GuiGraphics graphics) {
+        if (pendingConversion == null) return;
+        graphics.fill(0, 0, width, height, 0x80000000);
+        int boxWidth = 300;
+        int boxHeight = 90;
+        int boxX = (width - boxWidth) / 2;
+        int boxY = (height - boxHeight) / 2;
+        graphics.fill(boxX, boxY, boxX + boxWidth, boxY + boxHeight, PANEL_BG);
+        outline(graphics, boxX, boxY, boxWidth, boxHeight, BORDER_ACTIVE);
+        String key = pendingConversion.step() == 1
+                ? "gui.maid_storage_manager_extension.terminal.convert_confirm_1"
+                : "gui.maid_storage_manager_extension.terminal.convert_confirm_2";
+        Component message = Component.translatable(key,
+                Component.literal(pendingConversion.maidName()),
+                Component.translatable(pendingConversion.toDriver()
+                        ? "message.maid_storage_manager_extension.terminal.profession_driver"
+                        : "message.maid_storage_manager_extension.terminal.profession_courier"));
+        int textY = boxY + 8;
+        for (var line : font.split(message, boxWidth - 20)) {
+            graphics.drawCenteredString(font, line, boxX + boxWidth / 2, textY, TEXT);
+            textY += 12;
+        }
+        int buttonY = boxY + boxHeight - 28;
+        int yesX = boxX + boxWidth / 2 - 70;
+        int noX = boxX + boxWidth / 2 + 10;
+        graphics.fill(yesX, buttonY, yesX + 60, buttonY + 20, PANEL_ALT);
+        outline(graphics, yesX, buttonY, 60, 20, BORDER_ACTIVE);
+        graphics.drawCenteredString(font, Component.translatable(
+                "gui.maid_storage_manager_extension.terminal.convert_yes"),
+                yesX + 30, buttonY + 6, GOOD);
+        graphics.fill(noX, buttonY, noX + 60, buttonY + 20, PANEL_ALT);
+        outline(graphics, noX, buttonY, 60, 20, BORDER);
+        graphics.drawCenteredString(font, Component.translatable(
+                "gui.maid_storage_manager_extension.terminal.convert_no"),
+                noX + 30, buttonY + 6, ERROR);
     }
 
     private void renderNetworkWarehouse(GuiGraphics graphics, int mouseX, int mouseY) {
@@ -815,7 +933,9 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
                 graphics.drawString(font, trim(LogisticsDisplayName.decode(maid.name()),
                                 layout.leftWidth - 28), layout.leftX + 14, y + 4,
                         maid.online() ? TEXT : MUTED, false);
-                Component details = Component.translatable(maid.busy()
+                Component details = Component.translatable(!maid.courierTask()
+                                ? "gui.maid_storage_manager_extension.transport.not_courier"
+                                : maid.busy()
                                 ? "gui.maid_storage_manager_extension.courier.phase." + maid.phase()
                                 : maid.online()
                                 ? "gui.maid_storage_manager_extension.terminal.ready"
@@ -823,7 +943,8 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
                         .append(" · ").append(transportModeName(maid.transportMode()));
                 graphics.drawString(font, trim(details, layout.leftWidth - 28),
                         layout.leftX + 14, y + 16,
-                        maid.busy() ? WARN : maid.online() ? GOOD : MUTED, false);
+                        !maid.courierTask() ? MUTED
+                                : maid.busy() ? WARN : maid.online() ? GOOD : MUTED, false);
                 y += 31;
             }
         }
@@ -1080,6 +1201,9 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
         if (!accountSnapshot().authenticated()) {
             return super.mouseClicked(mouseX, mouseY, button);
         }
+        if (pendingConversion != null) {
+            return handleConversionClick(mouseX, mouseY, button);
+        }
         if (settingsPage) {
             return handleSettingsClick(mouseX, mouseY, button)
                     || super.mouseClicked(mouseX, mouseY, button);
@@ -1092,8 +1216,13 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
             for (int i = 0; i < Math.min(rows, account.maids().size()); i++) {
                 if (inside(mouseX, mouseY, layout.leftX + 4, rowY,
                         layout.leftWidth - 8, 24)) {
-                    ExtensionNetwork.CHANNEL.sendToServer(TerminalAccountActionPacket.select(
-                            menu.terminal(), account.maids().get(i).id(), true));
+                    TerminalAccountSnapshot.Maid maid = account.maids().get(i);
+                    if (button == 1) {
+                        beginConversion(maid.id(), maid.name(), true);
+                    } else {
+                        ExtensionNetwork.CHANNEL.sendToServer(TerminalAccountActionPacket.select(
+                                menu.terminal(), maid.id(), true));
+                    }
                     return true;
                 }
                 rowY += 27;
@@ -1151,7 +1280,9 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
                 if (rowY + 31 > layout.contentBottom - 4) break;
                 if (inside(mouseX, mouseY, layout.leftX + 10, rowY,
                         layout.leftWidth - 14, 29)) {
-                    if (button == 0) {
+                    if (button == 1) {
+                        beginConversion(maid.id(), maid.name(), false);
+                    } else if (button == 0) {
                         ExtensionNetwork.CHANNEL.sendToServer(TerminalAccountActionPacket.select(
                                 menu.terminal(), maid.id(), false));
                         activateMailbox(mailbox);
@@ -1806,5 +1937,8 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
     private record MapMarker(double worldX, double worldZ, ResourceLocation dimension,
                              Component role, Component name, int color, MarkerKind kind,
                              UUID warehouse, boolean selected, boolean valid) {
+    }
+
+    private record PendingConversion(UUID maidId, String maidName, boolean toDriver, int step) {
     }
 }
