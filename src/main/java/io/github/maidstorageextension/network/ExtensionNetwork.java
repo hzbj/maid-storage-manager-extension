@@ -6,7 +6,7 @@ import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.simple.SimpleChannel;
 
 public final class ExtensionNetwork {
-    private static final String PROTOCOL = "14";
+    private static final String PROTOCOL = "16";
     static final int EXTENSION_CONFIG_ID = 0;
     static final int REACHABILITY_DEBUG_ID = 1;
     static final int COURIER_COMMAND_ID = 2;
@@ -21,6 +21,10 @@ public final class ExtensionNetwork {
     static final int MAID_TRANSPORT_SNAPSHOT_ID = 11;
     static final int TERMINAL_NOTICE_ID = 12;
     static final int MAID_PICKUP_GUIDANCE_ID = 13;
+    static final int BUSINESS_LICENSE_ACTION_ID = 14;
+    static final int BUSINESS_LICENSE_SNAPSHOT_ID = 15;
+    static final int MAID_LOGISTICS_ACTION_ID = 16;
+    static final int MAID_LOGISTICS_SNAPSHOT_ID = 17;
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(MaidStorageManagerExtension.MOD_ID, "main"),
             () -> PROTOCOL,
@@ -93,5 +97,21 @@ public final class ExtensionNetwork {
                 MaidPickupGuidancePacket::encode,
                 MaidPickupGuidancePacket::decode,
                 MaidPickupGuidancePacket::handle);
+        CHANNEL.registerMessage(BUSINESS_LICENSE_ACTION_ID, BusinessLicenseActionPacket.class,
+                BusinessLicenseActionPacket::encode,
+                BusinessLicenseActionPacket::decode,
+                BusinessLicenseActionPacket::handle);
+        CHANNEL.registerMessage(BUSINESS_LICENSE_SNAPSHOT_ID, BusinessLicenseSnapshotPacket.class,
+                BusinessLicenseSnapshotPacket::encode,
+                BusinessLicenseSnapshotPacket::decode,
+                BusinessLicenseSnapshotPacket::handle);
+        CHANNEL.registerMessage(MAID_LOGISTICS_ACTION_ID, MaidLogisticsActionPacket.class,
+                MaidLogisticsActionPacket::encode,
+                MaidLogisticsActionPacket::decode,
+                MaidLogisticsActionPacket::handle);
+        CHANNEL.registerMessage(MAID_LOGISTICS_SNAPSHOT_ID, MaidLogisticsSnapshotPacket.class,
+                MaidLogisticsSnapshotPacket::encode,
+                MaidLogisticsSnapshotPacket::decode,
+                MaidLogisticsSnapshotPacket::handle);
     }
 }

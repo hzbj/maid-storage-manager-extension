@@ -21,5 +21,7 @@ public final class ClientCompatibilityEvents {
                 ExtensionMenus.COURIER_CONFIG.get(), CourierConfigScreen::new));
         event.enqueueWork(() -> MenuScreens.register(
                 ExtensionMenus.LOGISTICS_TRACKER.get(), LogisticsTrackerScreen::new));
+        event.enqueueWork(() -> MenuScreens.register(
+                ExtensionMenus.BUSINESS_LICENSE.get(), BusinessLicenseScreen::new));
     }
 }

@@ -10,6 +10,7 @@ import io.github.maidstorageextension.maid.courier.CourierDeliveryPolicy;
 import io.github.maidstorageextension.maid.courier.CourierService;
 import io.github.maidstorageextension.maid.task.CourierTask;
 import io.github.maidstorageextension.terminal.TerminalAccountService;
+import io.github.maidstorageextension.license.BusinessLicenseService;
 import net.minecraft.ChatFormatting;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
@@ -159,6 +160,10 @@ public final class LogisticsTrackerItem extends HangUpItem {
             if (!context.getLevel().isClientSide && player instanceof ServerPlayer serverPlayer) {
                 ItemStack terminalStack = context.getItemInHand();
                 UUID terminal = ensureTerminalId(terminalStack);
+                if (BusinessLicenseService.registerToTerminal(serverPlayer, terminal,
+                        serverPlayer.serverLevel(), context.getClickedPos())) {
+                    return InteractionResult.SUCCESS;
+                }
                 if (TerminalAccountService.registerMailbox(serverPlayer, terminal,
                         serverPlayer.serverLevel(), context.getClickedPos())) {
                     return InteractionResult.SUCCESS;

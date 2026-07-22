@@ -26,4 +26,14 @@ class LogisticsDisplayNameTest {
                 LogisticsDisplayName.decode(LogisticsDisplayName.encode(
                         Component.literal("仓库小助手"))).getString());
     }
+
+    @Test
+    void numberedMailboxNameRemainsClientLocalizable() {
+        Component decoded = LogisticsDisplayName.decode("@mailbox:2");
+        TranslatableContents contents = assertInstanceOf(
+                TranslatableContents.class, decoded.getContents());
+        assertEquals("gui.maid_storage_manager_extension.terminal.default_mailbox_name",
+                contents.getKey());
+        assertEquals("2", contents.getArgs()[0]);
+    }
 }

@@ -5,6 +5,7 @@ import io.github.maidstorageextension.item.InventoryMaintenanceDevice;
 import io.github.maidstorageextension.item.LogisticsTrackerItem;
 import io.github.maidstorageextension.item.TaskBellItem;
 import io.github.maidstorageextension.item.CourierWarehouseMailboxItem;
+import io.github.maidstorageextension.item.BusinessLicenseItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.BlockItem;
 import net.minecraftforge.eventbus.api.IEventBus;
@@ -28,6 +29,8 @@ public final class ExtensionItems {
     public static final RegistryObject<Item> COURIER_WAREHOUSE_STATION = REGISTER.register(
             "courier_warehouse_station", () -> new CourierWarehouseMailboxItem(
                     ExtensionBlocks.COURIER_WAREHOUSE_STATION.get(), new Item.Properties()));
+    public static final RegistryObject<Item> BUSINESS_LICENSE = REGISTER.register(
+            "business_license", () -> new BusinessLicenseItem(ExtensionBlocks.BUSINESS_LICENSE.get()));
 
     private ExtensionItems() {
     }

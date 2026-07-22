@@ -120,7 +120,7 @@ public final class NetworkWarehouseService {
         warehouseId = warehouse == null ? warehouseSnapshot.managers().get(0) : warehouse.getUUID();
         String warehouseName = warehouse == null
                 ? binding == null ? warehouseId.toString().substring(0, 8) : binding.warehouseName()
-                : warehouse.getName().getString();
+                : MaidDisplayName.encode(warehouse);
 
         boolean authorized = accountAuthorized || warehouse != null
                 && WarehouseCourierData.get(warehouse).isAuthorized(courier.getUUID());

@@ -24,10 +24,13 @@ public final class TerminalAccountData extends SavedData {
     public static final String DATA_NAME = "maid_storage_manager_extension_terminal_accounts";
     public static final int MAX_MAIDS = 32;
     public static final int MAX_MAILBOXES = 32;
+    public static final int MAX_MAILBOX_NAME_LENGTH = 32;
+    public static final int MAX_LICENSES = 32;
     private static final Pattern USERNAME = Pattern.compile("[A-Za-z0-9_.-]{3,24}");
     private final Map<UUID, Account> accounts = new LinkedHashMap<>();
     private final Map<String, UUID> accountNames = new LinkedHashMap<>();
     private final Map<UUID, UUID> maidAccounts = new LinkedHashMap<>();
+    private final Map<UUID, UUID> licenseAccounts = new LinkedHashMap<>();
 
     public static final class Account {
         private final UUID id;
@@ -38,7 +41,9 @@ public final class TerminalAccountData extends SavedData {
         private byte[] resetHash = new byte[0];
         private boolean passwordResetRequired;
         private final LinkedHashSet<UUID> maids = new LinkedHashSet<>();
+        private final Map<UUID, String> maidNames = new LinkedHashMap<>();
         private final List<Mailbox> mailboxes = new ArrayList<>();
+        private final List<BusinessLicense> licenses = new ArrayList<>();
         private final Map<UUID, byte[]> deviceGrants = new LinkedHashMap<>();
         private UUID selectedCourier;
         private UUID selectedDriver;
@@ -54,10 +59,12 @@ public final class TerminalAccountData extends SavedData {
         public UUID id() { return id; }
         public String username() { return username; }
         public Set<UUID> maids() { return Set.copyOf(maids); }
+        public String maidName(UUID maid) { return maidNames.getOrDefault(maid, ""); }
         public UUID selectedCourier() { return selectedCourier; }
         public UUID selectedDriver() { return selectedDriver; }
         public MailboxKey selectedMailbox() { return selectedMailbox; }
         public List<Mailbox> mailboxes() { return List.copyOf(mailboxes); }
+        public List<BusinessLicense> licenses() { return List.copyOf(licenses); }
         public boolean passwordResetRequired() { return passwordResetRequired; }
     }
 
@@ -71,6 +78,18 @@ public final class TerminalAccountData extends SavedData {
         public boolean sameLocation(ResourceLocation otherDimension, BlockPos otherPosition) {
             return dimension != null && position != null && dimension.equals(otherDimension)
                     && position.equals(otherPosition);
+        }
+    }
+
+    public record BusinessLicense(UUID id, ResourceLocation dimension, BlockPos position,
+                                  String name) {
+        public BusinessLicense {
+            position = position == null ? null : position.immutable();
+            name = name == null ? "" : name;
+        }
+
+        public boolean valid() {
+            return id != null && dimension != null && position != null;
         }
     }
 
@@ -212,14 +231,23 @@ public final class TerminalAccountData extends SavedData {
     }
 
     public RegistrationResult register(Account account, UUID maid) {
+        return register(account, maid, "");
+    }
+
+    public RegistrationResult register(Account account, UUID maid, String displayName) {
         if (account == null || maid == null) return RegistrationResult.INVALID;
         UUID existing = maidAccounts.get(maid);
         if (existing != null && !existing.equals(account.id)) {
             return RegistrationResult.OWNED_BY_OTHER_ACCOUNT;
         }
-        if (account.maids.contains(maid)) return RegistrationResult.ALREADY_REGISTERED;
+        if (account.maids.contains(maid)) {
+            rememberMaidName(account, maid, displayName);
+            return RegistrationResult.ALREADY_REGISTERED;
+        }
         if (account.maids.size() >= MAX_MAIDS) return RegistrationResult.LIMIT_REACHED;
         account.maids.add(maid);
+        String name = normalizeMaidName(displayName);
+        if (!name.isBlank()) account.maidNames.put(maid, name);
         maidAccounts.put(maid, account.id);
         if (account.selectedCourier == null) account.selectedCourier = maid;
         if (account.selectedDriver == null) account.selectedDriver = maid;
@@ -227,8 +255,24 @@ public final class TerminalAccountData extends SavedData {
         return RegistrationResult.ADDED;
     }
 
+    public boolean rememberMaidName(Account account, UUID maid, String displayName) {
+        if (!belongsTo(account, maid)) return false;
+        String name = normalizeMaidName(displayName);
+        if (name.isBlank() || name.equals(account.maidNames.get(maid))) return false;
+        account.maidNames.put(maid, name);
+        setDirty();
+        return true;
+    }
+
+    private static String normalizeMaidName(String displayName) {
+        if (displayName == null) return "";
+        String value = displayName.trim();
+        return value.length() <= 256 ? value : value.substring(0, 256);
+    }
+
     public boolean unregister(Account account, UUID maid) {
         if (account == null || maid == null || !account.maids.remove(maid)) return false;
+        account.maidNames.remove(maid);
         maidAccounts.remove(maid, account.id);
         if (maid.equals(account.selectedCourier)) account.selectedCourier = first(account.maids);
         if (maid.equals(account.selectedDriver)) account.selectedDriver = first(account.maids);
@@ -259,7 +303,11 @@ public final class TerminalAccountData extends SavedData {
                 || mailbox.position() == null || mailbox.warehouse() == null) return false;
         for (int i = 0; i < account.mailboxes.size(); i++) {
             if (account.mailboxes.get(i).sameLocation(mailbox.dimension(), mailbox.position())) {
-                account.mailboxes.set(i, mailbox);
+                String name = mailbox.warehouseName().isBlank()
+                        ? account.mailboxes.get(i).warehouseName() : mailbox.warehouseName();
+                if (name.isBlank()) name = nextMailboxName(account, i);
+                account.mailboxes.set(i, new Mailbox(mailbox.dimension(), mailbox.position(),
+                        mailbox.warehouse(), name));
                 if (account.selectedMailbox == null) {
                     account.selectedMailbox = new MailboxKey(mailbox.dimension(), mailbox.position());
                 }
@@ -268,12 +316,50 @@ public final class TerminalAccountData extends SavedData {
             }
         }
         if (account.mailboxes.size() >= MAX_MAILBOXES) return false;
-        account.mailboxes.add(mailbox);
+        account.mailboxes.add(mailbox.warehouseName().isBlank()
+                ? new Mailbox(mailbox.dimension(), mailbox.position(), mailbox.warehouse(),
+                nextMailboxName(account, -1)) : mailbox);
         if (account.selectedMailbox == null) {
             account.selectedMailbox = new MailboxKey(mailbox.dimension(), mailbox.position());
         }
         setDirty();
         return true;
+    }
+
+    public boolean renameMailbox(Account account, ResourceLocation dimension,
+                                 BlockPos position, String requestedName) {
+        if (account == null || dimension == null || position == null) return false;
+        int index = -1;
+        for (int i = 0; i < account.mailboxes.size(); i++) {
+            if (account.mailboxes.get(i).sameLocation(dimension, position)) {
+                index = i;
+                break;
+            }
+        }
+        if (index < 0) return false;
+        String name = requestedName == null ? "" : requestedName.trim();
+        if (name.length() > MAX_MAILBOX_NAME_LENGTH) return false;
+        if (name.isBlank()) name = nextMailboxName(account, index);
+        Mailbox old = account.mailboxes.get(index);
+        account.mailboxes.set(index, new Mailbox(old.dimension(), old.position(),
+                old.warehouse(), name));
+        setDirty();
+        return true;
+    }
+
+    private static String nextMailboxName(Account account, int ignoredIndex) {
+        for (int number = 1; number <= MAX_MAILBOXES + 1; number++) {
+            String candidate = "@mailbox:" + number;
+            boolean used = false;
+            for (int i = 0; i < account.mailboxes.size(); i++) {
+                if (i != ignoredIndex && candidate.equals(account.mailboxes.get(i).warehouseName())) {
+                    used = true;
+                    break;
+                }
+            }
+            if (!used) return candidate;
+        }
+        return "@mailbox:" + (account.mailboxes.size() + 1);
     }
 
     public boolean unregisterMailbox(Account account, ResourceLocation dimension, BlockPos position) {
@@ -303,11 +389,47 @@ public final class TerminalAccountData extends SavedData {
         return true;
     }
 
+    public RegistrationResult registerLicense(Account account, BusinessLicense license) {
+        if (account == null || license == null || !license.valid()) return RegistrationResult.INVALID;
+        UUID existingAccount = licenseAccounts.get(license.id());
+        if (existingAccount != null && !existingAccount.equals(account.id)) {
+            return RegistrationResult.OWNED_BY_OTHER_ACCOUNT;
+        }
+        for (int i = 0; i < account.licenses.size(); i++) {
+            if (account.licenses.get(i).id().equals(license.id())) {
+                account.licenses.set(i, license);
+                licenseAccounts.put(license.id(), account.id);
+                setDirty();
+                return RegistrationResult.ALREADY_REGISTERED;
+            }
+        }
+        if (account.licenses.size() >= MAX_LICENSES) return RegistrationResult.LIMIT_REACHED;
+        account.licenses.add(license);
+        licenseAccounts.put(license.id(), account.id);
+        setDirty();
+        return RegistrationResult.ADDED;
+    }
+
+    public boolean unregisterLicense(Account account, UUID license) {
+        if (account == null || license == null) return false;
+        boolean changed = account.licenses.removeIf(value -> value.id().equals(license));
+        if (changed) {
+            licenseAccounts.remove(license, account.id);
+            setDirty();
+        }
+        return changed;
+    }
+
+    public boolean ownsLicense(Account account, UUID license) {
+        return account != null && license != null && account.id.equals(licenseAccounts.get(license));
+    }
+
     public boolean forceUnregister(UUID maid) {
         UUID accountId = maidAccounts.remove(maid);
         Account account = byId(accountId);
         if (account == null) return accountId != null;
         boolean changed = account.maids.remove(maid);
+        account.maidNames.remove(maid);
         if (maid.equals(account.selectedCourier)) account.selectedCourier = first(account.maids);
         if (maid.equals(account.selectedDriver)) account.selectedDriver = first(account.maids);
         if (changed || accountId != null) setDirty();
@@ -334,6 +456,8 @@ public final class TerminalAccountData extends SavedData {
             for (UUID maid : account.maids) {
                 CompoundTag entry = new CompoundTag();
                 entry.putUUID("id", maid);
+                String name = account.maidNames.get(maid);
+                if (name != null && !name.isBlank()) entry.putString("name", name);
                 maids.add(entry);
             }
             tag.put("maids", maids);
@@ -353,9 +477,21 @@ public final class TerminalAccountData extends SavedData {
                 entry.putLong("position", mailbox.position().asLong());
                 if (mailbox.warehouse() != null) entry.putUUID("warehouse", mailbox.warehouse());
                 entry.putString("warehouseName", mailbox.warehouseName());
+                entry.putBoolean("hasMailboxDisplayName", true);
                 mailboxes.add(entry);
             }
             tag.put("mailboxes", mailboxes);
+            ListTag licenses = new ListTag();
+            for (BusinessLicense license : account.licenses) {
+                if (!license.valid()) continue;
+                CompoundTag entry = new CompoundTag();
+                entry.putUUID("id", license.id());
+                entry.putString("dimension", license.dimension().toString());
+                entry.putLong("position", license.position().asLong());
+                entry.putString("name", license.name());
+                licenses.add(entry);
+            }
+            tag.put("licenses", licenses);
             if (account.selectedCourier != null) tag.putUUID("selectedCourier", account.selectedCourier);
             if (account.selectedDriver != null) tag.putUUID("selectedDriver", account.selectedDriver);
             if (account.selectedMailbox != null) {
@@ -385,7 +521,11 @@ public final class TerminalAccountData extends SavedData {
                 CompoundTag entry = maids.getCompound(j);
                 if (!entry.hasUUID("id")) continue;
                 UUID maid = entry.getUUID("id");
-                if (data.maidAccounts.putIfAbsent(maid, account.id) == null) account.maids.add(maid);
+                if (data.maidAccounts.putIfAbsent(maid, account.id) == null) {
+                    account.maids.add(maid);
+                    String name = normalizeMaidName(entry.getString("name"));
+                    if (!name.isBlank()) account.maidNames.put(maid, name);
+                }
             }
             ListTag grants = tag.getList("grants", Tag.TAG_COMPOUND);
             for (int j = 0; j < grants.size(); j++) {
@@ -401,8 +541,24 @@ public final class TerminalAccountData extends SavedData {
                 ResourceLocation dimension = ResourceLocation.tryParse(entry.getString("dimension"));
                 if (dimension == null || !entry.contains("position", Tag.TAG_LONG)
                         || !entry.hasUUID("warehouse")) continue;
+                // Old saves stored a warehouse-maid name here; they predate user-named mailboxes.
+                String mailboxName = entry.getBoolean("hasMailboxDisplayName")
+                        ? entry.getString("warehouseName") : "";
+                if (mailboxName.isBlank()) mailboxName = nextMailboxName(account, -1);
                 account.mailboxes.add(new Mailbox(dimension, BlockPos.of(entry.getLong("position")),
-                        entry.getUUID("warehouse"), entry.getString("warehouseName")));
+                        entry.getUUID("warehouse"), mailboxName));
+            }
+            ListTag licenseTags = tag.getList("licenses", Tag.TAG_COMPOUND);
+            for (int j = 0; j < licenseTags.size() && account.licenses.size() < MAX_LICENSES; j++) {
+                CompoundTag entry = licenseTags.getCompound(j);
+                ResourceLocation dimension = ResourceLocation.tryParse(entry.getString("dimension"));
+                if (dimension == null || !entry.hasUUID("id")
+                        || !entry.contains("position", Tag.TAG_LONG)) continue;
+                UUID license = entry.getUUID("id");
+                if (data.licenseAccounts.putIfAbsent(license, account.id) == null) {
+                    account.licenses.add(new BusinessLicense(license, dimension,
+                            BlockPos.of(entry.getLong("position")), entry.getString("name")));
+                }
             }
             account.selectedCourier = account.maids.contains(tag.hasUUID("selectedCourier")
                     ? tag.getUUID("selectedCourier") : null) ? tag.getUUID("selectedCourier") : first(account.maids);

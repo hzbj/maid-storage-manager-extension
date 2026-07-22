@@ -3,6 +3,7 @@ package io.github.maidstorageextension.registry;
 import io.github.maidstorageextension.MaidStorageManagerExtension;
 import io.github.maidstorageextension.block.TaskBellBlockEntity;
 import io.github.maidstorageextension.block.CourierWarehouseStationBlockEntity;
+import io.github.maidstorageextension.block.BusinessLicenseBlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.registries.DeferredRegister;
@@ -19,6 +20,9 @@ public final class ExtensionBlockEntities {
             COURIER_WAREHOUSE_STATION = REGISTER.register("courier_warehouse_station",
             () -> BlockEntityType.Builder.of(CourierWarehouseStationBlockEntity::new,
                     ExtensionBlocks.COURIER_WAREHOUSE_STATION.get()).build(null));
+    public static final RegistryObject<BlockEntityType<BusinessLicenseBlockEntity>> BUSINESS_LICENSE =
+            REGISTER.register("business_license", () -> BlockEntityType.Builder
+                    .of(BusinessLicenseBlockEntity::new, ExtensionBlocks.BUSINESS_LICENSE.get()).build(null));
 
     private ExtensionBlockEntities() {
     }

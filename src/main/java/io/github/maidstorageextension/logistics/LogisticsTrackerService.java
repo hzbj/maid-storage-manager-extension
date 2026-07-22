@@ -185,7 +185,7 @@ public final class LogisticsTrackerService {
         for (CourierData.WarehouseBinding binding : data.warehouses()) {
             EntityMaid warehouse = findMaid(server, binding.warehouse());
             String name = warehouse == null ? binding.warehouseName()
-                    : LogisticsDisplayName.encode(warehouse.getName());
+                    : MaidDisplayName.encode(warehouse);
             if (warehouse == null && !name.isBlank()) {
                 name = LogisticsDisplayName.encode(net.minecraft.network.chat.Component.literal(name));
             }

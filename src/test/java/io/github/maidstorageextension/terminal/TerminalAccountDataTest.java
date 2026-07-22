@@ -92,4 +92,41 @@ class TerminalAccountDataTest {
         assertTrue(data.unregisterMailbox(account, dimension, position));
         assertTrue(account.mailboxes().isEmpty());
     }
+
+    @Test
+    void unnamedMailboxesReceiveStableNumberedNamesAndCanBeRenamed() {
+        TerminalAccountData data = new TerminalAccountData();
+        TerminalAccountData.Account account = data.create("mailbox_names", "password-four");
+        ResourceLocation dimension = new ResourceLocation("minecraft", "overworld");
+        BlockPos first = new BlockPos(1, 64, 1);
+        BlockPos second = new BlockPos(2, 64, 2);
+
+        assertTrue(data.registerMailbox(account, new TerminalAccountData.Mailbox(
+                dimension, first, UUID.randomUUID(), "")));
+        assertTrue(data.registerMailbox(account, new TerminalAccountData.Mailbox(
+                dimension, second, UUID.randomUUID(), "")));
+        assertEquals("@mailbox:1", account.mailboxes().get(0).warehouseName());
+        assertEquals("@mailbox:2", account.mailboxes().get(1).warehouseName());
+        assertTrue(data.renameMailbox(account, dimension, first, "红魔馆收货处"));
+
+        TerminalAccountData.Account restored = TerminalAccountData.load(
+                data.save(new CompoundTag())).byUsername("mailbox_names");
+        assertEquals("红魔馆收货处", restored.mailboxes().get(0).warehouseName());
+        assertEquals("@mailbox:2", restored.mailboxes().get(1).warehouseName());
+    }
+
+    @Test
+    void lastKnownMaidModelNameSurvivesOfflineReload() {
+        TerminalAccountData data = new TerminalAccountData();
+        TerminalAccountData.Account account = data.create("model_names", "password-five");
+        UUID maid = UUID.randomUUID();
+        String modelName = "@translation:model.touhou_little_maid_seihou.vivit.name";
+
+        assertEquals(TerminalAccountData.RegistrationResult.ADDED,
+                data.register(account, maid, modelName));
+        TerminalAccountData.Account restored = TerminalAccountData.load(
+                data.save(new CompoundTag())).byUsername("model_names");
+
+        assertEquals(modelName, restored.maidName(maid));
+    }
 }

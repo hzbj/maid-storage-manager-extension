@@ -1797,7 +1797,9 @@ public final class CourierService {
             ItemStack stack = source.getStackInSlot(slot);
             if (stack.isEmpty() || stack.is(ItemRegistry.REQUEST_LIST_ITEM.get())
                     || EnderPocketCompat.isBroom(stack)) continue;
-            ItemStack offered = stack.copy();
+            int permitted = logisticsDepositAllowance(data, manifest, stack);
+            if (permitted <= 0) continue;
+            ItemStack offered = stack.copyWithCount(Math.min(stack.getCount(), permitted));
             int baseline = CourierInventory.count(destination, offered);
             ItemStack remainder = CourierInventory.insert(destination, offered);
             int moved = offered.getCount() - remainder.getCount();
@@ -1825,6 +1827,21 @@ public final class CourierService {
         sync(courier, data);
         notifyOwner(courier, "message.maid_storage_manager_extension.courier.deposit_dispatched",
                 warehouse.getName());
+    }
+
+    /** Empty means an ordinary deposit; a populated filter makes a route deposit cargo-exact. */
+    private static int logisticsDepositAllowance(CourierData.Data data,
+                                                 List<CourierData.ManifestEntry> moved,
+                                                 ItemStack stack) {
+        if (data.logisticsDepositFilter().isEmpty()) return stack.getCount();
+        int permitted = 0;
+        for (CourierData.ManifestEntry entry : data.logisticsDepositFilter()) {
+            if (ItemStack.isSameItemSameTags(entry.prototype(), stack)) permitted += entry.amount();
+        }
+        for (CourierData.ManifestEntry entry : moved) {
+            if (ItemStack.isSameItemSameTags(entry.prototype(), stack)) permitted -= entry.amount();
+        }
+        return Math.max(0, permitted);
     }
 
     private static void mergeManifest(List<CourierData.ManifestEntry> manifest,

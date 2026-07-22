@@ -9,6 +9,7 @@ import io.github.maidstorageextension.maid.courier.CourierBroomFlightService;
 import io.github.maidstorageextension.maid.courier.CourierRequestTarget;
 import io.github.maidstorageextension.data.CourierData;
 import io.github.maidstorageextension.maid.task.CourierTask;
+import io.github.maidstorageextension.license.BusinessLicenseService;
 import io.github.maidstorageextension.registry.ExtensionItems;
 import net.minecraft.network.chat.Component;
 import net.minecraft.nbt.CompoundTag;
@@ -44,6 +45,10 @@ public final class InteractionEvents {
             return;
         }
         EntityMaid maid = event.getMaid();
+        if (BusinessLicenseService.targetMaid(player, maid)) {
+            event.setCanceled(true);
+            return;
+        }
         if (ReachabilityDebugManager.consumeClick(player, maid)) {
             event.setCanceled(true);
             return;
@@ -94,6 +99,17 @@ public final class InteractionEvents {
             ChatTexts.send(maid, ChatTexts.CHAT_CHECK_MARK_CHANGED);
         }
         event.setCanceled(true);
+    }
+
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
+    public static void targetBusinessLicenseBlock(PlayerInteractEvent.RightClickBlock event) {
+        if (!(event.getEntity() instanceof ServerPlayer player) || !player.isShiftKeyDown()
+                || event.getHand() != net.minecraft.world.InteractionHand.MAIN_HAND) return;
+        if (BusinessLicenseService.targetBlock(player, player.serverLevel(),
+                event.getPos(), event.getFace())) {
+            event.setCancellationResult(InteractionResult.SUCCESS);
+            event.setCanceled(true);
+        }
     }
 
     private static void setFlagStorages(ItemStack stack, List<Target> storages) {

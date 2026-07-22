@@ -6,6 +6,7 @@ import net.minecraft.network.chat.contents.TranslatableContents;
 /** Preserves translatable entity/model names across the server-authored logistics snapshot. */
 public final class LogisticsDisplayName {
     private static final String TRANSLATION_PREFIX = "@translation:";
+    private static final String MAILBOX_PREFIX = "@mailbox:";
 
     private LogisticsDisplayName() {
     }
@@ -21,6 +22,11 @@ public final class LogisticsDisplayName {
         if (encoded == null || encoded.isBlank()) return Component.empty();
         if (encoded.startsWith(TRANSLATION_PREFIX)) {
             return Component.translatable(encoded.substring(TRANSLATION_PREFIX.length()));
+        }
+        if (encoded.startsWith(MAILBOX_PREFIX)) {
+            return Component.translatable(
+                    "gui.maid_storage_manager_extension.terminal.default_mailbox_name",
+                    encoded.substring(MAILBOX_PREFIX.length()));
         }
         // Reads snapshots produced by 1.1.3 before the explicit marker was introduced.
         if (encoded.startsWith("model.") && encoded.endsWith(".name")) {

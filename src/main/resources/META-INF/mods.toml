@@ -54,3 +54,10 @@ mandatory=true
 versionRange="[11.1.136,12)"
 ordering="AFTER"
 side="CLIENT"
+
+[[dependencies."${mod_id}"]]
+modId="jei"
+mandatory=false
+versionRange="[15.17,16)"
+ordering="AFTER"
+side="CLIENT"

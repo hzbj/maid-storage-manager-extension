@@ -23,4 +23,15 @@ class ExtensionNetworkRegistrationTest {
                 ExtensionNetwork.TERMINAL_NOTICE_ID
         });
     }
+
+    @Test
+    void maidLogisticsMessagesAppendWithoutRenumberingExistingPackets() {
+        assertArrayEquals(new int[]{13, 14, 15, 16, 17}, new int[]{
+                ExtensionNetwork.MAID_PICKUP_GUIDANCE_ID,
+                ExtensionNetwork.BUSINESS_LICENSE_ACTION_ID,
+                ExtensionNetwork.BUSINESS_LICENSE_SNAPSHOT_ID,
+                ExtensionNetwork.MAID_LOGISTICS_ACTION_ID,
+                ExtensionNetwork.MAID_LOGISTICS_SNAPSHOT_ID
+        });
+    }
 }

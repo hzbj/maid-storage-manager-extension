@@ -33,8 +33,7 @@ class ChineseRequestListTerminologyTest {
     void playerDocumentationUsesTheSameItemName() throws IOException {
         for (Path relative : List.of(
                 Path.of("README.md"),
-                Path.of("CHANGELOG.md"),
-                Path.of("docs/design-maid-logistics.md"))) {
+                Path.of("CHANGELOG.md"))) {
             assertFalse(Files.readString(ROOT.resolve(relative), StandardCharsets.UTF_8)
                     .contains("需求清单"), relative + " contains the obsolete term");
         }

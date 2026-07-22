@@ -68,6 +68,7 @@ repositories {
     }
     flatDir { dir 'libs' }
     maven { url = 'https://maven.shedaniel.me/' }
+    maven { url = 'https://maven.blamejared.com/' }
 }
 
 configurations {
@@ -92,6 +93,11 @@ dependencies {
     }
     compileOnly fg.deobf('libs:1.20.1-tour_guide:1.0.2')
     implementation fg.deobf('me.shedaniel.cloth:cloth-config-forge:11.1.136')
+    compileOnly fg.deobf('mezz.jei:jei-1.20.1-common-api:15.17.0.77')
+    compileOnly fg.deobf('mezz.jei:jei-1.20.1-forge-api:15.17.0.77')
+    if (project.hasProperty('withJeiRuntime')) {
+        runtimeOnly fg.deobf('mezz.jei:jei-1.20.1-forge:15.17.0.77')
+    }
 
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
@@ -145,6 +151,11 @@ tasks.withType(JavaCompile).configureEach {
 
 tasks.named('test', Test).configure {
     useJUnitPlatform()
+}
+
+// ForgeGradle creates runServer late; configure its JavaExec lazily so `stop` can save the world.
+tasks.withType(JavaExec).configureEach {
+    if (name == 'runServer') standardInput = System.in
 }
 
 // Gradle's Windows test worker can lose class-directory entries when the project path contains CJK.

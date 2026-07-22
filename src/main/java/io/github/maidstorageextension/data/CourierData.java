@@ -155,6 +155,7 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
         private final List<ItemStack> pendingCargo = new ArrayList<>();
         private final List<ManifestEntry> requestManifest = new ArrayList<>();
         private final List<ManifestEntry> depositManifest = new ArrayList<>();
+        private final List<ManifestEntry> logisticsDepositFilter = new ArrayList<>();
         private long lastDepositProgressGameTime;
         private int lastDepositRemaining = -1;
         private long handoffStartedGameTime = -1L;
@@ -222,6 +223,7 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
         public List<ItemStack> pendingCargo() { return pendingCargo; }
         public List<ManifestEntry> requestManifest() { return requestManifest; }
         public List<ManifestEntry> depositManifest() { return depositManifest; }
+        public List<ManifestEntry> logisticsDepositFilter() { return logisticsDepositFilter; }
         public long lastDepositProgressGameTime() { return lastDepositProgressGameTime; }
         public int lastDepositRemaining() { return lastDepositRemaining; }
         public long handoffStartedGameTime() { return handoffStartedGameTime; }
@@ -616,6 +618,7 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
         tag.put("pendingCargo", writeStacks(data.pendingCargo));
         tag.put("requestManifest", writeManifest(data.requestManifest));
         tag.put("depositManifest", writeManifest(data.depositManifest));
+        tag.put("logisticsDepositFilter", writeManifest(data.logisticsDepositFilter));
         tag.putLong("lastDepositProgressGameTime", data.lastDepositProgressGameTime);
         tag.putInt("lastDepositRemaining", data.lastDepositRemaining);
         tag.putLong("handoffStartedGameTime", data.handoffStartedGameTime);
@@ -736,6 +739,8 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
         data.pendingCargo.addAll(readStacks(tag.getList("pendingCargo", Tag.TAG_COMPOUND)));
         data.requestManifest.addAll(readManifest(tag.getList("requestManifest", Tag.TAG_COMPOUND)));
         data.depositManifest.addAll(readManifest(tag.getList("depositManifest", Tag.TAG_COMPOUND)));
+        data.logisticsDepositFilter.addAll(readManifest(
+                tag.getList("logisticsDepositFilter", Tag.TAG_COMPOUND)));
         data.lastDepositProgressGameTime = Math.max(0L, tag.getLong("lastDepositProgressGameTime"));
         data.lastDepositRemaining = tag.contains("lastDepositRemaining")
                 ? tag.getInt("lastDepositRemaining") : -1;
