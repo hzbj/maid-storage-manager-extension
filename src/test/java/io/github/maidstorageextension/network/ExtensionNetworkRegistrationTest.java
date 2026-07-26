@@ -1,26 +1,41 @@
 package io.github.maidstorageextension.network;
 
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import java.util.List;
+import java.util.Set;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class ExtensionNetworkRegistrationTest {
     @Test
-    void existingMessageIdsRemainStableWhenCompassWarehouseMessagesAreAdded() {
-        assertArrayEquals(new int[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}, new int[]{
-                ExtensionNetwork.EXTENSION_CONFIG_ID,
-                ExtensionNetwork.REACHABILITY_DEBUG_ID,
-                ExtensionNetwork.COURIER_COMMAND_ID,
-                ExtensionNetwork.LOGISTICS_TRACKER_ID,
-                ExtensionNetwork.STATION_APPROVAL_ID,
-                ExtensionNetwork.NETWORK_WAREHOUSE_ACTION_ID,
-                ExtensionNetwork.NETWORK_WAREHOUSE_SNAPSHOT_ID,
-                ExtensionNetwork.TERMINAL_ACCOUNT_ACTION_ID,
-                ExtensionNetwork.TERMINAL_ACCOUNT_SNAPSHOT_ID,
-                ExtensionNetwork.TERMINAL_MAILBOX_ACTION_ID,
-                ExtensionNetwork.MAID_TRANSPORT_ACTION_ID,
-                ExtensionNetwork.MAID_TRANSPORT_SNAPSHOT_ID,
-                ExtensionNetwork.TERMINAL_NOTICE_ID
-        });
+    void payloadIdsAreUniqueAndDirectionsStayExplicit() {
+        List<CustomPacketPayload.Type<?>> serverbound = List.of(
+                ExtensionMaidConfigPacket.TYPE,
+                CourierCommandPacket.TYPE,
+                StationApprovalPacket.TYPE,
+                NetworkWarehouseActionPacket.TYPE,
+                TerminalAccountActionPacket.TYPE,
+                TerminalMailboxActionPacket.TYPE,
+                MaidTransportActionPacket.TYPE);
+        List<CustomPacketPayload.Type<?>> clientbound = List.of(
+                ReachabilityDebugPacket.TYPE,
+                LogisticsTrackerPacket.TYPE,
+                NetworkWarehouseSnapshotPacket.TYPE,
+                TerminalAccountSnapshotPacket.TYPE,
+                MaidTransportSnapshotPacket.TYPE,
+                TerminalNoticePacket.TYPE,
+                MaidPickupGuidancePacket.TYPE);
+
+        assertEquals(7, serverbound.size());
+        assertEquals(7, clientbound.size());
+        assertEquals(14, Set.copyOf(
+                java.util.stream.Stream.concat(serverbound.stream(), clientbound.stream())
+                        .map(CustomPacketPayload.Type::id).toList()).size());
+        java.util.stream.Stream.concat(serverbound.stream(), clientbound.stream())
+                .forEach(type -> assertEquals(
+                        "maid_storage_manager_extension", type.id().getNamespace()));
+        assertEquals("14", ExtensionNetwork.PROTOCOL);
     }
 }

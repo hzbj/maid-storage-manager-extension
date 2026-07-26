@@ -4,7 +4,7 @@ import net.minecraft.SharedConstants;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraftforge.items.IItemHandler;
+import net.neoforged.neoforge.items.IItemHandler;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -53,7 +53,8 @@ class ItemHandlerCapacityProbeTest {
     @Test
     void partlyFilledSlotWithDifferentNbtStillRejectsTheExactProbeStack() {
         ItemStack namedLogs = new ItemStack(Items.OAK_LOG, 48);
-        namedLogs.getOrCreateTag().putString("variant", "named");
+        io.github.maidstorageextension.migration.ItemDataMigration.update(
+                namedLogs, tag -> tag.putString("variant", "named"));
         FakeItemHandler handler = new FakeItemHandler(namedLogs);
 
         ItemHandlerCapacityProbe.Result result = ItemHandlerCapacityProbe.probe(
@@ -62,7 +63,8 @@ class ItemHandlerCapacityProbeTest {
         assertTrue(result.isKnown());
         assertTrue(result.isFull());
         assertEquals(0, result.insertableCount());
-        assertEquals("named", handler.getStackInSlot(0).getTag().getString("variant"));
+        assertEquals("named", io.github.maidstorageextension.migration.ItemDataMigration
+                .read(handler.getStackInSlot(0)).getString("variant"));
     }
 
     private static final class FakeItemHandler implements IItemHandler {
@@ -92,7 +94,7 @@ class ItemHandlerCapacityProbeTest {
             onlySimulatedCalls &= simulate;
             if (stack.isEmpty()) return ItemStack.EMPTY;
             ItemStack existing = slots.get(slot);
-            if (!existing.isEmpty() && !ItemStack.isSameItemSameTags(existing, stack)) return stack.copy();
+            if (!existing.isEmpty() && !ItemStack.isSameItemSameComponents(existing, stack)) return stack.copy();
 
             int limit = Math.min(getSlotLimit(slot), stack.getMaxStackSize());
             int occupied = existing.isEmpty() ? 0 : existing.getCount();

@@ -33,7 +33,8 @@ class MiscSortMemoryCodecTest {
         Target first = target("chest", 8, 2, 3);
         Target second = target("barrel", 12, 2, 3);
         ItemStack exact = new ItemStack(Items.DIAMOND, 17);
-        exact.getOrCreateTag().putString("marker", "kept");
+        io.github.maidstorageextension.migration.ItemDataMigration.update(
+                exact, tag -> tag.putString("marker", "kept"));
 
         MiscSortMemory memory = new MiscSortMemory();
         memory.setPhase(MiscSortMemory.Phase.MOVING);
@@ -53,7 +54,8 @@ class MiscSortMemoryCodecTest {
         assertEquals(second, decoded.getCurrentDestination().orElseThrow());
         assertEquals(1, decoded.getPendingTasks().size());
         assertEquals(12, decoded.getInFlight().getCount());
-        assertEquals("kept", decoded.getInFlight().getTag().getString("marker"));
+        assertEquals("kept", io.github.maidstorageextension.migration.ItemDataMigration
+                .read(decoded.getInFlight()).getString("marker"));
         assertEquals(4, decoded.getBufferSlot());
         assertTrue(decoded.hasInFlight());
         assertEquals(-1, decoded.getActiveBatch().orElseThrow().cargoLines().get(0).baselineCount());
@@ -73,7 +75,8 @@ class MiscSortMemoryCodecTest {
         Target second = target("barrel", 12, 2, 3);
         ItemStack diamonds = new ItemStack(Items.DIAMOND);
         ItemStack dirt = new ItemStack(Items.DIRT);
-        dirt.getOrCreateTag().putString("variant", "kept");
+        io.github.maidstorageextension.migration.ItemDataMigration.update(
+                dirt, tag -> tag.putString("variant", "kept"));
 
         MiscSortMemory memory = new MiscSortMemory();
         memory.beginGeneration(7L, MiscSortPlanner.IgnorePolicy.EXACT_STACK);
@@ -110,7 +113,8 @@ class MiscSortMemoryCodecTest {
                 .allMatch(line -> line.currentDestination().isEmpty()));
 
         ItemStack otherNbt = dirt.copy();
-        otherNbt.getOrCreateTag().putString("variant", "other");
+        io.github.maidstorageextension.migration.ItemDataMigration.update(
+                otherNbt, tag -> tag.putString("variant", "other"));
         assertFalse(decoded.isMarkedFull(7L, "barrel@canonical", otherNbt));
     }
 
@@ -203,7 +207,8 @@ class MiscSortMemoryCodecTest {
         Target second = target("chest", 12, 2, 3);
         ItemStack logs = new ItemStack(Items.OAK_LOG);
         ItemStack helmet = new ItemStack(Items.GOLDEN_HELMET);
-        helmet.getOrCreateTag().putString("enchantment", "kept-exactly");
+        io.github.maidstorageextension.migration.ItemDataMigration.update(
+                helmet, tag -> tag.putString("enchantment", "kept-exactly"));
         MiscSortMemory memory = new MiscSortMemory();
         memory.beginGeneration(14L, MiscSortPlanner.IgnorePolicy.ITEM_ID);
         memory.replaceSourceJobs(List.of(new MiscSortMemory.SourceJob(source, List.of(
@@ -228,8 +233,8 @@ class MiscSortMemoryCodecTest {
                 .map(MiscSortMemory.CargoLine::inFlightCount).toList());
         assertTrue(recovered.cargoLines().stream()
                 .allMatch(line -> line.currentDestination().isEmpty()));
-        assertEquals("kept-exactly", recovered.cargoLines().get(1).stack()
-                .getTag().getString("enchantment"));
+        assertEquals("kept-exactly", io.github.maidstorageextension.migration.ItemDataMigration
+                .read(recovered.cargoLines().get(1).stack()).getString("enchantment"));
     }
 
     @Test
@@ -283,6 +288,6 @@ class MiscSortMemoryCodecTest {
     }
 
     private static Target target(String block, int x, int y, int z) {
-        return new Target(new ResourceLocation("minecraft", block), new BlockPos(x, y, z));
+        return new Target(ResourceLocation.fromNamespaceAndPath("minecraft", block), new BlockPos(x, y, z));
     }
 }

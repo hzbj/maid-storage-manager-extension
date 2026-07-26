@@ -9,7 +9,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 
 class MailboxWarehouseDataTest {
-    private static final ResourceLocation OVERWORLD = new ResourceLocation("minecraft", "overworld");
+    private static final ResourceLocation OVERWORLD = ResourceLocation.fromNamespaceAndPath("minecraft", "overworld");
 
     @Test
     void oneMailboxAcceptsManyManagersSharingOneFrame() {
@@ -75,7 +75,8 @@ class MailboxWarehouseDataTest {
         data.bind(mailbox, manager, frame);
         data.publish(manager, frame, list, 400L);
 
-        MailboxWarehouseData decoded = MailboxWarehouseData.load(data.save(new net.minecraft.nbt.CompoundTag()));
+        MailboxWarehouseData decoded = MailboxWarehouseData.load(data.save(
+                new net.minecraft.nbt.CompoundTag(), net.minecraft.core.RegistryAccess.EMPTY));
         var snapshot = decoded.warehouse(mailbox);
         assertEquals(mailbox, decoded.mailboxOf(manager));
         assertEquals(frame, snapshot.frame());

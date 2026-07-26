@@ -13,7 +13,7 @@ class StationApprovalPacketTest {
     void stationDecisionRoundTripsDimensionAndMailboxPosition() {
         StationApprovalPacket source = new StationApprovalPacket(42,
                 StationApprovalPacket.Decision.APPROVE,
-                new ResourceLocation("minecraft", "overworld"), new BlockPos(12, 70, -8));
+                ResourceLocation.fromNamespaceAndPath("minecraft", "overworld"), new BlockPos(12, 70, -8));
         FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
 
         StationApprovalPacket.encode(source, buffer);

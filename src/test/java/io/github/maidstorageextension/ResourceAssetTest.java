@@ -110,21 +110,54 @@ class ResourceAssetTest {
         assertTrue(Files.exists(ASSETS.resolve("models/item/courier_warehouse_station.json")));
         assertTrue(Files.exists(ASSETS.resolve("textures/item/courier_warehouse_station.png")));
         assertTrue(Files.exists(Path.of(
-                "src/main/resources/data/maid_storage_manager_extension/loot_tables/blocks/courier_warehouse_station.json")));
+                "src/main/resources/data/maid_storage_manager_extension/loot_table/blocks/courier_warehouse_station.json")));
         assertTrue(Files.exists(Path.of(
-                "src/main/resources/data/maid_storage_manager_extension/recipes/courier_warehouse_station.json")));
+                "src/main/resources/data/maid_storage_manager_extension/recipe/courier_warehouse_station.json")));
+
+        String taskBellLoot = Files.readString(Path.of(
+                "src/main/resources/data/maid_storage_manager_extension/loot_table/blocks/task_bell.json"),
+                StandardCharsets.UTF_8);
+        assertFalse(taskBellLoot.contains("minecraft:copy_nbt"));
+        String taskBellBlock = Files.readString(Path.of(
+                "src/main/java/io/github/maidstorageextension/block/TaskBellBlock.java"),
+                StandardCharsets.UTF_8);
+        assertTrue(taskBellBlock.contains(
+                "bell.saveToItem(drop, builder.getLevel().registryAccess())"));
     }
 
     @Test
     void courierMailboxRecipeNeedsNoEnderPearlsAndAcceptsAnyWoodenFence() throws IOException {
         JsonObject recipe = JsonParser.parseString(Files.readString(Path.of(
-                "src/main/resources/data/maid_storage_manager_extension/recipes/courier_warehouse_station.json"),
+                "src/main/resources/data/maid_storage_manager_extension/recipe/courier_warehouse_station.json"),
                 StandardCharsets.UTF_8)).getAsJsonObject();
 
         assertEquals(" C ", recipe.getAsJsonArray("pattern").get(1).getAsString());
         assertFalse(recipe.getAsJsonObject("key").has("E"));
-        assertEquals("forge:fences/wooden", recipe.getAsJsonObject("key")
+        assertEquals("c:fences/wooden", recipe.getAsJsonObject("key")
                 .getAsJsonObject("W").get("tag").getAsString());
+        assertEquals("maid_storage_manager_extension:courier_warehouse_station",
+                recipe.getAsJsonObject("result").get("id").getAsString());
+    }
+
+    @Test
+    void allRecipesUseThe121ResultAndTouhouMaidAltarSchemas() throws IOException {
+        Path recipes = Path.of(
+                "src/main/resources/data/maid_storage_manager_extension/recipe");
+        for (String name : Set.of(
+                "inventory_maintenance_device", "logistics_tracker", "misc_storage")) {
+            JsonObject recipe = JsonParser.parseString(Files.readString(
+                    recipes.resolve(name + ".json"), StandardCharsets.UTF_8)).getAsJsonObject();
+            assertEquals("touhou_little_maid:altar_recipe_serializers",
+                    recipe.get("type").getAsString(), name);
+            assertEquals("minecraft:item", recipe.get("entity").getAsString(), name);
+            assertTrue(recipe.getAsJsonObject("result").has("id"), name);
+            assertFalse(recipe.has("output"), name);
+        }
+        JsonObject taskBell = JsonParser.parseString(Files.readString(
+                recipes.resolve("task_bell.json"), StandardCharsets.UTF_8)).getAsJsonObject();
+        assertEquals("maid_storage_manager_extension:task_bell",
+                taskBell.getAsJsonObject("result").get("id").getAsString());
+        assertFalse(taskBell.getAsJsonObject("result").has("item"));
     }
 
     @Test

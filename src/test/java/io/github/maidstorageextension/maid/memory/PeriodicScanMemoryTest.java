@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PeriodicScanMemoryTest {
     @Test
     void progressAndTargetsSurvivePauseState() {
-        Target target = new Target(new ResourceLocation("minecraft", "chest"), BlockPos.ZERO);
+        Target target = new Target(ResourceLocation.fromNamespaceAndPath("minecraft", "chest"), BlockPos.ZERO);
         PeriodicScanMemory memory = new PeriodicScanMemory(
                 1200L, PeriodicScanMemory.Phase.SCANNING, List.of(target), 2, 5);
 
@@ -41,7 +41,7 @@ class PeriodicScanMemoryTest {
 
     @Test
     void targetOnlyCompletesAfterExplicitSuccessfulInspection() {
-        Target target = new Target(new ResourceLocation("minecraft", "chest"), BlockPos.ZERO);
+        Target target = new Target(ResourceLocation.fromNamespaceAndPath("minecraft", "chest"), BlockPos.ZERO);
         PeriodicScanMemory memory = new PeriodicScanMemory();
         memory.beginInspection(List.of(target));
 

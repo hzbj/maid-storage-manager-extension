@@ -26,7 +26,7 @@ class RemoteMaidIndexDataTest {
 
         RemoteMaidIndexData data = RemoteMaidIndexData.load(root);
         RemoteMaidIndexData.Entry decoded = data.get(maid);
-        assertEquals(new ResourceLocation("minecraft", "the_nether"), decoded.dimension());
+        assertEquals(ResourceLocation.fromNamespaceAndPath("minecraft", "the_nether"), decoded.dimension());
         assertEquals(new BlockPos(320, 70, -96), decoded.position());
         assertEquals("Courier", decoded.name());
     }

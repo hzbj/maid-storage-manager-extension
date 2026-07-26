@@ -14,7 +14,7 @@ class MaidTransportSnapshotTest {
     void activeRouteRoundTripsWithoutLosingUnknownDestinationCoordinates() {
         UUID driver = UUID.randomUUID();
         UUID rider = UUID.randomUUID();
-        ResourceLocation overworld = new ResourceLocation("minecraft", "overworld");
+        ResourceLocation overworld = ResourceLocation.fromNamespaceAndPath("minecraft", "overworld");
         MaidTransportSnapshot.Snapshot source = new MaidTransportSnapshot.Snapshot(
                 driver, "driver", MaidTransportSnapshot.State.TO_DESTINATION,
                 overworld, new BlockPos(8, 96, 8), new BlockPos(10, 64, 10),

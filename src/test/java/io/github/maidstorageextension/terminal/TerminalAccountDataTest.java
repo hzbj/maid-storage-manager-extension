@@ -24,13 +24,14 @@ class TerminalAccountDataTest {
         UUID maid = UUID.randomUUID();
         assertEquals(TerminalAccountData.RegistrationResult.ADDED,
                 data.register(account, maid));
-        ResourceLocation overworld = new ResourceLocation("minecraft", "overworld");
+        ResourceLocation overworld = ResourceLocation.fromNamespaceAndPath("minecraft", "overworld");
         BlockPos mailbox = new BlockPos(12, 64, -4);
         UUID warehouse = UUID.randomUUID();
         assertTrue(data.registerMailbox(account, new TerminalAccountData.Mailbox(
                 overworld, mailbox, warehouse, "Kitchen Stores")));
 
-        TerminalAccountData decoded = TerminalAccountData.load(data.save(new CompoundTag()));
+        TerminalAccountData decoded = TerminalAccountData.load(data.save(
+                new CompoundTag(), net.minecraft.core.RegistryAccess.EMPTY));
         TerminalAccountData.Account restored = decoded.byUsername("SCARLET_DEVIL");
         assertNotNull(restored);
         assertTrue(decoded.verifyGrant(restored.id(), terminal, token));
@@ -80,7 +81,7 @@ class TerminalAccountDataTest {
         assertEquals(TerminalAccountData.RegistrationResult.ADDED,
                 data.register(account, second));
 
-        ResourceLocation dimension = new ResourceLocation("minecraft", "overworld");
+        ResourceLocation dimension = ResourceLocation.fromNamespaceAndPath("minecraft", "overworld");
         BlockPos position = new BlockPos(4, 70, 9);
         assertTrue(data.registerMailbox(account, new TerminalAccountData.Mailbox(
                 dimension, position, UUID.randomUUID(), "Main Warehouse")));

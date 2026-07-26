@@ -15,7 +15,7 @@ class WarehouseStationDataTest {
     void pendingMailboxRequestsRoundTripAndDeduplicateByWorldPosition() {
         WarehouseStationData.Data data = new WarehouseStationData.Data();
         WarehouseStationData.StationKey station = new WarehouseStationData.StationKey(
-                new ResourceLocation("minecraft", "overworld"), new BlockPos(9, 70, -4));
+                ResourceLocation.fromNamespaceAndPath("minecraft", "overworld"), new BlockPos(9, 70, -4));
         data.request(new WarehouseStationData.StationRequest(station, "First"));
         data.request(new WarehouseStationData.StationRequest(station, "Owner"));
 

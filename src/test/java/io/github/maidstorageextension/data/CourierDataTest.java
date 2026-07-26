@@ -31,7 +31,7 @@ class CourierDataTest {
         BlockPos ownerDeparture = new BlockPos(8, 65, 12);
         BlockPos deliveryChest = new BlockPos(16, 64, 20);
         BlockPos ownerTarget = new BlockPos(7, 64, 11);
-        ResourceLocation overworld = new ResourceLocation("minecraft", "overworld");
+        ResourceLocation overworld = ResourceLocation.fromNamespaceAndPath("minecraft", "overworld");
         CourierData.Data source = new CourierData.Data();
 
         source.bind(warehouse, warehousePos, overworld);
@@ -140,7 +140,7 @@ class CourierDataTest {
 
     @Test
     void courierKeepsAtMostSixWarehouseStationsAndMovesTheDefaultToTheFront() {
-        ResourceLocation overworld = new ResourceLocation("minecraft", "overworld");
+        ResourceLocation overworld = ResourceLocation.fromNamespaceAndPath("minecraft", "overworld");
         CourierData.Data data = new CourierData.Data();
         UUID[] warehouses = new UUID[7];
 
@@ -171,7 +171,7 @@ class CourierDataTest {
     void oldSingleWarehouseBindingMigratesIntoTheStationList() {
         UUID warehouse = UUID.randomUUID();
         BlockPos warehousePos = new BlockPos(40, 70, -20);
-        ResourceLocation overworld = new ResourceLocation("minecraft", "overworld");
+        ResourceLocation overworld = ResourceLocation.fromNamespaceAndPath("minecraft", "overworld");
         CompoundTag legacy = new CompoundTag();
         legacy.putUUID("warehouse", warehouse);
         legacy.putLong("warehousePos", warehousePos.asLong());
@@ -190,7 +190,7 @@ class CourierDataTest {
     void passengerTransportJournalKeepsCallerAndUnknownDestinationAcrossRestart() {
         CourierData.Data source = new CourierData.Data();
         UUID rider = UUID.randomUUID();
-        ResourceLocation overworld = new ResourceLocation("minecraft", "overworld");
+        ResourceLocation overworld = ResourceLocation.fromNamespaceAndPath("minecraft", "overworld");
         BlockPos pickup = new BlockPos(4, 70, 8);
         BlockPos destination = new BlockPos(240_000, 70, -180_000);
         source.beginPassengerTransport(rider, pickup, destination, overworld);

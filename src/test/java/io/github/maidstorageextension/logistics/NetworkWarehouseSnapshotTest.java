@@ -26,7 +26,7 @@ class NetworkWarehouseSnapshotTest {
 
     @Test
     void inventoryFreshnessAndMapNodesRoundTripThroughPacketTag() {
-        ResourceLocation overworld = new ResourceLocation("minecraft", "overworld");
+        ResourceLocation overworld = ResourceLocation.fromNamespaceAndPath("minecraft", "overworld");
         UUID warehouse = UUID.randomUUID();
         UUID list = UUID.randomUUID();
         MailboxKey mailbox = new MailboxKey(overworld, new BlockPos(76, 64, -6));
@@ -45,7 +45,8 @@ class NetworkWarehouseSnapshotTest {
                 new NetworkWarehouseSnapshot.MapPoint(overworld, new BlockPos(4, 64, 4)));
 
         NetworkWarehouseSnapshot.Snapshot decoded = NetworkWarehouseSnapshot.fromTag(
-                NetworkWarehouseSnapshot.toTag(source));
+                NetworkWarehouseSnapshot.toTag(source, net.minecraft.core.RegistryAccess.EMPTY),
+                net.minecraft.core.RegistryAccess.EMPTY);
 
         assertEquals(warehouse, decoded.warehouse());
         assertEquals(mailbox, decoded.mailboxKey());

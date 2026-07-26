@@ -23,15 +23,18 @@ neoForge {
     runs {
         client {
             client()
+            gameDirectory = layout.buildDirectory.dir('run-client')
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
         server {
             server()
+            gameDirectory = layout.buildDirectory.dir('run-server')
             programArgument '--nogui'
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
         gameTestServer {
             type = 'gameTestServer'
+            gameDirectory = layout.buildDirectory.dir('run-gametest')
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
         configureEach {
@@ -43,6 +46,11 @@ neoForge {
         "${mod_id}" {
             sourceSet sourceSets.main
         }
+    }
+
+    unitTest {
+        enable()
+        testedMod = mods."${mod_id}"
     }
 }
 
@@ -77,6 +85,7 @@ dependencies {
     localRuntime 'me.shedaniel.cloth:cloth-config-neoforge:15.0.140'
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.10.2'
 }
 
 def replaceProperties = [
@@ -128,20 +137,45 @@ tasks.named('test', Test).configure {
     useJUnitPlatform()
 }
 
-// Gradle's Windows test worker can lose class-directory entries when the project path contains CJK.
+// ModLauncher cannot enumerate Minecraft classes from a Windows classpath entry whose path
+// contains CJK characters. Mirror only project-local test inputs to an ASCII temp directory,
+// while preserving every classpath entry and JVM argument supplied by ModDevGradle.
 def asciiTestRuntime = new File(System.getProperty('java.io.tmpdir'), "${mod_id}-neoforge-test-runtime")
 tasks.register('prepareAsciiTestRuntime', Sync) {
-    dependsOn tasks.named('testClasses')
+    dependsOn tasks.named('testClasses'), tasks.named('createMinecraftArtifacts')
     into asciiTestRuntime
     from(sourceSets.main.output) { into 'main' }
     from(sourceSets.test.output) { into 'test' }
+    from(layout.buildDirectory.dir('moddev/artifacts')) {
+        include "neoforge-${neo_version}.jar"
+        include "neoforge-${neo_version}-client-extra-aka-minecraft-resources.jar"
+        into 'artifacts'
+    }
+}
+
+tasks.register('prepareSourceContractInputs', Copy) {
+    dependsOn tasks.named('processResources')
+    into layout.buildDirectory.dir('minecraft-junit')
+    from(projectDir) {
+        include 'build.gradle', 'README.md', 'CHANGELOG.md'
+        include 'docs/**'
+        include 'src/main/java/**'
+        include 'src/main/resources/**'
+    }
+    from(layout.buildDirectory.dir('resources/main')) {
+        into 'build/resources/main'
+    }
 }
 
 tasks.named('test', Test).configure {
-    dependsOn tasks.named('prepareAsciiTestRuntime')
+    dependsOn tasks.named('prepareAsciiTestRuntime'), tasks.named('prepareSourceContractInputs')
     doFirst {
-        classpath = files(
-                new File(asciiTestRuntime, 'test'),
-                new File(asciiTestRuntime, 'main')) + configurations.testRuntimeClasspath
+        def replacements = [
+                (layout.buildDirectory.file("moddev/artifacts/neoforge-${neo_version}.jar").get().asFile.absolutePath):
+                        new File(asciiTestRuntime, "artifacts/neoforge-${neo_version}.jar").absolutePath,
+                (layout.buildDirectory.file("moddev/artifacts/neoforge-${neo_version}-client-extra-aka-minecraft-resources.jar").get().asFile.absolutePath):
+                        new File(asciiTestRuntime, "artifacts/neoforge-${neo_version}-client-extra-aka-minecraft-resources.jar").absolutePath
+        ]
+        classpath = files(classpath.files.collect { file(replacements.getOrDefault(it.absolutePath, it.absolutePath)) })
     }
 }

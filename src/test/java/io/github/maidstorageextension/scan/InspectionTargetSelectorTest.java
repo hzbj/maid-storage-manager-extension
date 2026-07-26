@@ -23,6 +23,6 @@ class InspectionTargetSelectorTest {
     }
 
     private static Target target(String block, int x, int y, int z) {
-        return new Target(new ResourceLocation("minecraft", block), new BlockPos(x, y, z));
+        return new Target(ResourceLocation.fromNamespaceAndPath("minecraft", block), new BlockPos(x, y, z));
     }
 }

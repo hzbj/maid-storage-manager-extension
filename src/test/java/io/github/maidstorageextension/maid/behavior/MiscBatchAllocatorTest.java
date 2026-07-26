@@ -82,7 +82,8 @@ class MiscBatchAllocatorTest {
         Target source = target("chest", 1, 2, 3);
         Target destination = target("barrel", 8, 2, 3);
         ItemStack namedHelmet = new ItemStack(Items.GOLDEN_HELMET);
-        namedHelmet.getOrCreateTag().putString("variant", "named");
+        io.github.maidstorageextension.migration.ItemDataMigration.update(
+                namedHelmet, tag -> tag.putString("variant", "named"));
         MiscSortMemory.SourceJob job = new MiscSortMemory.SourceJob(source, List.of(
                 new MiscSortMemory.PayloadPlan(new ItemStack(Items.OAK_LOG), 128L,
                         "logs", List.of(destination)),
@@ -99,7 +100,8 @@ class MiscBatchAllocatorTest {
                 lines.stream().map(MiscSortMemory.CargoLine::transportSlot).toList());
         assertEquals(List.of(17, 3, 17),
                 lines.stream().map(MiscSortMemory.CargoLine::baselineCount).toList());
-        assertEquals("named", lines.get(1).stack().getTag().getString("variant"));
+        assertEquals("named", io.github.maidstorageextension.migration.ItemDataMigration
+                .read(lines.get(1).stack()).getString("variant"));
         assertEquals("named-helmets", lines.get(1).ignoreKey());
         assertFalse(allocation.remainder().isEmpty());
         assertEquals(1L, allocation.remainder().orElseThrow().payloads().get(0).remainingCount(),
@@ -127,7 +129,8 @@ class MiscBatchAllocatorTest {
         Target source = target("chest", 1, 2, 3);
         Target destination = target("barrel", 8, 2, 3);
         ItemStack namedHelmet = new ItemStack(Items.GOLDEN_HELMET);
-        namedHelmet.getOrCreateTag().putString("variant", "named");
+        io.github.maidstorageextension.migration.ItemDataMigration.update(
+                namedHelmet, tag -> tag.putString("variant", "named"));
         MiscSortMemory memory = new MiscSortMemory();
         memory.beginGeneration(6L, io.github.maidstorageextension.scan.MiscSortPlanner.IgnorePolicy.ITEM_ID);
         memory.setActiveBatch(new MiscSortMemory.ActiveBatch(6L, source, "source", List.of(
@@ -147,10 +150,11 @@ class MiscBatchAllocatorTest {
                 .findFirst().orElseThrow();
         assertEquals(112, logs.getCount());
         assertEquals(1, helmet.getCount());
-        assertEquals("named", helmet.getTag().getString("variant"));
+        assertEquals("named", io.github.maidstorageextension.migration.ItemDataMigration
+                .read(helmet).getString("variant"));
     }
 
     private static Target target(String block, int x, int y, int z) {
-        return new Target(new ResourceLocation("minecraft", block), new BlockPos(x, y, z));
+        return new Target(ResourceLocation.fromNamespaceAndPath("minecraft", block), new BlockPos(x, y, z));
     }
 }

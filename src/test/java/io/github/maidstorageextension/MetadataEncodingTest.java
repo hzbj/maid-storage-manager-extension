@@ -13,7 +13,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class MetadataEncodingTest {
     @Test
     void expandedModMetadataKeepsUtf8Chinese() throws IOException {
-        Path metadataPath = Path.of("build", "resources", "main", "META-INF", "mods.toml");
+        Path metadataPath = Path.of(
+                "build", "resources", "main", "META-INF", "neoforge.mods.toml");
         String metadata = Files.readString(metadataPath, StandardCharsets.UTF_8);
 
         assertTrue(metadata.contains("displayName=\"女仆仓管扩展\""),

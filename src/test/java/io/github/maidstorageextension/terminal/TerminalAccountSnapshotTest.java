@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class TerminalAccountSnapshotTest {
     @Test
     void managerRefreshStatesRoundTripWithTheirMailbox() {
-        ResourceLocation dimension = new ResourceLocation("minecraft", "overworld");
+        ResourceLocation dimension = ResourceLocation.fromNamespaceAndPath("minecraft", "overworld");
         MailboxKey key = new MailboxKey(dimension, new BlockPos(12, 64, -8));
         UUID manager = UUID.randomUUID();
         TerminalAccountSnapshot.Mailbox mailbox = new TerminalAccountSnapshot.Mailbox(

@@ -121,8 +121,8 @@ class MaidOperationalStatusTest {
 
     @Test
     void cleanupCargoAppearsAsWorkingTasksInsteadOfNoTaskMessage() {
-        Target sourceTarget = new Target(new ResourceLocation("minecraft", "chest"), new BlockPos(1, 2, 3));
-        Target destination = new Target(new ResourceLocation("minecraft", "barrel"), new BlockPos(8, 2, 3));
+        Target sourceTarget = new Target(ResourceLocation.fromNamespaceAndPath("minecraft", "chest"), new BlockPos(1, 2, 3));
+        Target destination = new Target(ResourceLocation.fromNamespaceAndPath("minecraft", "barrel"), new BlockPos(8, 2, 3));
         MiscSortMemory cleanup = new MiscSortMemory();
         cleanup.setActiveBatch(new MiscSortMemory.ActiveBatch(0L, sourceTarget, "source", List.of(
                 new MiscSortMemory.CargoLine(new ItemStack(Items.OAK_LOG), 32, 24, 4,
@@ -148,8 +148,8 @@ class MaidOperationalStatusTest {
 
     @Test
     void cleanupPendingPayloadAppearsBeforeTheMaidCollectsIt() {
-        Target sourceTarget = new Target(new ResourceLocation("minecraft", "chest"), new BlockPos(1, 2, 3));
-        Target destination = new Target(new ResourceLocation("minecraft", "barrel"), new BlockPos(8, 2, 3));
+        Target sourceTarget = new Target(ResourceLocation.fromNamespaceAndPath("minecraft", "chest"), new BlockPos(1, 2, 3));
+        Target destination = new Target(ResourceLocation.fromNamespaceAndPath("minecraft", "barrel"), new BlockPos(8, 2, 3));
         MiscSortMemory cleanup = new MiscSortMemory();
         cleanup.replaceSourceJobs(List.of(new MiscSortMemory.SourceJob(sourceTarget, List.of(
                 new MiscSortMemory.PayloadPlan(new ItemStack(Items.GOLDEN_HELMET), 2,
@@ -174,8 +174,8 @@ class MaidOperationalStatusTest {
 
     @Test
     void mixedCargoDoesNotClaimToReturnWhileTheBatchIsStillDelivering() {
-        Target sourceTarget = new Target(new ResourceLocation("minecraft", "chest"), new BlockPos(1, 2, 3));
-        Target destination = new Target(new ResourceLocation("minecraft", "barrel"), new BlockPos(8, 2, 3));
+        Target sourceTarget = new Target(ResourceLocation.fromNamespaceAndPath("minecraft", "chest"), new BlockPos(1, 2, 3));
+        Target destination = new Target(ResourceLocation.fromNamespaceAndPath("minecraft", "barrel"), new BlockPos(8, 2, 3));
         MiscSortMemory cleanup = new MiscSortMemory();
         cleanup.setActiveBatch(new MiscSortMemory.ActiveBatch(0L, sourceTarget, "source", List.of(
                 new MiscSortMemory.CargoLine(new ItemStack(Items.OAK_LOG), 32, 32, 4,

@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 class DriverDataTest {
     private static final ResourceLocation OVERWORLD =
-            new ResourceLocation("minecraft", "overworld");
+            ResourceLocation.fromNamespaceAndPath("minecraft", "overworld");
 
     @Test
     void passengerJournalRoundTripsWithoutCourierCargoState() {

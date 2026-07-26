@@ -25,7 +25,7 @@ class LogisticsSnapshotTest {
     @Test
     void destinationModeAndWarehouseStationsRoundTripThroughPacketTag() {
         UUID warehouse = UUID.randomUUID();
-        ResourceLocation dimension = new ResourceLocation("minecraft", "overworld");
+        ResourceLocation dimension = ResourceLocation.fromNamespaceAndPath("minecraft", "overworld");
         BlockPos position = new BlockPos(128, 70, -48);
         LogisticsSnapshot.Snapshot source = new LogisticsSnapshot.Snapshot(
                 true, true, "Courier", "TRAVEL_TO_WAREHOUSE_REQUEST",
