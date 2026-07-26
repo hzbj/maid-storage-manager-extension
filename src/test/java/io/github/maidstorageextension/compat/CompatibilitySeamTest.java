@@ -118,8 +118,9 @@ class CompatibilitySeamTest {
         assertDoesNotThrow(() -> {
             Class<?> service = Class.forName(
                     "com.github.yimeng261.maidspell.item.bauble.enderPocket.EnderPocketService");
-            service.getDeclaredMethod("openMaidInventory", ServerPlayer.class, UUID.class);
-            service.getDeclaredMethod("completeRemoteOpen", ServerPlayer.class, UUID.class);
+            service.getDeclaredMethod("getPlayerEnderPocketMaids", ServerPlayer.class);
+            Class<?> global = Class.forName("com.github.yimeng261.maidspell.Global");
+            global.getDeclaredMethod("getOrCreatePlayerMaidMap", UUID.class);
         });
     }
 
@@ -138,32 +139,30 @@ class CompatibilitySeamTest {
     }
 
     private static Set<String> productionParticleMethods() throws IOException {
-        Path jarPath = productionMaidStorageManagerJar();
-        String classPath = "studio/fantasyit/maid_storage_manager/items/render/CustomEmptyModel.class";
+        String classPath = "/studio/fantasyit/maid_storage_manager/items/render/CustomEmptyModel.class";
         Set<String> names = new HashSet<>();
-        try (ZipFile jar = new ZipFile(jarPath.toFile())) {
-            ZipEntry entry = jar.getEntry(classPath);
-            assertNotNull(entry, "Official 1.15.6 CustomEmptyModel class is missing");
-            try (InputStream stream = jar.getInputStream(entry)) {
-                new ClassReader(stream).accept(new ClassVisitor(Opcodes.ASM9) {
-                    @Override
-                    public MethodVisitor visitMethod(int access, String name, String descriptor,
-                                                     String signature, String[] exceptions) {
-                        if (descriptor.equals("()Lnet/minecraft/client/renderer/texture/TextureAtlasSprite;")) {
-                            names.add(name);
-                        }
-                        return null;
+        try (InputStream stream = CustomEmptyModel.class.getResourceAsStream(classPath)) {
+            assertNotNull(stream, "Official 1.15.6 CustomEmptyModel class is missing");
+            new ClassReader(stream).accept(new ClassVisitor(Opcodes.ASM9) {
+                @Override
+                public MethodVisitor visitMethod(int access, String name, String descriptor,
+                                                 String signature, String[] exceptions) {
+                    if (descriptor.equals("()Lnet/minecraft/client/renderer/texture/TextureAtlasSprite;")) {
+                        names.add(name);
                     }
-                }, ClassReader.SKIP_CODE | ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
-            }
+                    return null;
+                }
+            }, ClassReader.SKIP_CODE | ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
         }
         return names;
     }
 
     private static Set<String> particleInjectionSelectors() throws IOException {
         Set<String> selectors = new HashSet<>();
-        String classPath = "/" + Type.getInternalName(CustomEmptyModelMixin.class) + ".class";
-        try (InputStream stream = CustomEmptyModelMixin.class.getResourceAsStream(classPath)) {
+        String classPath =
+                "io/github/maidstorageextension/mixin/CustomEmptyModelMixin.class";
+        try (InputStream stream = CompatibilitySeamTest.class.getClassLoader()
+                .getResourceAsStream(classPath)) {
             assertNotNull(stream, "Compiled particle mixin class is missing");
             new ClassReader(stream).accept(new ClassVisitor(Opcodes.ASM9) {
                 @Override
@@ -198,51 +197,40 @@ class CompatibilitySeamTest {
     }
 
     private static int productionPriorityFlattenInvocationCount(String expectedTarget) throws IOException {
-        Path jarPath = productionMaidStorageManagerJar();
-        String classPath = "studio/fantasyit/maid_storage_manager/maid/behavior/place/PlaceMoveBehavior.class";
+        String classPath =
+                "/studio/fantasyit/maid_storage_manager/maid/behavior/place/PlaceMoveBehavior.class";
         int[] count = {0};
-        try (ZipFile jar = new ZipFile(jarPath.toFile())) {
-            ZipEntry entry = jar.getEntry(classPath);
-            assertNotNull(entry, "Official 1.15.6 PlaceMoveBehavior class is missing");
-            try (InputStream stream = jar.getInputStream(entry)) {
-                new ClassReader(stream).accept(new ClassVisitor(Opcodes.ASM9) {
-                    @Override
-                    public MethodVisitor visitMethod(int access, String name, String descriptor,
-                                                     String signature, String[] exceptions) {
-                        if (!name.equals("priorityTarget")) {
-                            return null;
-                        }
-                        return new MethodVisitor(Opcodes.ASM9) {
-                            @Override
-                            public void visitMethodInsn(int opcode, String owner, String name,
-                                                        String descriptor, boolean isInterface) {
-                                String target = "L" + owner + ";" + name + descriptor;
-                                if (target.equals(expectedTarget)) {
-                                    count[0]++;
-                                }
-                            }
-                        };
+        try (InputStream stream = PlaceMoveBehavior.class.getResourceAsStream(classPath)) {
+            assertNotNull(stream, "Official 1.15.6 PlaceMoveBehavior class is missing");
+            new ClassReader(stream).accept(new ClassVisitor(Opcodes.ASM9) {
+                @Override
+                public MethodVisitor visitMethod(int access, String name, String descriptor,
+                                                 String signature, String[] exceptions) {
+                    if (!name.equals("priorityTarget")) {
+                        return null;
                     }
-                }, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
-            }
+                    return new MethodVisitor(Opcodes.ASM9) {
+                        @Override
+                        public void visitMethodInsn(int opcode, String owner, String name,
+                                                    String descriptor, boolean isInterface) {
+                            String target = "L" + owner + ";" + name + descriptor;
+                            if (target.equals(expectedTarget)) {
+                                count[0]++;
+                            }
+                        }
+                    };
+                }
+            }, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
         }
         return count[0];
     }
 
-    private static Path productionMaidStorageManagerJar() throws IOException {
-        assertNotNull(CustomEmptyModel.class.getProtectionDomain().getCodeSource(),
-                "Cannot locate the resolved Maid Storage Manager dependency");
-        try {
-            return Path.of(CustomEmptyModel.class.getProtectionDomain().getCodeSource().getLocation().toURI());
-        } catch (URISyntaxException exception) {
-            throw new IOException("Invalid Maid Storage Manager dependency path", exception);
-        }
-    }
-
     private static RedirectMetadata miscPriorityRedirectMetadata() throws IOException {
         RedirectMetadata[] result = {null};
-        String classPath = "/" + Type.getInternalName(PlaceMoveBehaviorMixin.class) + ".class";
-        try (InputStream stream = PlaceMoveBehaviorMixin.class.getResourceAsStream(classPath)) {
+        String classPath =
+                "io/github/maidstorageextension/mixin/PlaceMoveBehaviorMixin.class";
+        try (InputStream stream = CompatibilitySeamTest.class.getClassLoader()
+                .getResourceAsStream(classPath)) {
             assertNotNull(stream, "Compiled place move mixin class is missing");
             new ClassReader(stream).accept(new ClassVisitor(Opcodes.ASM9) {
                 @Override

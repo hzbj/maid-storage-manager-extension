@@ -1,44 +1,42 @@
 package io.github.maidstorageextension.compat;
 
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.SharedConstants;
+import net.minecraft.server.Bootstrap;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import studio.fantasyit.maid_storage_manager.items.RequestListItem;
+import studio.fantasyit.maid_storage_manager.registry.DataComponentRegistry;
 
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class RequestListSafetyTest {
-    @Test
-    void missingJobUuidIsRepairedBeforeTheUpstreamEndEventReadsIt() {
-        CompoundTag tag = new CompoundTag();
-
-        assertTrue(RequestListSafety.ensureJobUuid(tag));
-        assertTrue(tag.hasUUID(RequestListItem.TAG_UUID));
-        assertDoesNotThrow(() -> tag.getUUID(RequestListItem.TAG_UUID));
+    @BeforeAll
+    static void bootstrapMinecraftRegistries() {
+        SharedConstants.tryDetectVersion();
+        Bootstrap.bootStrap();
     }
 
     @Test
-    void malformedJobUuidIsRepairedBeforeTheUpstreamEndEventReadsIt() {
-        CompoundTag tag = new CompoundTag();
-        tag.putString(RequestListItem.TAG_UUID, "not-a-uuid");
+    void missingJobUuidIsCreatedAsThePublicDataComponent() {
+        ItemStack stack = new ItemStack(Items.PAPER);
 
-        assertTrue(RequestListSafety.ensureJobUuid(tag));
-        assertTrue(tag.hasUUID(RequestListItem.TAG_UUID));
-        assertDoesNotThrow(() -> tag.getUUID(RequestListItem.TAG_UUID));
+        UUID created = RequestListSafety.ensureJobUuid(stack);
+
+        assertNotNull(created);
+        assertEquals(created, stack.get(DataComponentRegistry.REQUEST_WORK_UUID.get()));
     }
 
     @Test
-    void validJobUuidIsPreserved() {
-        CompoundTag tag = new CompoundTag();
+    void validJobUuidIsPreservedIdempotently() {
+        ItemStack stack = new ItemStack(Items.PAPER);
         UUID original = UUID.randomUUID();
-        tag.putUUID(RequestListItem.TAG_UUID, original);
+        stack.set(DataComponentRegistry.REQUEST_WORK_UUID.get(), original);
 
-        assertFalse(RequestListSafety.ensureJobUuid(tag));
-
-        assertEquals(original, tag.getUUID(RequestListItem.TAG_UUID));
+        assertEquals(original, RequestListSafety.ensureJobUuid(stack));
+        assertEquals(original, RequestListSafety.ensureJobUuid(stack));
     }
 }

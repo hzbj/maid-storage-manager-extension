@@ -1,13 +1,13 @@
 package io.github.maidstorageextension.compat;
 
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.level.Level;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -83,20 +83,23 @@ class EnderPocketRemoteAccessContractTest {
     void spellRemoteSessionApiIsOnTheCompileClasspath() throws Exception {
         String build = Files.readString(Path.of("build.gradle"), StandardCharsets.UTF_8);
 
-        assertTrue(build.matches("(?s).*compileOnly\\s+fg\\.deobf\\("
-                        + "'maven\\.modrinth:QHB4kBBS:bIBBeovu'\\).*"),
-                "The official Ender Pocket session resolver must be compiled against directly");
+        assertTrue(build.matches("(?s).*compileOnly\\s+"
+                        + "'maven\\.modrinth:QHB4kBBS:3tvArxwR'.*"),
+                "The pinned 1.8.4 Ender Pocket API must be compiled against directly");
 
         Class<?> service = loadWithoutInitialization(
                 "com.github.yimeng261.maidspell.item.bauble.enderPocket.EnderPocketService");
-        service.getDeclaredMethod("resolveRemoteMaid", ServerPlayer.class, int.class);
-        service.getDeclaredMethod("syncRemoteProxyBeforeMenu", ServerPlayer.class,
-                loadWithoutInitialization(
-                        "com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid"));
-        Class<?> cache = loadWithoutInitialization(
-                "com.github.yimeng261.maidspell.item.bauble.enderPocket."
-                        + "EnderPocketMaidProxyCache");
-        cache.getDeclaredMethod("find", Level.class, int.class);
+        service.getDeclaredMethod("getPlayerEnderPocketMaids", ServerPlayer.class);
+
+        Class<?> global = loadWithoutInitialization(
+                "com.github.yimeng261.maidspell.Global");
+        global.getDeclaredMethod("getOrCreatePlayerMaidMap", UUID.class);
+
+        String compat = read("compat/EnderPocketCompat.java");
+        assertTrue(compat.contains("EnderPocketService.getPlayerEnderPocketMaids("));
+        assertTrue(compat.contains("Global.getOrCreatePlayerMaidMap("));
+        assertFalse(compat.contains("completeRemoteOpen"));
+        assertFalse(compat.contains("EnderPocketMaidProxyCache"));
     }
 
     private static String read(String relativePath) throws Exception {

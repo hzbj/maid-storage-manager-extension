@@ -1,7 +1,5 @@
 package io.github.maidstorageextension.compat;
 
-import io.github.maidstorageextension.mixin.RequestItemUtilMixin;
-import io.github.maidstorageextension.mixin.RequestRetBehaviorMixin;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
@@ -18,6 +16,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RequestItemUtilMixinContractTest {
+    private static final String MIXIN_PACKAGE =
+            "io/github/maidstorageextension/mixin/";
+
     @Test
     void malformedRequestUuidIsRepairedBeforeEitherCompletionPathReadsIt() throws IOException {
         List<String> calls = handlerCalls();
@@ -32,7 +33,7 @@ class RequestItemUtilMixinContractTest {
 
     @Test
     void blockedWarehouseReturnUsesSafeMaidTeleportBeforeVirtualItemFallback() throws IOException {
-        List<String> calls = methodCalls(RequestRetBehaviorMixin.class,
+        List<String> calls = methodCalls(MIXIN_PACKAGE + "RequestRetBehaviorMixin",
                 "maidStorageExtension$persistCourierOverflow");
         int recover = calls.indexOf(
                 "io/github/maidstorageextension/maid/courier/CourierService.tryRecoverRequestHandoff");
@@ -46,14 +47,15 @@ class RequestItemUtilMixinContractTest {
     }
 
     private static List<String> handlerCalls() throws IOException {
-        return methodCalls(RequestItemUtilMixin.class,
+        return methodCalls(MIXIN_PACKAGE + "RequestItemUtilMixin",
                 "maidStorageExtension$returnCourierRequestWithoutDropping");
     }
 
-    private static List<String> methodCalls(Class<?> type, String methodName) throws IOException {
+    private static List<String> methodCalls(String internalName, String methodName)
+            throws IOException {
         List<String> calls = new ArrayList<>();
-        String classPath = "/" + Type.getInternalName(type) + ".class";
-        try (InputStream stream = type.getResourceAsStream(classPath)) {
+        try (InputStream stream = RequestItemUtilMixinContractTest.class.getClassLoader()
+                .getResourceAsStream(internalName + ".class")) {
             assertNotNull(stream, "Compiled request-item mixin is missing");
             new ClassReader(stream).accept(new ClassVisitor(Opcodes.ASM9) {
                 @Override

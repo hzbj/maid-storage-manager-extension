@@ -42,10 +42,10 @@ class CourierFlightPolicyTest {
     @Test
     void broomTransportIsAvailableOnlyInTheOverworld() {
         assertTrue(CourierFlightPolicy.supportsBroomDimension(
-                new ResourceLocation("minecraft", "overworld")));
+                ResourceLocation.fromNamespaceAndPath("minecraft", "overworld")));
         assertFalse(CourierFlightPolicy.supportsBroomDimension(
-                new ResourceLocation("minecraft", "the_nether")));
+                ResourceLocation.fromNamespaceAndPath("minecraft", "the_nether")));
         assertFalse(CourierFlightPolicy.supportsBroomDimension(
-                new ResourceLocation("minecraft", "the_end")));
+                ResourceLocation.fromNamespaceAndPath("minecraft", "the_end")));
     }
 }

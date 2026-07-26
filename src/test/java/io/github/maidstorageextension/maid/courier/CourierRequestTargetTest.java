@@ -22,7 +22,7 @@ class CourierRequestTargetTest {
     void requestListCarriesTheOwnersFixedApplicationPosition() {
         ItemStack list = new ItemStack(Items.PAPER);
         BlockPos position = new BlockPos(120, -32, -48);
-        ResourceLocation dimension = new ResourceLocation("minecraft", "overworld");
+        ResourceLocation dimension = ResourceLocation.fromNamespaceAndPath("minecraft", "overworld");
 
         assertTrue(CourierRequestTarget.write(list, position, dimension));
 
@@ -36,8 +36,8 @@ class CourierRequestTargetTest {
     @Test
     void movingOrChangingDimensionUpdatesTheDeliveryTarget() {
         ItemStack list = new ItemStack(Items.PAPER);
-        ResourceLocation overworld = new ResourceLocation("minecraft", "overworld");
-        ResourceLocation nether = new ResourceLocation("minecraft", "the_nether");
+        ResourceLocation overworld = ResourceLocation.fromNamespaceAndPath("minecraft", "overworld");
+        ResourceLocation nether = ResourceLocation.fromNamespaceAndPath("minecraft", "the_nether");
 
         assertTrue(CourierRequestTarget.write(list, new BlockPos(1, 64, 1), overworld));
         assertTrue(CourierRequestTarget.write(list, new BlockPos(2, 64, 1), overworld));
@@ -53,7 +53,9 @@ class CourierRequestTargetTest {
         ItemStack list = new ItemStack(Items.PAPER);
         assertNull(CourierRequestTarget.read(list));
 
-        list.getOrCreateTag().putString(CourierRequestTarget.TAG_DIMENSION, "not a dimension");
+        io.github.maidstorageextension.migration.ItemDataMigration.update(
+                list, tag -> tag.putString(
+                        CourierRequestTarget.TAG_DIMENSION, "not a dimension"));
         assertNull(CourierRequestTarget.read(list));
     }
 }
