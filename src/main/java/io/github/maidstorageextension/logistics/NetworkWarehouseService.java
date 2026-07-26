@@ -26,9 +26,9 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.network.PacketDistributor;
-import net.minecraftforge.registries.ForgeRegistries;
-import studio.fantasyit.maid_storage_manager.capability.InventoryListDataProvider;
+import net.neoforged.neoforge.network.PacketDistributor;
+import net.minecraft.core.registries.BuiltInRegistries;
+import studio.fantasyit.maid_storage_manager.attachment.InventoryListData;
 import studio.fantasyit.maid_storage_manager.data.InventoryItem;
 import studio.fantasyit.maid_storage_manager.items.WrittenInvListItem;
 import studio.fantasyit.maid_storage_manager.maid.task.StorageManageTask;
@@ -68,14 +68,12 @@ public final class NetworkWarehouseService {
 
     private static void update(ServerPlayer viewer, UUID courierId, MailboxKey mailbox) {
         NetworkWarehouseSnapshot.Snapshot snapshot = build(viewer, courierId, mailbox, false);
-        ExtensionNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> viewer),
-                new NetworkWarehouseSnapshotPacket(courierId, snapshot));
+        PacketDistributor.sendToPlayer(viewer, new NetworkWarehouseSnapshotPacket(courierId, snapshot));
     }
 
     public static void updateAuthorized(ServerPlayer viewer, UUID courierId, MailboxKey mailbox) {
         NetworkWarehouseSnapshot.Snapshot snapshot = build(viewer, courierId, mailbox, true);
-        ExtensionNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> viewer),
-                new NetworkWarehouseSnapshotPacket(courierId, snapshot));
+        PacketDistributor.sendToPlayer(viewer, new NetworkWarehouseSnapshotPacket(courierId, snapshot));
     }
 
     private static NetworkWarehouseSnapshot.Snapshot build(ServerPlayer viewer, UUID courierId,
@@ -311,12 +309,12 @@ public final class NetworkWarehouseService {
                 return List.of();
             }
             NetworkWarehouseSnapshot.InventoryEntry source = available.stream()
-                    .filter(entry -> ItemStack.isSameItemSameTags(
+                    .filter(entry -> ItemStack.isSameItemSameComponents(
                             entry.prototype(), line.prototype()))
                     .findFirst().orElse(null);
             if (source == null) return List.of();
             int existing = result.stream()
-                    .filter(entry -> ItemStack.isSameItemSameTags(
+                    .filter(entry -> ItemStack.isSameItemSameComponents(
                             entry.prototype(), source.prototype()))
                     .mapToInt(NetworkWarehouseActionPacket.RequestedItem::amount).sum();
             long total = (long) existing + line.amount();
@@ -327,7 +325,7 @@ public final class NetworkWarehouseService {
             } else {
                 for (int i = 0; i < result.size(); i++) {
                     var current = result.get(i);
-                    if (ItemStack.isSameItemSameTags(current.prototype(), source.prototype())) {
+                    if (ItemStack.isSameItemSameComponents(current.prototype(), source.prototype())) {
                         result.set(i, new NetworkWarehouseActionPacket.RequestedItem(
                                 source.prototype(), (int) total));
                         break;
@@ -346,9 +344,7 @@ public final class NetworkWarehouseService {
         long published = warehouse.publishedGameTime();
         if (listUuid == null) return InventorySource.unavailable();
 
-        var data = server.overworld()
-                .getCapability(InventoryListDataProvider.INVENTORY_LIST_DATA_CAPABILITY)
-                .orElse(null);
+        var data = InventoryListData.get(server.overworld());
         if (data == null || !data.dataMap.containsKey(listUuid)) return InventorySource.unavailable();
         List<NetworkWarehouseSnapshot.InventoryEntry> inventory = aggregate(
                 data.dataMap.get(listUuid));
@@ -388,7 +384,7 @@ public final class NetworkWarehouseService {
                         || item.totalCount <= 0) continue;
                 int existing = -1;
                 for (int j = 0; j < result.size(); j++) {
-                    if (ItemStack.isSameItemSameTags(
+                    if (ItemStack.isSameItemSameComponents(
                             result.get(j).prototype(), item.itemStack)) {
                         existing = j;
                         break;
@@ -406,7 +402,7 @@ public final class NetworkWarehouseService {
             }
         }
         result.sort(Comparator.comparing(entry -> {
-            ResourceLocation key = ForgeRegistries.ITEMS.getKey(entry.prototype().getItem());
+            ResourceLocation key = BuiltInRegistries.ITEM.getKey(entry.prototype().getItem());
             return key == null ? "" : key.toString();
         }));
         return List.copyOf(result);

@@ -2,11 +2,9 @@ package io.github.maidstorageextension.scan;
 
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
-import net.minecraftforge.common.util.LazyOptional;
-import net.minecraftforge.items.IItemHandler;
+import net.neoforged.neoforge.capabilities.Capabilities;
+import net.neoforged.neoforge.items.IItemHandler;
 import studio.fantasyit.maid_storage_manager.storage.ItemHandler.ItemHandlerStorage;
 import studio.fantasyit.maid_storage_manager.storage.Target;
 
@@ -70,14 +68,9 @@ public final class ItemHandlerCapacityProbe {
         if (!level.hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) {
             return Result.unknown(requested);
         }
-        BlockEntity blockEntity = level.getBlockEntity(pos);
-        if (blockEntity == null) return Result.unknown(requested);
-
         Direction side = target.getSide().orElse(null);
-        LazyOptional<IItemHandler> capability = side == null
-                ? blockEntity.getCapability(ForgeCapabilities.ITEM_HANDLER)
-                : blockEntity.getCapability(ForgeCapabilities.ITEM_HANDLER, side);
-        return capability.map(handler -> probe(handler, stack)).orElseGet(() -> Result.unknown(requested));
+        IItemHandler capability = level.getCapability(Capabilities.ItemHandler.BLOCK, pos, side);
+        return capability == null ? Result.unknown(requested) : probe(capability, stack);
     }
 
     /** Package-level pure seam used by tests and by no world-specific fallback. */
@@ -91,7 +84,7 @@ public final class ItemHandlerCapacityProbe {
                 int before = remainder.getCount();
                 ItemStack next = handler.insertItem(slot, remainder.copy(), true);
                 if (next == null || (!next.isEmpty()
-                        && (!ItemStack.isSameItemSameTags(stack, next) || next.getCount() > before))) {
+                        && (!ItemStack.isSameItemSameComponents(stack, next) || next.getCount() > before))) {
                     return Result.unknown(requested);
                 }
                 remainder = next.copy();

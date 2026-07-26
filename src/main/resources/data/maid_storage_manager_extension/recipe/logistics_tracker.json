@@ -1,14 +1,9 @@
 {
-  "type": "touhou_little_maid:altar_crafting",
-  "output": {
-    "type": "minecraft:item",
-    "nbt": {
-      "Item": {
-        "id": "maid_storage_manager_extension:logistics_tracker",
-        "Count": 1
-      }
-    }
-  },
+  "type": "touhou_little_maid:altar_recipe_serializers",
+  "category": "misc",
+  "entity": "minecraft:item",
+  "group": "altar_recipe",
+  "lang": "jei.touhou_little_maid.altar_craft.item_craft.result",
   "power": 0.7,
   "ingredients": [
     { "item": "minecraft:compass" },
@@ -16,5 +11,9 @@
     { "item": "minecraft:ender_eye" },
     { "item": "minecraft:amethyst_shard" },
     { "item": "minecraft:paper" }
-  ]
+  ],
+  "result": {
+    "count": 1,
+    "id": "maid_storage_manager_extension:logistics_tracker"
+  }
 }

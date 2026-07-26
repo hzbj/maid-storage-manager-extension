@@ -9,12 +9,14 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.decoration.ItemFrame;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.level.Level;
-import net.minecraftforge.items.IItemHandler;
+import net.neoforged.neoforge.items.IItemHandler;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import io.github.maidstorageextension.registry.ExtensionItems;
+import io.github.maidstorageextension.migration.ItemDataMigration;
 import studio.fantasyit.maid_storage_manager.items.MaidInteractItem;
 
 import java.util.List;
@@ -42,36 +44,36 @@ public class InventoryMaintenanceDevice extends MaidInteractItem implements IMai
     }
 
     public static boolean isBound(ItemStack stack) {
-        CompoundTag tag = stack.getTag();
-        return tag != null
-                && tag.hasUUID(TAG_FRAME_UUID)
+        CompoundTag tag = ItemDataMigration.read(stack);
+        return tag.hasUUID(TAG_FRAME_UUID)
                 && tag.contains(TAG_FRAME_DIMENSION)
                 && tag.contains(TAG_FRAME_POS);
     }
 
     public static void bind(ItemStack stack, ItemFrame frame) {
-        CompoundTag tag = stack.getOrCreateTag();
-        tag.putUUID(TAG_FRAME_UUID, frame.getUUID());
-        tag.putString(TAG_FRAME_DIMENSION, frame.level().dimension().location().toString());
-        tag.putLong(TAG_FRAME_POS, frame.blockPosition().asLong());
-        stack.setTag(tag);
+        ItemDataMigration.update(stack, tag -> {
+            tag.putUUID(TAG_FRAME_UUID, frame.getUUID());
+            tag.putString(TAG_FRAME_DIMENSION, frame.level().dimension().location().toString());
+            tag.putLong(TAG_FRAME_POS, frame.blockPosition().asLong());
+        });
     }
 
     public static UUID getFrameUuid(ItemStack stack) {
-        return stack.getOrCreateTag().getUUID(TAG_FRAME_UUID);
+        return ItemDataMigration.read(stack).getUUID(TAG_FRAME_UUID);
     }
 
     public static ResourceLocation getFrameDimension(ItemStack stack) {
-        return new ResourceLocation(stack.getOrCreateTag().getString(TAG_FRAME_DIMENSION));
+        return ResourceLocation.parse(ItemDataMigration.read(stack).getString(TAG_FRAME_DIMENSION));
     }
 
     public static BlockPos getFramePos(ItemStack stack) {
-        return BlockPos.of(stack.getOrCreateTag().getLong(TAG_FRAME_POS));
+        return BlockPos.of(ItemDataMigration.read(stack).getLong(TAG_FRAME_POS));
     }
 
     @Override
-    public void appendHoverText(@NotNull ItemStack stack, @Nullable Level level, List<Component> tooltip, TooltipFlag flag) {
-        super.appendHoverText(stack, level, tooltip, flag);
+    public void appendHoverText(@NotNull ItemStack stack, Item.TooltipContext context,
+                                List<Component> tooltip, TooltipFlag flag) {
+        super.appendHoverText(stack, context, tooltip, flag);
         tooltip.add(Component.translatable("tooltip.maid_storage_manager_extension.inventory_maintenance_device.desc").withStyle(ChatFormatting.GRAY));
         if (isBound(stack)) {
             BlockPos pos = getFramePos(stack);

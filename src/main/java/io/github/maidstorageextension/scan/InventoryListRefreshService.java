@@ -12,7 +12,8 @@ import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import studio.fantasyit.maid_storage_manager.Config;
-import studio.fantasyit.maid_storage_manager.capability.InventoryListDataProvider;
+import studio.fantasyit.maid_storage_manager.attachment.InventoryListData;
+import studio.fantasyit.maid_storage_manager.registry.DataComponentRegistry;
 import studio.fantasyit.maid_storage_manager.data.InventoryItem;
 import io.github.maidstorageextension.item.InventoryMaintenanceDevice;
 import io.github.maidstorageextension.data.MaintenanceStatusData;
@@ -131,22 +132,19 @@ public final class InventoryListRefreshService {
         }
         StorageScanService.pruneOutsideCurrentScope(level, maid);
         ItemStack oldItem = frame.getItem().copy();
-        UUID oldUuid = oldItem.hasTag() && oldItem.getTag().hasUUID(WrittenInvListItem.TAG_UUID)
-                ? oldItem.getTag().getUUID(WrittenInvListItem.TAG_UUID)
-                : null;
+        UUID oldUuid = oldItem.get(DataComponentRegistry.INVENTORY_UUID.get());
         UUID newUuid = UUID.randomUUID();
         List<InventoryItem> contents = MemoryUtil.getViewedInventory(maid).flatten();
         ServerLevel dataLevel = level.getServer().overworld();
 
+        InventoryListData data = InventoryListData.get(dataLevel);
         boolean[] published = {false};
-        dataLevel.getCapability(InventoryListDataProvider.INVENTORY_LIST_DATA_CAPABILITY).ifPresent(data -> {
-            data.addWithCraftable(newUuid, contents);
+        if (data != null) {
+            data.addWithCraftable(dataLevel.registryAccess(), newUuid, contents);
             ItemStack newItem = ItemRegistry.WRITTEN_INVENTORY_LIST.get().getDefaultInstance();
-            CompoundTag tag = newItem.getOrCreateTag();
-            tag.putUUID(WrittenInvListItem.TAG_UUID, newUuid);
-            tag.putString(WrittenInvListItem.TAG_AUTHOR, maid.getName().getString());
-            tag.putLong(WrittenInvListItem.TAG_TIME, level.getDayTime());
-            newItem.setTag(tag);
+            newItem.set(DataComponentRegistry.INVENTORY_UUID.get(), newUuid);
+            newItem.set(DataComponentRegistry.INVENTORY_AUTHOR.get(), maid.getName());
+            newItem.set(DataComponentRegistry.INVENTORY_TIME.get(), level.getDayTime());
             if (maid.getOwner() instanceof ServerPlayer player) {
                 double damage = Config.invListDamageMin
                         + Math.min(Config.invListDamageMax, Config.invListDamageFactor * contents.size());
@@ -156,15 +154,14 @@ public final class InventoryListRefreshService {
                         Config.invListDamageAttackSpd - player.getAttributeBaseValue(Attributes.ATTACK_SPEED));
             }
             frame.setItem(newItem, false);
-            published[0] = frame.getItem().hasTag()
-                    && frame.getItem().getTag().hasUUID(WrittenInvListItem.TAG_UUID)
-                    && frame.getItem().getTag().getUUID(WrittenInvListItem.TAG_UUID).equals(newUuid);
+            published[0] = newUuid.equals(
+                    frame.getItem().get(DataComponentRegistry.INVENTORY_UUID.get()));
             if (published[0] && oldUuid != null) {
                 data.remove(oldUuid);
             } else if (!published[0]) {
                 data.remove(newUuid);
             }
-        });
+        }
         if (!published[0]) {
             frame.setItem(oldItem, false);
             return RefreshResult.failed(Outcome.PUBLISH_FAILED);

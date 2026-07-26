@@ -5,7 +5,8 @@ import net.minecraft.resources.ResourceLocation;
 
 /** Decides when a courier should hand movement back to the maid's original navigator. */
 public final class CourierFlightPolicy {
-    private static final ResourceLocation OVERWORLD = new ResourceLocation("minecraft", "overworld");
+    private static final ResourceLocation OVERWORLD =
+            ResourceLocation.fromNamespaceAndPath("minecraft", "overworld");
 
     private CourierFlightPolicy() {
     }

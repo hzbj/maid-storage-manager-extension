@@ -1,20 +1,19 @@
 {
-  "type": "touhou_little_maid:altar_crafting",
-  "output": {
-    "type": "minecraft:item",
-    "nbt": {
-      "Item": {
-        "id": "maid_storage_manager_extension:inventory_maintenance_device",
-        "Count": 1
-      }
-    }
-  },
+  "type": "touhou_little_maid:altar_recipe_serializers",
+  "category": "misc",
+  "entity": "minecraft:item",
+  "group": "altar_recipe",
+  "lang": "jei.touhou_little_maid.altar_craft.item_craft.result",
   "power": 0.5,
   "ingredients": [
     { "item": "minecraft:clock" },
     { "item": "minecraft:comparator" },
     { "item": "minecraft:paper" },
     { "item": "minecraft:redstone" }
-  ]
+  ],
+  "result": {
+    "count": 1,
+    "id": "maid_storage_manager_extension:inventory_maintenance_device"
+  }
 }
 

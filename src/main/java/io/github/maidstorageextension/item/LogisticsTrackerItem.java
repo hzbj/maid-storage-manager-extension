@@ -9,6 +9,7 @@ import io.github.maidstorageextension.logistics.NetworkWarehouseService;
 import io.github.maidstorageextension.maid.courier.CourierDeliveryPolicy;
 import io.github.maidstorageextension.maid.courier.CourierService;
 import io.github.maidstorageextension.maid.task.CourierTask;
+import io.github.maidstorageextension.migration.ItemDataMigration;
 import io.github.maidstorageextension.terminal.TerminalAccountService;
 import net.minecraft.ChatFormatting;
 import net.minecraft.nbt.CompoundTag;
@@ -21,12 +22,12 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.SimpleMenuProvider;
-import net.minecraftforge.network.NetworkHooks;
 import io.github.maidstorageextension.logistics.LogisticsTrackerMenu;
 import org.jetbrains.annotations.Nullable;
 import studio.fantasyit.maid_storage_manager.items.HangUpItem;
@@ -49,63 +50,64 @@ public final class LogisticsTrackerItem extends HangUpItem {
     }
 
     public static UUID getCourier(ItemStack stack) {
-        CompoundTag tag = stack.getTag();
-        return tag != null && tag.hasUUID(TAG_COURIER) ? tag.getUUID(TAG_COURIER) : null;
+        CompoundTag tag = ItemDataMigration.read(stack);
+        return tag.hasUUID(TAG_COURIER) ? tag.getUUID(TAG_COURIER) : null;
     }
 
     public static UUID getTerminalId(ItemStack stack) {
-        CompoundTag tag = stack.getTag();
-        return tag != null && tag.hasUUID(TAG_TERMINAL) ? tag.getUUID(TAG_TERMINAL) : null;
+        CompoundTag tag = ItemDataMigration.read(stack);
+        return tag.hasUUID(TAG_TERMINAL) ? tag.getUUID(TAG_TERMINAL) : null;
     }
 
     public static UUID ensureTerminalId(ItemStack stack) {
         UUID existing = getTerminalId(stack);
         if (existing != null) return existing;
         UUID created = UUID.randomUUID();
-        stack.getOrCreateTag().putUUID(TAG_TERMINAL, created);
+        ItemDataMigration.update(stack, tag -> tag.putUUID(TAG_TERMINAL, created));
         return created;
     }
 
     public static UUID getAccountId(ItemStack stack) {
-        CompoundTag tag = stack.getTag();
-        return tag != null && tag.hasUUID(TAG_ACCOUNT) ? tag.getUUID(TAG_ACCOUNT) : null;
+        CompoundTag tag = ItemDataMigration.read(stack);
+        return tag.hasUUID(TAG_ACCOUNT) ? tag.getUUID(TAG_ACCOUNT) : null;
     }
 
     public static byte[] getAccessToken(ItemStack stack) {
-        CompoundTag tag = stack.getTag();
-        return tag == null ? new byte[0] : tag.getByteArray(TAG_ACCESS_TOKEN);
+        return ItemDataMigration.read(stack).getByteArray(TAG_ACCESS_TOKEN);
     }
 
     public static void rememberAccount(ItemStack stack, UUID account, byte[] token) {
-        CompoundTag tag = stack.getOrCreateTag();
-        if (account != null) tag.putUUID(TAG_ACCOUNT, account);
-        if (token != null && token.length > 0) tag.putByteArray(TAG_ACCESS_TOKEN, token);
+        ItemDataMigration.update(stack, tag -> {
+            if (account != null) tag.putUUID(TAG_ACCOUNT, account);
+            if (token != null && token.length > 0) tag.putByteArray(TAG_ACCESS_TOKEN, token);
+        });
     }
 
     public static void forgetAccount(ItemStack stack) {
-        CompoundTag tag = stack.getTag();
-        if (tag == null) return;
-        tag.remove(TAG_ACCOUNT);
-        tag.remove(TAG_ACCESS_TOKEN);
+        ItemDataMigration.update(stack, tag -> {
+            tag.remove(TAG_ACCOUNT);
+            tag.remove(TAG_ACCESS_TOKEN);
+        });
     }
 
     public static UUID getBoundOwner(ItemStack stack) {
-        CompoundTag tag = stack.getTag();
-        return tag != null && tag.hasUUID(TAG_OWNER) ? tag.getUUID(TAG_OWNER) : null;
+        CompoundTag tag = ItemDataMigration.read(stack);
+        return tag.hasUUID(TAG_OWNER) ? tag.getUUID(TAG_OWNER) : null;
     }
 
     public static void bind(ItemStack stack, EntityMaid courier, Player owner) {
-        stack.getOrCreateTag().putUUID(TAG_COURIER, courier.getUUID());
-        stack.getOrCreateTag().putUUID(TAG_OWNER, owner.getUUID());
+        ItemDataMigration.update(stack, tag -> {
+            tag.putUUID(TAG_COURIER, courier.getUUID());
+            tag.putUUID(TAG_OWNER, owner.getUUID());
+        });
         LogisticsSnapshot.clearLegacy(stack);
     }
 
     public static void unbind(ItemStack stack) {
-        CompoundTag tag = stack.getTag();
-        if (tag != null) {
+        ItemDataMigration.update(stack, tag -> {
             tag.remove(TAG_COURIER);
             tag.remove(TAG_OWNER);
-        }
+        });
         LogisticsSnapshot.clearLegacy(stack);
     }
 
@@ -142,7 +144,7 @@ public final class LogisticsTrackerItem extends HangUpItem {
                             new LogisticsTrackerMenu(containerId, inventory, terminal),
                     Component.translatable(
                             "gui.maid_storage_manager_extension.logistics_tracker.title"));
-            NetworkHooks.openScreen(serverPlayer, provider, buffer -> buffer.writeUUID(terminal));
+            serverPlayer.openMenu(provider, buffer -> buffer.writeUUID(terminal));
             TerminalAccountService.update(serverPlayer, terminal);
             return InteractionResultHolder.success(stack);
         }
@@ -197,9 +199,9 @@ public final class LogisticsTrackerItem extends HangUpItem {
     }
 
     @Override
-    public void appendHoverText(ItemStack stack, @Nullable Level level,
+    public void appendHoverText(ItemStack stack, Item.TooltipContext context,
                                 List<Component> tooltip, TooltipFlag flag) {
-        super.appendHoverText(stack, level, tooltip, flag);
+        super.appendHoverText(stack, context, tooltip, flag);
         tooltip.add(Component.translatable(
                 "tooltip.maid_storage_manager_extension.logistics_tracker.desc")
                 .withStyle(ChatFormatting.GRAY));

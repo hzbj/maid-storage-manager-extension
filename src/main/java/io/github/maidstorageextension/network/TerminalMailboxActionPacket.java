@@ -1,38 +1,45 @@
 package io.github.maidstorageextension.network;
 
+import io.github.maidstorageextension.MaidStorageManagerExtension;
+
 import io.github.maidstorageextension.terminal.TerminalAccountService;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.NetworkEvent;
 
 import java.util.UUID;
-import java.util.function.Supplier;
 
 public record TerminalMailboxActionPacket(Action action, UUID terminal,
-                                          ResourceLocation dimension, BlockPos position) {
+                                          ResourceLocation dimension, BlockPos position) implements CustomPacketPayload {
+    public static final Type<TerminalMailboxActionPacket> TYPE = new Type<>(MaidStorageManagerExtension.id("terminal_mailbox_action"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, TerminalMailboxActionPacket> STREAM_CODEC =
+            StreamCodec.of((buffer, packet) -> encode(packet, buffer), TerminalMailboxActionPacket::decode);
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() { return TYPE; }
+
     public enum Action { BIND, UNBIND, SELECT_DEFAULT, ACTIVATE, UNREGISTER, REQUEST_SCAN }
 
-    public static void encode(TerminalMailboxActionPacket packet, FriendlyByteBuf buffer) {
+    public static void encode(TerminalMailboxActionPacket packet, RegistryFriendlyByteBuf buffer) {
         buffer.writeEnum(packet.action);
         buffer.writeUUID(packet.terminal);
         buffer.writeResourceLocation(packet.dimension);
         buffer.writeBlockPos(packet.position);
     }
 
-    public static TerminalMailboxActionPacket decode(FriendlyByteBuf buffer) {
+    public static TerminalMailboxActionPacket decode(RegistryFriendlyByteBuf buffer) {
         return new TerminalMailboxActionPacket(buffer.readEnum(Action.class), buffer.readUUID(),
                 buffer.readResourceLocation(), buffer.readBlockPos());
     }
 
-    public static void handle(TerminalMailboxActionPacket packet,
-                              Supplier<NetworkEvent.Context> contextSupplier) {
-        NetworkEvent.Context context = contextSupplier.get();
+    public static void handle(TerminalMailboxActionPacket packet, IPayloadContext context) {
         context.enqueueWork(() -> {
-            ServerPlayer sender = context.getSender();
+            ServerPlayer sender = (ServerPlayer) context.player();
             if (sender != null) TerminalAccountService.handleMailbox(sender, packet);
         });
-        context.setPacketHandled(true);
     }
 }

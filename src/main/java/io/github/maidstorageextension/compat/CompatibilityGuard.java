@@ -1,7 +1,7 @@
 package io.github.maidstorageextension.compat;
 
 import net.minecraft.resources.ResourceLocation;
-import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraft.core.registries.BuiltInRegistries;
 
 public final class CompatibilityGuard {
     private static final String LEGACY_PATCH_MARKER =
@@ -28,9 +28,9 @@ public final class CompatibilityGuard {
     }
 
     private static void rejectCanonicalOldItem(String path) {
-        ResourceLocation oldId = new ResourceLocation("maid_storage_manager", path);
-        var item = ForgeRegistries.ITEMS.getValue(oldId);
-        if (item != null && oldId.equals(ForgeRegistries.ITEMS.getKey(item))) {
+        ResourceLocation oldId = ResourceLocation.fromNamespaceAndPath("maid_storage_manager", path);
+        var item = BuiltInRegistries.ITEM.get(oldId);
+        if (item != null && oldId.equals(BuiltInRegistries.ITEM.getKey(item))) {
             throw new IllegalStateException(
                     "检测到旧魔改版女仆仓管直接注册了 " + oldId
                             + "。请更换为官方 1.15.x JAR 后再安装女仆仓管扩展。");

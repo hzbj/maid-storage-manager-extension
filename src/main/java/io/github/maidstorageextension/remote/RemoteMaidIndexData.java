@@ -2,6 +2,7 @@ package io.github.maidstorageextension.remote;
 
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
@@ -34,7 +35,8 @@ public final class RemoteMaidIndexData extends SavedData {
 
     public static RemoteMaidIndexData get(MinecraftServer server) {
         return server.overworld().getDataStorage().computeIfAbsent(
-                RemoteMaidIndexData::load, RemoteMaidIndexData::new, DATA_NAME);
+                new SavedData.Factory<>(RemoteMaidIndexData::new,
+                        (tag, registries) -> RemoteMaidIndexData.load(tag)), DATA_NAME);
     }
 
     public Entry get(UUID maid) {
@@ -62,7 +64,7 @@ public final class RemoteMaidIndexData extends SavedData {
     }
 
     @Override
-    public CompoundTag save(CompoundTag root) {
+    public CompoundTag save(CompoundTag root, HolderLookup.Provider registries) {
         ListTag list = new ListTag();
         for (Entry value : entries.values()) {
             if (!value.valid()) continue;

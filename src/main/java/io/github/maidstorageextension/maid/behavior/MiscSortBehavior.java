@@ -12,7 +12,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.behavior.Behavior;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.items.wrapper.CombinedInvWrapper;
+import net.neoforged.neoforge.items.wrapper.CombinedInvWrapper;
 import org.jetbrains.annotations.NotNull;
 import studio.fantasyit.maid_storage_manager.Config;
 import studio.fantasyit.maid_storage_manager.storage.MaidStorage;
@@ -413,7 +413,7 @@ public final class MiscSortBehavior extends Behavior<EntityMaid> {
             if (remaining <= 0) continue;
             int existingIndex = -1;
             for (int i = 0; i < templates.size(); i++) {
-                if (ItemStack.isSameItemSameTags(templates.get(i), line.stack())) {
+                if (ItemStack.isSameItemSameComponents(templates.get(i), line.stack())) {
                     existingIndex = i;
                     break;
                 }
@@ -471,7 +471,7 @@ public final class MiscSortBehavior extends Behavior<EntityMaid> {
             int movedTotal = 0;
             for (int i = 0; i < lines.size() && !left.isEmpty(); i++) {
                 MiscSortMemory.CargoLine line = lines.get(i);
-                if (!ItemStack.isSameItemSameTags(left, line.stack())) continue;
+                if (!ItemStack.isSameItemSameComponents(left, line.stack())) continue;
                 int wanted = Math.min(left.getCount(), line.requestedCount() - line.inFlightCount());
                 if (wanted <= 0) continue;
                 ItemStack remainder = inventory.insertItem(
@@ -610,7 +610,7 @@ public final class MiscSortBehavior extends Behavior<EntityMaid> {
     private static int validRemainderCount(ItemStack payload, ItemStack remainder) {
         if (remainder == null) return payload.getCount();
         if (!remainder.isEmpty()
-                && (!ItemStack.isSameItemSameTags(payload, remainder)
+                && (!ItemStack.isSameItemSameComponents(payload, remainder)
                 || remainder.getCount() > payload.getCount())) return payload.getCount();
         return remainder.isEmpty() ? 0 : remainder.getCount();
     }
@@ -627,7 +627,7 @@ public final class MiscSortBehavior extends Behavior<EntityMaid> {
                     level, line.currentDestination().orElseThrow());
             if (!operationTargetKey.equals(key)) continue;
             DestinationCargoGroup group = groups.stream()
-                    .filter(existing -> ItemStack.isSameItemSameTags(existing.stack, line.stack()))
+                    .filter(existing -> ItemStack.isSameItemSameComponents(existing.stack, line.stack()))
                     .findFirst().orElse(null);
             if (group == null) groups.add(new DestinationCargoGroup(line));
             else group.add(line);
@@ -662,7 +662,7 @@ public final class MiscSortBehavior extends Behavior<EntityMaid> {
             for (int i = 0; i < lines.size(); i++) {
                 MiscSortMemory.CargoLine line = lines.get(i);
                 if (!line.hasInFlight() || line.currentDestination().isEmpty()
-                        || !ItemStack.isSameItemSameTags(observation.stack(), line.stack())) continue;
+                        || !ItemStack.isSameItemSameComponents(observation.stack(), line.stack())) continue;
                 String key = MiscSortService.canonicalStorageKey(
                         level, line.currentDestination().orElseThrow());
                 if (!operationTargetKey.equals(key)) continue;
@@ -720,7 +720,7 @@ public final class MiscSortBehavior extends Behavior<EntityMaid> {
             CombinedInvWrapper inventory, int slot, ItemStack expected, int count) {
         if (slot < 0 || slot >= inventory.getSlots() || count <= 0) return count;
         ItemStack actual = inventory.getStackInSlot(slot);
-        if (!ItemStack.isSameItemSameTags(expected, actual)) return count;
+        if (!ItemStack.isSameItemSameComponents(expected, actual)) return count;
         int removed = Math.min(count, actual.getCount());
         ItemStack left = actual.copy();
         left.shrink(removed);
@@ -863,7 +863,7 @@ public final class MiscSortBehavior extends Behavior<EntityMaid> {
         long total = 0L;
         for (int slot = 0; slot < inventory.getSlots(); slot++) {
             ItemStack actual = inventory.getStackInSlot(slot);
-            if (ItemStack.isSameItemSameTags(expected, actual)) total += actual.getCount();
+            if (ItemStack.isSameItemSameComponents(expected, actual)) total += actual.getCount();
         }
         return (int) Math.min(Integer.MAX_VALUE, total);
     }
@@ -872,7 +872,7 @@ public final class MiscSortBehavior extends Behavior<EntityMaid> {
         long total = 0L;
         for (int slot = 0; slot < inventory.getSlots(); slot++) {
             ItemStack actual = inventory.getStackInSlot(slot);
-            if (ItemStack.isSameItemSameTags(expected, actual)) total += actual.getCount();
+            if (ItemStack.isSameItemSameComponents(expected, actual)) total += actual.getCount();
         }
         return (int) Math.min(Integer.MAX_VALUE, total);
     }

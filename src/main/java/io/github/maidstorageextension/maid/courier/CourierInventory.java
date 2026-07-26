@@ -1,8 +1,8 @@
 package io.github.maidstorageextension.maid.courier;
 
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.items.IItemHandler;
-import net.minecraftforge.items.IItemHandlerModifiable;
+import net.neoforged.neoforge.items.IItemHandler;
+import net.neoforged.neoforge.items.IItemHandlerModifiable;
 
 final class CourierInventory {
     private CourierInventory() {
@@ -12,7 +12,7 @@ final class CourierInventory {
         int count = 0;
         for (int slot = 0; slot < inventory.getSlots(); slot++) {
             ItemStack stack = inventory.getStackInSlot(slot);
-            if (ItemStack.isSameItemSameTags(stack, prototype)) count += stack.getCount();
+            if (ItemStack.isSameItemSameComponents(stack, prototype)) count += stack.getCount();
         }
         return count;
     }
@@ -30,7 +30,7 @@ final class CourierInventory {
         int wanted = Math.max(0, amount);
         for (int slot = 0; slot < inventory.getSlots() && result.getCount() < wanted; slot++) {
             ItemStack stack = inventory.getStackInSlot(slot);
-            if (!ItemStack.isSameItemSameTags(stack, prototype)) continue;
+            if (!ItemStack.isSameItemSameComponents(stack, prototype)) continue;
             ItemStack extracted = inventory.extractItem(slot,
                     Math.min(wanted - result.getCount(), stack.getCount()), false);
             result.grow(extracted.getCount());
@@ -47,7 +47,7 @@ final class CourierInventory {
 
     static boolean removeExactSlot(IItemHandlerModifiable inventory, int slot, ItemStack expected) {
         ItemStack actual = inventory.getStackInSlot(slot);
-        if (!ItemStack.isSameItemSameTags(actual, expected) || actual.getCount() < expected.getCount()) {
+        if (!ItemStack.isSameItemSameComponents(actual, expected) || actual.getCount() < expected.getCount()) {
             return false;
         }
         ItemStack rest = actual.copy();

@@ -2,6 +2,7 @@ package io.github.maidstorageextension.item;
 
 import io.github.maidstorageextension.block.CourierWarehouseStationBlockEntity;
 import io.github.maidstorageextension.maid.courier.CourierWarehouseStationValidator;
+import io.github.maidstorageextension.migration.ItemDataMigration;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -14,6 +15,7 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.item.context.UseOnContext;
@@ -67,7 +69,7 @@ public final class CourierWarehouseMailboxItem extends BlockItem {
             return InteractionResult.FAIL;
         }
 
-        CompoundTag blockEntityTag = stack.getOrCreateTagElement("BlockEntityTag");
+        CompoundTag blockEntityTag = ItemDataMigration.blockEntityData(stack);
         blockEntityTag.putLong(CourierWarehouseStationBlockEntity.TAG_LANDING_POS, landing.asLong());
         blockEntityTag.putString(CourierWarehouseStationBlockEntity.TAG_LANDING_DIMENSION,
                 landingDimension.toString());
@@ -76,6 +78,7 @@ public final class CourierWarehouseMailboxItem extends BlockItem {
             blockEntityTag.putString(CourierWarehouseStationBlockEntity.TAG_PLACER_NAME,
                     player.getName().getString());
         }
+        ItemDataMigration.setBlockEntityData(stack, blockEntityTag);
         return super.useOn(context);
     }
 
@@ -95,9 +98,10 @@ public final class CourierWarehouseMailboxItem extends BlockItem {
             return InteractionResult.FAIL;
         }
         if (!level.isClientSide) {
-            CompoundTag tag = stack.getOrCreateTag();
-            tag.putLong(TAG_LANDING_POS, landing.asLong());
-            tag.putString(TAG_LANDING_DIMENSION, level.dimension().location().toString());
+            ItemDataMigration.update(stack, tag -> {
+                tag.putLong(TAG_LANDING_POS, landing.asLong());
+                tag.putString(TAG_LANDING_DIMENSION, level.dimension().location().toString());
+            });
             if (player != null) player.sendSystemMessage(Component.translatable(
                     "message.maid_storage_manager_extension.courier_mailbox.marked",
                     landing.getX(), landing.getY(), landing.getZ()));
@@ -106,29 +110,29 @@ public final class CourierWarehouseMailboxItem extends BlockItem {
     }
 
     public static boolean hasLanding(ItemStack stack) {
-        CompoundTag tag = stack.getTag();
-        return tag != null && tag.contains(TAG_LANDING_POS, Tag.TAG_LONG)
+        CompoundTag tag = ItemDataMigration.read(stack);
+        return tag.contains(TAG_LANDING_POS, Tag.TAG_LONG)
                 && tag.contains(TAG_LANDING_DIMENSION, Tag.TAG_STRING);
     }
 
     @Nullable
     public static BlockPos landingPos(ItemStack stack) {
-        CompoundTag tag = stack.getTag();
-        return tag != null && tag.contains(TAG_LANDING_POS, Tag.TAG_LONG)
+        CompoundTag tag = ItemDataMigration.read(stack);
+        return tag.contains(TAG_LANDING_POS, Tag.TAG_LONG)
                 ? BlockPos.of(tag.getLong(TAG_LANDING_POS)) : null;
     }
 
     @Nullable
     public static ResourceLocation landingDimension(ItemStack stack) {
-        CompoundTag tag = stack.getTag();
-        return tag != null && tag.contains(TAG_LANDING_DIMENSION, Tag.TAG_STRING)
+        CompoundTag tag = ItemDataMigration.read(stack);
+        return tag.contains(TAG_LANDING_DIMENSION, Tag.TAG_STRING)
                 ? ResourceLocation.tryParse(tag.getString(TAG_LANDING_DIMENSION)) : null;
     }
 
     @Override
-    public void appendHoverText(ItemStack stack, @Nullable Level level,
+    public void appendHoverText(ItemStack stack, Item.TooltipContext context,
                                 List<Component> tooltip, TooltipFlag flag) {
-        super.appendHoverText(stack, level, tooltip, flag);
+        super.appendHoverText(stack, context, tooltip, flag);
         BlockPos landing = landingPos(stack);
         if (landing == null) {
             tooltip.add(Component.translatable(

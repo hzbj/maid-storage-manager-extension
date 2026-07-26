@@ -4,6 +4,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.saveddata.SavedData;
@@ -87,7 +88,8 @@ public final class TerminalAccountData extends SavedData {
 
     public static TerminalAccountData get(MinecraftServer server) {
         return server.overworld().getDataStorage().computeIfAbsent(
-                TerminalAccountData::load, TerminalAccountData::new, DATA_NAME);
+                new SavedData.Factory<>(TerminalAccountData::new,
+                        (tag, registries) -> TerminalAccountData.load(tag)), DATA_NAME);
     }
 
     public static String normalizeUsername(String value) {
@@ -319,7 +321,7 @@ public final class TerminalAccountData extends SavedData {
     }
 
     @Override
-    public CompoundTag save(CompoundTag root) {
+    public CompoundTag save(CompoundTag root, HolderLookup.Provider registries) {
         ListTag list = new ListTag();
         for (Account account : accounts.values()) {
             CompoundTag tag = new CompoundTag();

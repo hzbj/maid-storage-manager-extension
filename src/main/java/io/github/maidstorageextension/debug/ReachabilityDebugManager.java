@@ -8,7 +8,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
-import net.minecraftforge.network.PacketDistributor;
+import net.neoforged.neoforge.network.PacketDistributor;
 import io.github.maidstorageextension.scan.StorageScanService;
 import studio.fantasyit.maid_storage_manager.maid.task.StorageManageTask;
 import io.github.maidstorageextension.network.ExtensionNetwork;
@@ -100,8 +100,7 @@ public final class ReachabilityDebugManager {
                 case DENIED -> denied++;
             }
         }
-        ExtensionNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
-                new ReachabilityDebugPacket(packetEntries, DISPLAY_TICKS));
+        PacketDistributor.sendToPlayer(player, new ReachabilityDebugPacket(packetEntries, DISPLAY_TICKS));
         player.sendSystemMessage(Component.translatable(
                 "debug.maid_storage_manager_extension.reachable.summary",
                 reachable, unreachable, denied, session.scope().describe()));

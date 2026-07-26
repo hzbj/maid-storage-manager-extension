@@ -7,17 +7,18 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.level.chunk.ChunkStatus;
+import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.material.MapColor;
 import net.minecraft.world.level.storage.LevelResource;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.event.level.ChunkEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.event.level.ChunkEvent;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.fml.common.Mod;
 import org.slf4j.Logger;
 
 import java.io.IOException;
@@ -30,8 +31,8 @@ import java.util.HexFormat;
 import java.util.Set;
 
 /** Records client-visible terrain so the terminal map can revisit explored chunks. */
-@Mod.EventBusSubscriber(modid = MaidStorageManagerExtension.MOD_ID,
-        bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
+@EventBusSubscriber(modid = MaidStorageManagerExtension.MOD_ID,
+        bus = EventBusSubscriber.Bus.GAME, value = Dist.CLIENT)
 public final class ExploredTerrainClientCache {
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final int SAVE_INTERVAL_TICKS = 1_200;
@@ -57,8 +58,7 @@ public final class ExploredTerrainClientCache {
     }
 
     @SubscribeEvent
-    public static void onClientTick(TickEvent.ClientTickEvent event) {
-        if (event.phase != TickEvent.Phase.END) return;
+    public static void onClientTick(ClientTickEvent.Post event) {
         Minecraft minecraft = Minecraft.getInstance();
         ClientLevel level = minecraft.level;
         if (level == null || minecraft.player == null) return;
@@ -178,7 +178,7 @@ public final class ExploredTerrainClientCache {
                 world = "remote:unknown";
             }
         }
-        return minecraft.getUser().getUuid() + "|" + world + "|" + dimension;
+        return minecraft.getUser().getProfileId() + "|" + world + "|" + dimension;
     }
 
     private static String sha256(String value) {

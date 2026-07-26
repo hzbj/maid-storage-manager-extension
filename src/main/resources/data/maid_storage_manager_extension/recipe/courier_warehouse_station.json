@@ -9,9 +9,10 @@
     "P": { "item": "minecraft:paper" },
     "G": { "item": "minecraft:gold_ingot" },
     "C": { "item": "minecraft:compass" },
-    "W": { "tag": "forge:fences/wooden" }
+    "W": { "tag": "c:fences/wooden" }
   },
   "result": {
-    "item": "maid_storage_manager_extension:courier_warehouse_station"
+    "count": 1,
+    "id": "maid_storage_manager_extension:courier_warehouse_station"
   }
 }

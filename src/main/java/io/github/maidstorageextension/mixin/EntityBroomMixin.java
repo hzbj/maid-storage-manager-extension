@@ -32,8 +32,9 @@ public abstract class EntityBroomMixin implements BroomAutopilotAccess {
     private static final String AUTOPILOT_NBT = "MaidStorageExtensionAutopilot";
 
     @Inject(method = "defineSynchedData", at = @At("TAIL"))
-    private void maidStorageExtension$defineAutopilot(CallbackInfo ci) {
-        ((Entity) (Object) this).getEntityData().define(AUTOPILOT, false);
+    private void maidStorageExtension$defineAutopilot(
+            SynchedEntityData.Builder builder, CallbackInfo ci) {
+        builder.define(AUTOPILOT, false);
     }
 
     @Override

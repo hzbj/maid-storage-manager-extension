@@ -26,7 +26,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraft.core.registries.BuiltInRegistries;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -164,7 +164,7 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
 
         logoutButton = addRenderableWidget(Button.builder(Component.translatable(
                         "gui.maid_storage_manager_extension.terminal.logout"), ignored ->
-                        ExtensionNetwork.CHANNEL.sendToServer(new TerminalAccountActionPacket(
+                        net.neoforged.neoforge.network.PacketDistributor.sendToServer(new TerminalAccountActionPacket(
                                 TerminalAccountActionPacket.Action.LOGOUT, menu.terminal(),
                                 "", "", null)))
                 .bounds(width - 72, 5, 64, 20).build());
@@ -199,7 +199,7 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
         changePasswordButton = addRenderableWidget(Button.builder(Component.translatable(
                         "gui.maid_storage_manager_extension.terminal.change_password"), ignored -> {
                     String password = passwordBox.getValue();
-                    ExtensionNetwork.CHANNEL.sendToServer(new TerminalAccountActionPacket(
+                    net.neoforged.neoforge.network.PacketDistributor.sendToServer(new TerminalAccountActionPacket(
                             TerminalAccountActionPacket.Action.CHANGE_PASSWORD,
                             menu.terminal(), "", password, null));
                     passwordBox.setValue("");
@@ -255,17 +255,17 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
         int footerY = height - 25;
         recallButton = addRenderableWidget(Button.builder(Component.translatable(
                         "gui.maid_storage_manager_extension.logistics_tracker.recall"), ignored ->
-                        ExtensionNetwork.CHANNEL.sendToServer(
+                        net.neoforged.neoforge.network.PacketDistributor.sendToServer(
                                 CourierCommandPacket.recall(activeCourier())))
                 .bounds(8, footerY, 76, 20).build());
         locateButton = addRenderableWidget(Button.builder(Component.translatable(
                         "gui.maid_storage_manager_extension.logistics_tracker.locate"), ignored ->
-                        ExtensionNetwork.CHANNEL.sendToServer(
+                        net.neoforged.neoforge.network.PacketDistributor.sendToServer(
                                 CourierCommandPacket.locate(activeCourier())))
                 .bounds(87, footerY, 76, 20).build());
         clearWorkButton = addRenderableWidget(Button.builder(Component.translatable(
                         "gui.maid_storage_manager_extension.logistics_tracker.clear_work"), ignored ->
-                        ExtensionNetwork.CHANNEL.sendToServer(
+                        net.neoforged.neoforge.network.PacketDistributor.sendToServer(
                                 CourierCommandPacket.clearWork(activeCourier())))
                 .bounds(166, footerY, 92, 20).build());
         clearWorkButton.setTooltip(Tooltip.create(Component.translatable(
@@ -273,7 +273,7 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
 
         clearDriverStatusButton = addRenderableWidget(Button.builder(Component.translatable(
                         "gui.maid_storage_manager_extension.transport.clear_status"), ignored ->
-                        ExtensionNetwork.CHANNEL.sendToServer(
+                        net.neoforged.neoforge.network.PacketDistributor.sendToServer(
                                 MaidTransportActionPacket.clearStatus(menu.terminal())))
                 .bounds(8, footerY, 92, 20).build());
         clearDriverStatusButton.setTooltip(Tooltip.create(Component.translatable(
@@ -299,28 +299,28 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
                         transportButtonWidth, 20).build());
         startTransportButton = addRenderableWidget(Button.builder(Component.translatable(
                         "gui.maid_storage_manager_extension.transport.start"), ignored ->
-                        ExtensionNetwork.CHANNEL.sendToServer(MaidTransportActionPacket.start(
+                        net.neoforged.neoforge.network.PacketDistributor.sendToServer(MaidTransportActionPacket.start(
                                 menu.terminal(), selectedPickup, selectedDestination)))
                 .bounds(transportX, layout.contentBottom - 48,
                         transportButtonWidth, 20).build());
         returnWarehouseButton = addRenderableWidget(Button.builder(Component.translatable(
                         "gui.maid_storage_manager_extension.transport.return_warehouse"), ignored ->
-                        ExtensionNetwork.CHANNEL.sendToServer(
+                        net.neoforged.neoforge.network.PacketDistributor.sendToServer(
                                 MaidTransportActionPacket.returnToWarehouse(
                                         menu.terminal(), activeMailbox())))
                 .bounds(transportX + transportButtonWidth + 4, layout.contentBottom - 48,
                         transportButtonWidth, 20).build());
         endTransportButton = addRenderableWidget(Button.builder(Component.translatable(
                         "gui.maid_storage_manager_extension.transport.end"), ignored ->
-                        ExtensionNetwork.CHANNEL.sendToServer(
+                        net.neoforged.neoforge.network.PacketDistributor.sendToServer(
                                 MaidTransportActionPacket.end(menu.terminal())))
                 .bounds(transportX, layout.contentBottom - 48,
                         transportWidth, 20).build());
 
-        ExtensionNetwork.CHANNEL.sendToServer(
+        net.neoforged.neoforge.network.PacketDistributor.sendToServer(
                 TerminalAccountActionPacket.refresh(menu.terminal()));
         if (isBound()) {
-            ExtensionNetwork.CHANNEL.sendToServer(
+            net.neoforged.neoforge.network.PacketDistributor.sendToServer(
                     NetworkWarehouseActionPacket.refresh(
                             menu.terminal(), activeCourier(), activeMailbox()));
         }
@@ -330,12 +330,9 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
     @Override
     public void containerTick() {
         super.containerTick();
-        if (searchBox != null) searchBox.tick();
-        if (usernameBox != null) usernameBox.tick();
-        if (passwordBox != null) passwordBox.tick();
         if (++refreshTicker >= 20) {
             refreshTicker = 0;
-            ExtensionNetwork.CHANNEL.sendToServer(
+            net.neoforged.neoforge.network.PacketDistributor.sendToServer(
                     TerminalAccountActionPacket.refresh(menu.terminal()));
         }
         updateWidgetState();
@@ -439,7 +436,7 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
     private void authenticate(boolean create) {
         String username = usernameBox.getValue();
         String password = passwordBox.getValue();
-        ExtensionNetwork.CHANNEL.sendToServer(create
+        net.neoforged.neoforge.network.PacketDistributor.sendToServer(create
                 ? TerminalAccountActionPacket.create(menu.terminal(), username, password)
                 : TerminalAccountActionPacket.login(menu.terminal(), username, password));
         passwordBox.setValue("");
@@ -448,7 +445,7 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
     private void submit() {
         NetworkWarehouseSnapshot.Snapshot snapshot = warehouseSnapshot();
         if (warehouseMode == WarehouseMode.DEPOSIT) {
-            ExtensionNetwork.CHANNEL.sendToServer(
+            net.neoforged.neoforge.network.PacketDistributor.sendToServer(
                     NetworkWarehouseActionPacket.confirmDeposit(
                             menu.terminal(), activeCourier(), snapshot.warehouse(),
                             snapshot.mailboxKey()));
@@ -468,7 +465,7 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
             }
         }
         if (items.isEmpty()) return;
-        ExtensionNetwork.CHANNEL.sendToServer(NetworkWarehouseActionPacket.submit(
+        net.neoforged.neoforge.network.PacketDistributor.sendToServer(NetworkWarehouseActionPacket.submit(
                 menu.terminal(), activeCourier(), snapshot.warehouse(),
                 snapshot.mailboxKey(), deliveryTarget,
                 staleConfirmed, items));
@@ -778,7 +775,7 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
                 .filter(m -> m.id().equals(maidId)).findFirst().orElse(null);
         if (maid == null) return;
         if (!maid.busy()) {
-            ExtensionNetwork.CHANNEL.sendToServer(
+            net.neoforged.neoforge.network.PacketDistributor.sendToServer(
                     TerminalAccountActionPacket.convert(menu.terminal(), maidId, toDriver));
             return;
         }
@@ -799,7 +796,7 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
                 pendingConversion = new PendingConversion(pendingConversion.maidId(),
                         pendingConversion.maidName(), pendingConversion.toDriver(), 2);
             } else {
-                ExtensionNetwork.CHANNEL.sendToServer(TerminalAccountActionPacket.convert(
+                net.neoforged.neoforge.network.PacketDistributor.sendToServer(TerminalAccountActionPacket.convert(
                         menu.terminal(), pendingConversion.maidId(), pendingConversion.toDriver()));
                 pendingConversion = null;
             }
@@ -1220,7 +1217,7 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
                     if (button == 1) {
                         beginConversion(maid.id(), maid.name(), true);
                     } else {
-                        ExtensionNetwork.CHANNEL.sendToServer(TerminalAccountActionPacket.select(
+                        net.neoforged.neoforge.network.PacketDistributor.sendToServer(TerminalAccountActionPacket.select(
                                 menu.terminal(), maid.id(), true));
                     }
                     return true;
@@ -1283,7 +1280,7 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
                     if (button == 1) {
                         beginConversion(maid.id(), maid.name(), false);
                     } else if (button == 0) {
-                        ExtensionNetwork.CHANNEL.sendToServer(TerminalAccountActionPacket.select(
+                        net.neoforged.neoforge.network.PacketDistributor.sendToServer(TerminalAccountActionPacket.select(
                                 menu.terminal(), maid.id(), false));
                         activateMailbox(mailbox);
                     }
@@ -1323,7 +1320,7 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
             if (!inside(mouseX, mouseY, settings.leftX + settings.columnWidth - 51,
                     rowY + 3, 47, 20)) continue;
             TerminalAccountSnapshot.Mailbox mailbox = account.mailboxes().get(i);
-            ExtensionNetwork.CHANNEL.sendToServer(new TerminalMailboxActionPacket(
+            net.neoforged.neoforge.network.PacketDistributor.sendToServer(new TerminalMailboxActionPacket(
                     TerminalMailboxActionPacket.Action.UNREGISTER, menu.terminal(),
                     mailbox.dimension(), mailbox.position()));
             return true;
@@ -1333,7 +1330,7 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
             int rowY = settings.rowsY + i * settings.rowStride;
             if (!inside(mouseX, mouseY, settings.rightX + settings.columnWidth - 51,
                     rowY + 3, 47, 20)) continue;
-            ExtensionNetwork.CHANNEL.sendToServer(new TerminalAccountActionPacket(
+            net.neoforged.neoforge.network.PacketDistributor.sendToServer(new TerminalAccountActionPacket(
                     TerminalAccountActionPacket.Action.UNREGISTER_MAID, menu.terminal(),
                     "", "", account.maids().get(i).id()));
             return true;
@@ -1343,14 +1340,14 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
 
     private void requestWarehouseScan(TerminalAccountSnapshot.Mailbox mailbox) {
         if (mailbox == null) return;
-        ExtensionNetwork.CHANNEL.sendToServer(new TerminalMailboxActionPacket(
+        net.neoforged.neoforge.network.PacketDistributor.sendToServer(new TerminalMailboxActionPacket(
                 TerminalMailboxActionPacket.Action.REQUEST_SCAN, menu.terminal(),
                 mailbox.dimension(), mailbox.position()));
     }
 
     private void activateMailbox(TerminalAccountSnapshot.Mailbox mailbox) {
         if (mailbox == null) return;
-        ExtensionNetwork.CHANNEL.sendToServer(new TerminalMailboxActionPacket(
+        net.neoforged.neoforge.network.PacketDistributor.sendToServer(new TerminalMailboxActionPacket(
                 TerminalMailboxActionPacket.Action.ACTIVATE, menu.terminal(),
                 mailbox.dimension(), mailbox.position()));
     }
@@ -1437,13 +1434,13 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
                 .filter(value -> warehouse.equals(value.warehouse()))
                 .findFirst().orElse(null);
         if (mailbox != null) activateMailbox(mailbox);
-        else ExtensionNetwork.CHANNEL.sendToServer(
+        else net.neoforged.neoforge.network.PacketDistributor.sendToServer(
                 NetworkWarehouseActionPacket.select(
                         menu.terminal(), activeCourier(), warehouse, activeMailbox()));
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double deltaX, double deltaY) {
         Layout layout = layout();
         int mapX = layout.mapX + 5;
         int mapY = layout.contentY + 22;
@@ -1457,7 +1454,7 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
             double offsetY = mouseY - (mapY + mapHeight / 2.0D);
             double worldUnderCursorX = mapCenterX + offsetX * oldBlocksPerPixel;
             double worldUnderCursorZ = mapCenterZ + offsetY * oldBlocksPerPixel;
-            mapZoom = Mth.clamp(mapZoom * Math.pow(1.18D, delta), 0.25D, 4.0D);
+            mapZoom = Mth.clamp(mapZoom * Math.pow(1.18D, deltaY), 0.25D, 4.0D);
             double newBlocksPerPixel = blocksPerScreenPixel();
             mapCenterX = worldUnderCursorX - offsetX * newBlocksPerPixel;
             mapCenterZ = worldUnderCursorZ - offsetY * newBlocksPerPixel;
@@ -1466,10 +1463,10 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
         }
         if (inside(mouseX, mouseY, layout.rightX, layout.contentY,
                 layout.rightWidth, layout.contentHeight)) {
-            inventoryScroll = Math.max(0, inventoryScroll - (int) Math.signum(delta));
+            inventoryScroll = Math.max(0, inventoryScroll - (int) Math.signum(deltaY));
             return true;
         }
-        return super.mouseScrolled(mouseX, mouseY, delta);
+        return super.mouseScrolled(mouseX, mouseY, deltaX, deltaY);
     }
 
     @Override
@@ -1553,7 +1550,7 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         updateWidgetState();
-        renderBackground(graphics);
+        renderBackground(graphics, mouseX, mouseY, partialTick);
         super.render(graphics, mouseX, mouseY, partialTick);
         renderTerminalNotice(graphics);
         renderTooltip(graphics, mouseX, mouseY);
@@ -1581,7 +1578,7 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
         String query = searchBox == null ? "" : searchBox.getValue().trim().toLowerCase(Locale.ROOT);
         if (query.isEmpty()) return snapshot.inventory();
         return snapshot.inventory().stream().filter(entry -> {
-            ResourceLocation key = ForgeRegistries.ITEMS.getKey(entry.prototype().getItem());
+            ResourceLocation key = BuiltInRegistries.ITEM.getKey(entry.prototype().getItem());
             return entry.prototype().getHoverName().getString().toLowerCase(Locale.ROOT).contains(query)
                     || key != null && key.toString().toLowerCase(Locale.ROOT).contains(query);
         }).toList();
@@ -1850,9 +1847,9 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
     }
 
     private static String itemKey(ItemStack stack) {
-        ResourceLocation id = ForgeRegistries.ITEMS.getKey(stack.getItem());
+        ResourceLocation id = BuiltInRegistries.ITEM.getKey(stack.getItem());
         return (id == null ? "unknown" : id.toString()) + '|'
-                + (stack.hasTag() ? stack.getTag().toString() : "");
+                + stack.getComponentsPatch();
     }
 
     private static String compactAmount(int value) {

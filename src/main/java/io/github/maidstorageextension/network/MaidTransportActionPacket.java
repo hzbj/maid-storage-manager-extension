@@ -1,18 +1,28 @@
 package io.github.maidstorageextension.network;
 
+import io.github.maidstorageextension.MaidStorageManagerExtension;
+
 import io.github.maidstorageextension.terminal.MaidTransportService;
 import io.github.maidstorageextension.terminal.MailboxKey;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.NetworkEvent;
 
 import java.util.UUID;
-import java.util.function.Supplier;
 
 public record MaidTransportActionPacket(Action action, UUID terminal,
                                         BlockPos pickup, BlockPos destination,
-                                        MailboxKey mailbox) {
+                                        MailboxKey mailbox) implements CustomPacketPayload {
+    public static final Type<MaidTransportActionPacket> TYPE = new Type<>(MaidStorageManagerExtension.id("maid_transport_action"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, MaidTransportActionPacket> STREAM_CODEC =
+            StreamCodec.of((buffer, packet) -> encode(packet, buffer), MaidTransportActionPacket::decode);
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() { return TYPE; }
+
     public enum Action { REFRESH, START, END, RETURN_TO_WAREHOUSE, CLEAR_STATUS }
 
     public MaidTransportActionPacket {
@@ -45,7 +55,7 @@ public record MaidTransportActionPacket(Action action, UUID terminal,
         return new MaidTransportActionPacket(Action.CLEAR_STATUS, terminal, null, null, null);
     }
 
-    public static void encode(MaidTransportActionPacket packet, FriendlyByteBuf buffer) {
+    public static void encode(MaidTransportActionPacket packet, RegistryFriendlyByteBuf buffer) {
         buffer.writeEnum(packet.action);
         buffer.writeUUID(packet.terminal);
         buffer.writeBoolean(packet.pickup != null);
@@ -59,7 +69,7 @@ public record MaidTransportActionPacket(Action action, UUID terminal,
         }
     }
 
-    public static MaidTransportActionPacket decode(FriendlyByteBuf buffer) {
+    public static MaidTransportActionPacket decode(RegistryFriendlyByteBuf buffer) {
         Action action = buffer.readEnum(Action.class);
         UUID terminal = buffer.readUUID();
         BlockPos pickup = buffer.readBoolean() ? buffer.readBlockPos() : null;
@@ -69,13 +79,10 @@ public record MaidTransportActionPacket(Action action, UUID terminal,
         return new MaidTransportActionPacket(action, terminal, pickup, destination, mailbox);
     }
 
-    public static void handle(MaidTransportActionPacket packet,
-                              Supplier<NetworkEvent.Context> contextSupplier) {
-        NetworkEvent.Context context = contextSupplier.get();
+    public static void handle(MaidTransportActionPacket packet, IPayloadContext context) {
         context.enqueueWork(() -> {
-            ServerPlayer sender = context.getSender();
+            ServerPlayer sender = (ServerPlayer) context.player();
             if (sender != null) MaidTransportService.handle(sender, packet);
         });
-        context.setPacketHandled(true);
     }
 }

@@ -3,6 +3,7 @@ package io.github.maidstorageextension.data;
 import com.github.tartaricacid.touhoulittlemaid.api.entity.data.TaskDataKey;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import io.github.maidstorageextension.MaidStorageManagerExtension;
+import io.github.maidstorageextension.migration.ItemStackNbt;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -612,7 +613,7 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
         tag.putInt("flightSearchMaxRadius", data.flightSearchMaxRadius);
         tag.putInt("flightRejectedLandings", data.flightRejectedLandings);
         tag.putInt("flightLandingFailures", data.flightLandingFailures);
-        if (!data.pendingList.isEmpty()) tag.put("pendingList", data.pendingList.save(new CompoundTag()));
+        if (!data.pendingList.isEmpty()) tag.put("pendingList", ItemStackNbt.save(data.pendingList));
         tag.put("pendingCargo", writeStacks(data.pendingCargo));
         tag.put("requestManifest", writeManifest(data.requestManifest));
         tag.put("depositManifest", writeManifest(data.depositManifest));
@@ -731,7 +732,7 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
         data.flightRejectedLandings = Math.max(0, tag.getInt("flightRejectedLandings"));
         data.flightLandingFailures = Math.max(0, tag.getInt("flightLandingFailures"));
         if (tag.contains("pendingList", Tag.TAG_COMPOUND)) {
-            data.pendingList = ItemStack.of(tag.getCompound("pendingList"));
+            data.pendingList = ItemStackNbt.load(tag.getCompound("pendingList"));
         }
         data.pendingCargo.addAll(readStacks(tag.getList("pendingCargo", Tag.TAG_COMPOUND)));
         data.requestManifest.addAll(readManifest(tag.getList("requestManifest", Tag.TAG_COMPOUND)));
@@ -775,7 +776,7 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
     private static ListTag writeManifest(List<ManifestEntry> entries) {
         ListTag list = new ListTag();
         for (ManifestEntry entry : entries) {
-            CompoundTag tag = entry.prototype.save(new CompoundTag());
+            CompoundTag tag = ItemStackNbt.save(entry.prototype);
             tag.putInt("CourierAmount", entry.amount);
             tag.putInt("CourierBaseline", entry.baseline);
             list.add(tag);
@@ -830,7 +831,7 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
     private static ListTag writeStacks(List<ItemStack> stacks) {
         ListTag list = new ListTag();
         for (ItemStack stack : stacks) {
-            if (!stack.isEmpty()) list.add(stack.save(new CompoundTag()));
+            if (!stack.isEmpty()) list.add(ItemStackNbt.save(stack));
         }
         return list;
     }
@@ -838,7 +839,7 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
     private static List<ItemStack> readStacks(ListTag list) {
         List<ItemStack> result = new ArrayList<>();
         for (int i = 0; i < list.size(); i++) {
-            ItemStack stack = ItemStack.of(list.getCompound(i));
+            ItemStack stack = ItemStackNbt.load(list.getCompound(i));
             if (!stack.isEmpty()) result.add(stack);
         }
         return result;
@@ -848,7 +849,7 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
         List<ManifestEntry> result = new ArrayList<>();
         for (int i = 0; i < list.size(); i++) {
             CompoundTag tag = list.getCompound(i);
-            ItemStack stack = ItemStack.of(tag);
+            ItemStack stack = ItemStackNbt.load(tag);
             if (!stack.isEmpty()) {
                 result.add(new ManifestEntry(stack, tag.getInt("CourierAmount"),
                         tag.getInt("CourierBaseline")));

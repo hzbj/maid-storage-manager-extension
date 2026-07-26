@@ -21,7 +21,7 @@ public abstract class RequestItemUtilMixin {
             CallbackInfo ci) {
         ItemStack requestList = warehouse.getMainHandItem();
         if (requestList.is(ItemRegistry.REQUEST_LIST_ITEM.get())) {
-            RequestListSafety.ensureJobUuid(requestList.getOrCreateTag());
+            RequestListSafety.ensureJobUuid(requestList);
         }
         if (CourierService.finishRequest(warehouse, requestList)) {
             ci.cancel();

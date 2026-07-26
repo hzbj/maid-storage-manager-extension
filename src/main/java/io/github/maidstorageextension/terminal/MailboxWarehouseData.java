@@ -1,6 +1,7 @@
 package io.github.maidstorageextension.terminal;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
@@ -94,7 +95,8 @@ public final class MailboxWarehouseData extends SavedData {
 
     public static MailboxWarehouseData get(MinecraftServer server) {
         return server.overworld().getDataStorage().computeIfAbsent(
-                MailboxWarehouseData::load, MailboxWarehouseData::new, DATA_NAME);
+                new SavedData.Factory<>(MailboxWarehouseData::new,
+                        (tag, registries) -> MailboxWarehouseData.load(tag)), DATA_NAME);
     }
 
     public BindResult bind(MailboxKey key, UUID manager, FrameBinding frame) {
@@ -199,7 +201,7 @@ public final class MailboxWarehouseData extends SavedData {
     }
 
     @Override
-    public CompoundTag save(CompoundTag root) {
+    public CompoundTag save(CompoundTag root, HolderLookup.Provider registries) {
         ListTag list = new ListTag();
         for (Entry entry : entries.values()) {
             CompoundTag tag = entry.key.toTag();

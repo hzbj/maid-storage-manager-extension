@@ -1,16 +1,27 @@
 package io.github.maidstorageextension.network;
 
+import io.github.maidstorageextension.MaidStorageManagerExtension;
+
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import io.github.maidstorageextension.compat.EnderPocketCompat;
 import io.github.maidstorageextension.maid.courier.CourierService;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.NetworkEvent;
 
 import java.util.UUID;
-import java.util.function.Supplier;
 
-public record CourierCommandPacket(int maidId, Command command, UUID targetCourier, int value) {
+public record CourierCommandPacket(int maidId, Command command, UUID targetCourier, int value) implements CustomPacketPayload {
+    public static final Type<CourierCommandPacket> TYPE = new Type<>(MaidStorageManagerExtension.id("courier_command"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, CourierCommandPacket> STREAM_CODEC =
+            StreamCodec.of((buffer, packet) -> encode(packet, buffer), CourierCommandPacket::decode);
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() { return TYPE; }
+
     public enum Command {
         BIND_NEAREST,
         CONFIRM_DEPOSIT,
@@ -74,11 +85,9 @@ public record CourierCommandPacket(int maidId, Command command, UUID targetCouri
         return new CourierCommandPacket(maidId, command, target, value);
     }
 
-    public static void handle(CourierCommandPacket packet,
-                              Supplier<NetworkEvent.Context> contextSupplier) {
-        NetworkEvent.Context context = contextSupplier.get();
+    public static void handle(CourierCommandPacket packet, IPayloadContext context) {
         context.enqueueWork(() -> {
-            ServerPlayer sender = context.getSender();
+            ServerPlayer sender = (ServerPlayer) context.player();
             if (sender == null) return;
             if (packet.command == Command.RECALL || packet.command == Command.LOCATE
                     || packet.command == Command.CLEAR_WORK) {
@@ -120,6 +129,5 @@ public record CourierCommandPacket(int maidId, Command command, UUID targetCouri
             }
             EnderPocketCompat.syncRemoteProxy(sender, maid);
         });
-        context.setPacketHandled(true);
     }
 }

@@ -18,11 +18,14 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.decoration.ItemFrame;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.event.entity.player.PlayerInteractEvent;
-import net.minecraftforge.eventbus.api.EventPriority;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
+import net.neoforged.bus.api.EventPriority;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.fml.common.Mod;
 import studio.fantasyit.maid_storage_manager.items.ChangeFlag;
+import studio.fantasyit.maid_storage_manager.items.data.TargetList;
+import studio.fantasyit.maid_storage_manager.registry.DataComponentRegistry;
 import studio.fantasyit.maid_storage_manager.maid.ChatTexts;
 import studio.fantasyit.maid_storage_manager.maid.task.StorageManageTask;
 import studio.fantasyit.maid_storage_manager.registry.ItemRegistry;
@@ -33,7 +36,7 @@ import studio.fantasyit.maid_storage_manager.util.StorageAccessUtil;
 import java.util.ArrayList;
 import java.util.List;
 
-@Mod.EventBusSubscriber(modid = MaidStorageManagerExtension.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
+@EventBusSubscriber(modid = MaidStorageManagerExtension.MOD_ID, bus = EventBusSubscriber.Bus.GAME)
 public final class InteractionEvents {
     private InteractionEvents() {
     }
@@ -97,11 +100,7 @@ public final class InteractionEvents {
     }
 
     private static void setFlagStorages(ItemStack stack, List<Target> storages) {
-        CompoundTag tag = stack.getOrCreateTag();
-        ListTag list = new ListTag();
-        storages.forEach(storage -> list.add(storage.toNbt()));
-        tag.put(ChangeFlag.TAG_STORAGES, list);
-        stack.setTag(tag);
+        stack.set(DataComponentRegistry.TARGETS.get(), new TargetList(storages).toImmutable());
     }
 
     /** A normal request-list use records the fixed delivery point without replacing its UI. */

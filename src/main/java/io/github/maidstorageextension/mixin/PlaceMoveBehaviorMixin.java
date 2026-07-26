@@ -15,6 +15,7 @@ import studio.fantasyit.maid_storage_manager.Config;
 import studio.fantasyit.maid_storage_manager.maid.behavior.place.PlaceMoveBehavior;
 import studio.fantasyit.maid_storage_manager.maid.data.StorageManagerConfigData;
 import studio.fantasyit.maid_storage_manager.maid.memory.ViewedInventoryMemory;
+import studio.fantasyit.maid_storage_manager.data.ItemCount;
 import studio.fantasyit.maid_storage_manager.storage.MaidStorage;
 import studio.fantasyit.maid_storage_manager.storage.Target;
 import studio.fantasyit.maid_storage_manager.storage.base.IMaidStorage;
@@ -41,9 +42,9 @@ public abstract class PlaceMoveBehaviorMixin {
             ),
             require = 1
     )
-    private Map<Target, List<ViewedInventoryMemory.ItemCount>> maidStorageExtension$excludeMiscFromPriorityCandidates(
+    private Map<Target, List<ItemCount>> maidStorageExtension$excludeMiscFromPriorityCandidates(
             ViewedInventoryMemory memory, ServerLevel level, EntityMaid maid) {
-        Map<Target, List<ViewedInventoryMemory.ItemCount>> candidates = memory.positionFlatten();
+        Map<Target, List<ItemCount>> candidates = memory.positionFlatten();
         candidates.entrySet().removeIf(entry -> MiscStorageAccess.isMiscStorage(level, entry.getKey()));
         return candidates;
     }

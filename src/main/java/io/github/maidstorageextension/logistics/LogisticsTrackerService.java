@@ -17,7 +17,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.network.PacketDistributor;
+import net.neoforged.neoforge.network.PacketDistributor;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -46,8 +46,7 @@ public final class LogisticsTrackerService {
             snapshot = build(server, courier);
             LAST_SNAPSHOT.put(courierId, snapshot);
         }
-        ExtensionNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> viewer),
-                new LogisticsTrackerPacket(courierId, snapshot));
+        PacketDistributor.sendToPlayer(viewer, new LogisticsTrackerPacket(courierId, snapshot));
     }
 
     public static void updateAuthorized(ServerPlayer viewer, UUID courierId) {
@@ -56,8 +55,7 @@ public final class LogisticsTrackerService {
                 ? LAST_SNAPSHOT.getOrDefault(courierId, LogisticsSnapshot.Snapshot.empty()).offline()
                 : build(viewer.getServer(), courier);
         if (courier != null) LAST_SNAPSHOT.put(courierId, snapshot);
-        ExtensionNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> viewer),
-                new LogisticsTrackerPacket(courierId, snapshot));
+        PacketDistributor.sendToPlayer(viewer, new LogisticsTrackerPacket(courierId, snapshot));
     }
 
     private static LogisticsSnapshot.Snapshot build(MinecraftServer server, EntityMaid courier) {

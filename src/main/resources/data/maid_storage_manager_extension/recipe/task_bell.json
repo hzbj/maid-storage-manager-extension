@@ -6,12 +6,13 @@
     "PPP"
   ],
   "key": {
-    "N": { "tag": "forge:nuggets/gold" },
-    "G": { "tag": "forge:ingots/gold" },
+    "N": { "tag": "c:nuggets/gold" },
+    "G": { "tag": "c:ingots/gold" },
     "P": { "tag": "minecraft:planks" }
   },
   "result": {
-    "item": "maid_storage_manager_extension:task_bell"
+    "count": 1,
+    "id": "maid_storage_manager_extension:task_bell"
   }
 }
 

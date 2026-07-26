@@ -77,23 +77,23 @@ public final class CourierConfigScreen extends AbstractContainerScreen<CourierCo
     }
 
     private void send(CourierCommandPacket.Command command) {
-        ExtensionNetwork.CHANNEL.sendToServer(
+        net.neoforged.neoforge.network.PacketDistributor.sendToServer(
                 CourierCommandPacket.courier(menu.maidId(), command));
     }
 
     private void sendBroomFlightDistance() {
-        ExtensionNetwork.CHANNEL.sendToServer(CourierCommandPacket.broomFlightDistance(
+        net.neoforged.neoforge.network.PacketDistributor.sendToServer(CourierCommandPacket.broomFlightDistance(
                 menu.maidId(), broomFlightDistance));
     }
 
     private void sendPostDeliveryHomeMode() {
-        ExtensionNetwork.CHANNEL.sendToServer(CourierCommandPacket.postDeliveryHomeMode(
+        net.neoforged.neoforge.network.PacketDistributor.sendToServer(CourierCommandPacket.postDeliveryHomeMode(
                 menu.maidId(), stayHomeAfterDelivery));
     }
 
     private void sendSelect(UUID warehouse) {
         if (warehouse != null) {
-            ExtensionNetwork.CHANNEL.sendToServer(
+            net.neoforged.neoforge.network.PacketDistributor.sendToServer(
                     CourierCommandPacket.selectWarehouse(menu.maidId(), warehouse));
         }
     }
@@ -159,7 +159,7 @@ public final class CourierConfigScreen extends AbstractContainerScreen<CourierCo
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics);
+        renderBackground(graphics, mouseX, mouseY, partialTick);
         super.render(graphics, mouseX, mouseY, partialTick);
         renderTooltip(graphics, mouseX, mouseY);
     }

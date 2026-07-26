@@ -8,14 +8,13 @@ import io.github.maidstorageextension.maid.courier.CourierService;
 import io.github.maidstorageextension.maid.courier.CourierSortMutex;
 import io.github.maidstorageextension.scan.StorageScanService;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraftforge.network.PacketDistributor;
+import net.neoforged.neoforge.network.PacketDistributor;
 import studio.fantasyit.maid_storage_manager.communicate.CommunicateUtil;
 import studio.fantasyit.maid_storage_manager.maid.behavior.ScheduleBehavior;
 import studio.fantasyit.maid_storage_manager.network.MaidDataSyncToClientPacket;
 import studio.fantasyit.maid_storage_manager.registry.MemoryModuleRegistry;
 import studio.fantasyit.maid_storage_manager.util.Conditions;
 import studio.fantasyit.maid_storage_manager.util.MemoryUtil;
-import studio.fantasyit.maid_storage_manager.network.Network;
 
 public final class ExtensionWorkControl {
     private ExtensionWorkControl() {
@@ -81,7 +80,8 @@ public final class ExtensionWorkControl {
         MemoryUtil.clearTarget(maid);
         CompoundTag value = new CompoundTag();
         value.putInt("id", schedule.ordinal());
-        Network.INSTANCE.send(PacketDistributor.TRACKING_ENTITY.with(() -> maid),
-                new MaidDataSyncToClientPacket(MaidDataSyncToClientPacket.Type.WORKING, maid.getId(), value));
+        PacketDistributor.sendToPlayersTrackingEntity(maid,
+                new MaidDataSyncToClientPacket(
+                        MaidDataSyncToClientPacket.Type.WORKING, maid.getId(), value));
     }
 }

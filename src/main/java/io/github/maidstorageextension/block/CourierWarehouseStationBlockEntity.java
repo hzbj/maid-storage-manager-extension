@@ -13,6 +13,7 @@ import io.github.maidstorageextension.terminal.TerminalAccountService;
 import io.github.maidstorageextension.maid.ExtensionMemoryUtil;
 import io.github.maidstorageextension.maid.courier.CourierService;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
@@ -378,8 +379,8 @@ public final class CourierWarehouseStationBlockEntity extends BlockEntity {
     }
 
     @Override
-    protected void saveAdditional(@NotNull CompoundTag tag) {
-        super.saveAdditional(tag);
+    protected void saveAdditional(@NotNull CompoundTag tag, HolderLookup.Provider registries) {
+        super.saveAdditional(tag, registries);
         if (landingPos != null) tag.putLong(TAG_LANDING_POS, landingPos.asLong());
         if (landingDimension != null) tag.putString(TAG_LANDING_DIMENSION, landingDimension.toString());
         if (placerUuid != null) tag.putUUID(TAG_PLACER, placerUuid);
@@ -391,8 +392,8 @@ public final class CourierWarehouseStationBlockEntity extends BlockEntity {
     }
 
     @Override
-    public void load(@NotNull CompoundTag tag) {
-        super.load(tag);
+    protected void loadAdditional(@NotNull CompoundTag tag, HolderLookup.Provider registries) {
+        super.loadAdditional(tag, registries);
         landingPos = tag.contains(TAG_LANDING_POS, Tag.TAG_LONG)
                 ? BlockPos.of(tag.getLong(TAG_LANDING_POS)) : null;
         landingDimension = tag.contains(TAG_LANDING_DIMENSION, Tag.TAG_STRING)

@@ -1,19 +1,30 @@
 package io.github.maidstorageextension.network;
 
+import io.github.maidstorageextension.MaidStorageManagerExtension;
+
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import io.github.maidstorageextension.compat.EnderPocketCompat;
 import io.github.maidstorageextension.data.WarehouseStationData;
 import io.github.maidstorageextension.maid.courier.CourierWarehouseStationApprovalService;
 import net.minecraft.core.BlockPos;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.NetworkEvent;
 
-import java.util.function.Supplier;
 
 public record StationApprovalPacket(int maidId, Decision decision,
-                                    ResourceLocation dimension, BlockPos mailboxPos) {
+                                    ResourceLocation dimension, BlockPos mailboxPos) implements CustomPacketPayload {
+    public static final Type<StationApprovalPacket> TYPE = new Type<>(MaidStorageManagerExtension.id("station_approval"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, StationApprovalPacket> STREAM_CODEC =
+            StreamCodec.of((buffer, packet) -> encode(packet, buffer), StationApprovalPacket::decode);
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() { return TYPE; }
+
     public enum Decision { APPROVE, REJECT }
 
     public static void encode(StationApprovalPacket packet, FriendlyByteBuf buffer) {
@@ -28,11 +39,9 @@ public record StationApprovalPacket(int maidId, Decision decision,
                 buffer.readResourceLocation(), buffer.readBlockPos());
     }
 
-    public static void handle(StationApprovalPacket packet,
-                              Supplier<NetworkEvent.Context> contextSupplier) {
-        NetworkEvent.Context context = contextSupplier.get();
+    public static void handle(StationApprovalPacket packet, IPayloadContext context) {
         context.enqueueWork(() -> {
-            ServerPlayer sender = context.getSender();
+            ServerPlayer sender = (ServerPlayer) context.player();
             if (sender == null) return;
             EntityMaid warehouse = EnderPocketCompat.resolveRemoteMaid(sender, packet.maidId);
             if (warehouse == null) return;
@@ -43,6 +52,5 @@ public record StationApprovalPacket(int maidId, Decision decision,
                             : CourierWarehouseStationApprovalService.Decision.REJECT);
             EnderPocketCompat.syncRemoteProxy(sender, warehouse);
         });
-        context.setPacketHandled(true);
     }
 }

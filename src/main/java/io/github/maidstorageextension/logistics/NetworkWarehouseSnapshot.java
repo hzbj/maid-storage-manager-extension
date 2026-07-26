@@ -1,6 +1,7 @@
 package io.github.maidstorageextension.logistics;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
@@ -89,7 +90,7 @@ public final class NetworkWarehouseSnapshot {
     private NetworkWarehouseSnapshot() {
     }
 
-    public static CompoundTag toTag(Snapshot snapshot) {
+    public static CompoundTag toTag(Snapshot snapshot, HolderLookup.Provider registries) {
         CompoundTag tag = new CompoundTag();
         tag.putBoolean("online", snapshot.online());
         tag.putBoolean("authorized", snapshot.authorized());
@@ -111,7 +112,7 @@ public final class NetworkWarehouseSnapshot {
         ListTag inventory = new ListTag();
         for (InventoryEntry value : snapshot.inventory()) {
             if (value.prototype().isEmpty() || value.available() <= 0) continue;
-            CompoundTag entry = value.prototype().save(new CompoundTag());
+            CompoundTag entry = (CompoundTag) value.prototype().save(registries);
             entry.putInt("NetworkAvailable", value.available());
             inventory.add(entry);
         }
@@ -124,13 +125,13 @@ public final class NetworkWarehouseSnapshot {
         return tag;
     }
 
-    public static Snapshot fromTag(CompoundTag tag) {
+    public static Snapshot fromTag(CompoundTag tag, HolderLookup.Provider registries) {
         if (tag == null || tag.isEmpty()) return Snapshot.empty();
         List<InventoryEntry> inventory = new ArrayList<>();
         ListTag list = tag.getList("inventory", Tag.TAG_COMPOUND);
         for (int i = 0; i < list.size(); i++) {
             CompoundTag entry = list.getCompound(i);
-            ItemStack stack = ItemStack.of(entry);
+            ItemStack stack = ItemStack.parseOptional(registries, entry);
             int available = Math.max(0, entry.getInt("NetworkAvailable"));
             if (!stack.isEmpty() && available > 0) {
                 inventory.add(new InventoryEntry(stack, available));

@@ -1,22 +1,32 @@
 package io.github.maidstorageextension.network;
 
+import io.github.maidstorageextension.MaidStorageManagerExtension;
+
 import io.github.maidstorageextension.logistics.NetworkWarehouseService;
 import io.github.maidstorageextension.terminal.MailboxKey;
-import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.network.NetworkEvent;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.function.Supplier;
 
 /** Client intent for the communication terminal's warehouse page; every value is revalidated server-side. */
 public record NetworkWarehouseActionPacket(Action action, UUID terminal, UUID courier, UUID warehouse,
                                            MailboxKey mailbox,
                                            DeliveryTarget deliveryTarget, boolean acceptStale,
-                                           List<RequestedItem> requestedItems) {
+                                           List<RequestedItem> requestedItems) implements CustomPacketPayload {
+    public static final Type<NetworkWarehouseActionPacket> TYPE = new Type<>(MaidStorageManagerExtension.id("network_warehouse_action"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, NetworkWarehouseActionPacket> STREAM_CODEC =
+            StreamCodec.of((buffer, packet) -> encode(packet, buffer), NetworkWarehouseActionPacket::decode);
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() { return TYPE; }
+
     public static final int MAX_REQUEST_LINES = 10;
     public static final int MAX_REQUEST_AMOUNT = 1_000_000;
 
@@ -73,7 +83,7 @@ public record NetworkWarehouseActionPacket(Action action, UUID terminal, UUID co
                 DeliveryTarget.PLAYER, false, List.of());
     }
 
-    public static void encode(NetworkWarehouseActionPacket packet, FriendlyByteBuf buffer) {
+    public static void encode(NetworkWarehouseActionPacket packet, RegistryFriendlyByteBuf buffer) {
         buffer.writeEnum(packet.action);
         buffer.writeUUID(packet.terminal);
         buffer.writeUUID(packet.courier);
@@ -88,12 +98,12 @@ public record NetworkWarehouseActionPacket(Action action, UUID terminal, UUID co
         buffer.writeBoolean(packet.acceptStale);
         buffer.writeVarInt(packet.requestedItems.size());
         for (RequestedItem item : packet.requestedItems) {
-            buffer.writeItem(item.prototype);
+            ItemStack.STREAM_CODEC.encode(buffer, item.prototype);
             buffer.writeVarInt(item.amount);
         }
     }
 
-    public static NetworkWarehouseActionPacket decode(FriendlyByteBuf buffer) {
+    public static NetworkWarehouseActionPacket decode(RegistryFriendlyByteBuf buffer) {
         Action action = buffer.readEnum(Action.class);
         UUID terminal = buffer.readUUID();
         UUID courier = buffer.readUUID();
@@ -108,7 +118,7 @@ public record NetworkWarehouseActionPacket(Action action, UUID terminal, UUID co
         }
         List<RequestedItem> items = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            ItemStack stack = buffer.readItem();
+            ItemStack stack = ItemStack.STREAM_CODEC.decode(buffer);
             int amount = buffer.readVarInt();
             if (amount <= 0 || amount > MAX_REQUEST_AMOUNT) {
                 throw new IllegalArgumentException("Invalid network warehouse request amount: " + amount);
@@ -119,13 +129,10 @@ public record NetworkWarehouseActionPacket(Action action, UUID terminal, UUID co
                 action, terminal, courier, warehouse, mailbox, delivery, acceptStale, items);
     }
 
-    public static void handle(NetworkWarehouseActionPacket packet,
-                              Supplier<NetworkEvent.Context> contextSupplier) {
-        NetworkEvent.Context context = contextSupplier.get();
+    public static void handle(NetworkWarehouseActionPacket packet, IPayloadContext context) {
         context.enqueueWork(() -> {
-            ServerPlayer sender = context.getSender();
+            ServerPlayer sender = (ServerPlayer) context.player();
             if (sender != null) NetworkWarehouseService.handle(sender, packet);
         });
-        context.setPacketHandled(true);
     }
 }

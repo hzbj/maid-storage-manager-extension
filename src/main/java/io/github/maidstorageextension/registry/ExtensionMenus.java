@@ -1,23 +1,23 @@
 package io.github.maidstorageextension.registry;
 
+import net.minecraft.core.registries.Registries;
 import io.github.maidstorageextension.MaidStorageManagerExtension;
 import io.github.maidstorageextension.maid.courier.CourierConfigMenu;
 import io.github.maidstorageextension.logistics.LogisticsTrackerMenu;
 import net.minecraft.world.inventory.MenuType;
-import net.minecraftforge.common.extensions.IForgeMenuType;
-import net.minecraftforge.eventbus.api.IEventBus;
-import net.minecraftforge.registries.DeferredRegister;
-import net.minecraftforge.registries.ForgeRegistries;
-import net.minecraftforge.registries.RegistryObject;
+import net.neoforged.neoforge.common.extensions.IMenuTypeExtension;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.neoforge.registries.DeferredRegister;
+import net.neoforged.neoforge.registries.DeferredHolder;
 
 public final class ExtensionMenus {
     private static final DeferredRegister<MenuType<?>> MENUS =
-            DeferredRegister.create(ForgeRegistries.MENU_TYPES, MaidStorageManagerExtension.MOD_ID);
+            DeferredRegister.create(Registries.MENU, MaidStorageManagerExtension.MOD_ID);
 
-    public static final RegistryObject<MenuType<CourierConfigMenu>> COURIER_CONFIG = MENUS.register(
-            "courier_config", () -> IForgeMenuType.create(CourierConfigMenu::fromNetwork));
-    public static final RegistryObject<MenuType<LogisticsTrackerMenu>> LOGISTICS_TRACKER = MENUS.register(
-            "logistics_tracker", () -> IForgeMenuType.create(LogisticsTrackerMenu::fromNetwork));
+    public static final DeferredHolder<MenuType<?>, MenuType<CourierConfigMenu>> COURIER_CONFIG = MENUS.register(
+            "courier_config", () -> IMenuTypeExtension.create(CourierConfigMenu::fromNetwork));
+    public static final DeferredHolder<MenuType<?>, MenuType<LogisticsTrackerMenu>> LOGISTICS_TRACKER = MENUS.register(
+            "logistics_tracker", () -> IMenuTypeExtension.create(LogisticsTrackerMenu::fromNetwork));
 
     private ExtensionMenus() {
     }

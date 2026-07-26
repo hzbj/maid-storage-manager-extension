@@ -4,8 +4,9 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import io.github.maidstorageextension.scan.MiscSortPlanner;
 import net.minecraft.nbt.CompoundTag;
+import io.github.maidstorageextension.migration.ItemStackNbt;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraft.core.registries.BuiltInRegistries;
 import studio.fantasyit.maid_storage_manager.storage.Target;
 
 import java.util.ArrayDeque;
@@ -472,10 +473,10 @@ public final class MiscSortMemory {
 
     public static String ignoreKeyFor(ItemStack stack, MiscSortPlanner.IgnorePolicy policy) {
         if (stack == null || stack.isEmpty()) throw new IllegalArgumentException("stack must not be empty");
-        var itemId = ForgeRegistries.ITEMS.getKey(stack.getItem());
+        var itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
         if (itemId == null) throw new IllegalArgumentException("stack item is not registered");
         if (policy == MiscSortPlanner.IgnorePolicy.EXACT_STACK) {
-            CompoundTag saved = stack.copyWithCount(1).save(new CompoundTag());
+            CompoundTag saved = ItemStackNbt.save(stack.copyWithCount(1));
             return "exact:" + saved;
         }
         return "item:" + itemId;
@@ -675,7 +676,7 @@ public final class MiscSortMemory {
         if (canonicalTargetKey == null || exactStack == null || exactStack.isEmpty()) return false;
         return fullMarks.stream().anyMatch(mark -> mark.scanGeneration() == generation
                 && mark.canonicalTargetKey().equals(canonicalTargetKey)
-                && ItemStack.isSameItemSameTags(mark.stack(), exactStack));
+                && ItemStack.isSameItemSameComponents(mark.stack(), exactStack));
     }
 
     public Phase getPhase() {
@@ -823,7 +824,7 @@ public final class MiscSortMemory {
         bufferSlot = slot;
         if (activeBatch != null && activeBatch.cargoLines.size() == 1) {
             CargoLine old = activeBatch.cargoLines.get(0);
-            if (ItemStack.isSameItemSameTags(old.stack(), stack)) {
+            if (ItemStack.isSameItemSameComponents(old.stack(), stack)) {
                 CargoLine replacement = new CargoLine(old.stack(),
                         Math.max(old.requestedCount(), stack.getCount()), stack.getCount(), slot,
                         old.baselineCount(), old.ignoreKey(), old.destinations(), old.destinationIndex());

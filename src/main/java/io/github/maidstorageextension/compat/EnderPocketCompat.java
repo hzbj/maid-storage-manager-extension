@@ -1,6 +1,6 @@
 package io.github.maidstorageextension.compat;
 
-import com.github.yimeng261.maidspell.item.bauble.enderPocket.EnderPocketMaidProxyCache;
+import com.github.yimeng261.maidspell.Global;
 import com.github.yimeng261.maidspell.item.bauble.enderPocket.EnderPocketService;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import net.minecraft.resources.ResourceLocation;
@@ -10,16 +10,16 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraftforge.fml.ModList;
-import net.minecraftforge.registries.ForgeRegistries;
+import net.neoforged.fml.ModList;
+import net.minecraft.core.registries.BuiltInRegistries;
 
 /** Registry-based integration with Touhou Little Maid: Spell. */
 public final class EnderPocketCompat {
     private static final String MOD_ID = "touhou_little_maid_spell";
     public static final ResourceLocation ITEM_ID =
-            new ResourceLocation(MOD_ID, "ender_pocket");
+            ResourceLocation.fromNamespaceAndPath(MOD_ID, "ender_pocket");
     public static final ResourceLocation BROOM_ITEM_ID =
-            new ResourceLocation("touhou_little_maid", "broom");
+            ResourceLocation.fromNamespaceAndPath("touhou_little_maid", "broom");
 
     private EnderPocketCompat() {
     }
@@ -31,33 +31,42 @@ public final class EnderPocketCompat {
         }
         if (!ModList.get().isLoaded(MOD_ID)) return null;
         if (player instanceof ServerPlayer serverPlayer) {
-            // The upstream service validates the active session, owner and maid UUID.
-            return EnderPocketService.resolveRemoteMaid(serverPlayer, maidId);
+            return EnderPocketService.getPlayerEnderPocketMaids(serverPlayer).stream()
+                    .filter(info -> info.getMaidEntityId() == maidId)
+                    .map(info -> Global.getOrCreatePlayerMaidMap(serverPlayer.getUUID())
+                            .get(info.getMaidUUID()))
+                    .filter(maid -> maid != null && maid.isAlive())
+                    .filter(maid -> maid.isOwnedBy(serverPlayer))
+                    .filter(EnderPocketCompat::isEquipped)
+                    .filter(maid -> EnderPocketService.getPlayerEnderPocketMaids(serverPlayer).stream()
+                            .anyMatch(info -> info.getMaidUUID().equals(maid.getUUID())
+                                    && info.getMaidEntityId() == maid.getId()
+                                    && info.getLevelKey().equals(maid.level().dimension())))
+                    .findFirst().orElse(null);
         }
-        return EnderPocketMaidProxyCache.find(player.level(), maidId);
+        return null;
     }
 
     public static void syncRemoteProxyBeforeMenu(Player player, int maidId) {
         if (!ModList.get().isLoaded(MOD_ID)
                 || !(player instanceof ServerPlayer serverPlayer)) return;
-        EntityMaid maid = resolveRemoteMaid(serverPlayer, maidId);
-        if (maid != null) {
-            EnderPocketService.syncRemoteProxyBeforeMenu(serverPlayer, maid);
-        }
+        resolveRemoteMaid(serverPlayer, maidId);
     }
 
     public static void syncRemoteProxy(ServerPlayer player, EntityMaid maid) {
-        if (!ModList.get().isLoaded(MOD_ID)) return;
-        EnderPocketService.syncRemoteProxyBeforeMenu(player, maid);
+        // 1.8.4 exposes the authoritative maid through Global; there is no proxy to flush.
     }
 
     public static boolean isRemoteSessionActive(ServerPlayer player, EntityMaid maid) {
         return player != null && maid != null && ModList.get().isLoaded(MOD_ID)
-                && EnderPocketService.isRemoteSessionActive(player, maid);
+                && maid.isOwnedBy(player) && isEquipped(maid)
+                && EnderPocketService.getPlayerEnderPocketMaids(player).stream()
+                .anyMatch(info -> info.getMaidUUID().equals(maid.getUUID())
+                        && info.getLevelKey().equals(maid.level().dimension()));
     }
 
     public static boolean isEquipped(EntityMaid maid) {
-        Item item = ForgeRegistries.ITEMS.getValue(ITEM_ID);
+        Item item = BuiltInRegistries.ITEM.get(ITEM_ID);
         if (item == null || item == Items.AIR) {
             return false;
         }
@@ -71,7 +80,7 @@ public final class EnderPocketCompat {
     }
 
     public static boolean hasBroom(EntityMaid maid) {
-        Item broom = ForgeRegistries.ITEMS.getValue(BROOM_ITEM_ID);
+        Item broom = BuiltInRegistries.ITEM.get(BROOM_ITEM_ID);
         if (broom == null || broom == Items.AIR) return false;
         var inventory = maid.getAvailableInv(false);
         for (int slot = 0; slot < inventory.getSlots(); slot++) {
@@ -81,14 +90,14 @@ public final class EnderPocketCompat {
     }
 
     public static boolean isBroom(ItemStack stack) {
-        Item broom = ForgeRegistries.ITEMS.getValue(BROOM_ITEM_ID);
+        Item broom = BuiltInRegistries.ITEM.get(BROOM_ITEM_ID);
         return broom != null && broom != Items.AIR && stack.is(broom);
     }
 
     public static ItemStack icon() {
-        Item item = ForgeRegistries.ITEMS.getValue(ITEM_ID);
+        Item item = BuiltInRegistries.ITEM.get(ITEM_ID);
         if (item != null && item != Items.AIR) return item.getDefaultInstance();
-        Item broom = ForgeRegistries.ITEMS.getValue(BROOM_ITEM_ID);
+        Item broom = BuiltInRegistries.ITEM.get(BROOM_ITEM_ID);
         return broom == null || broom == Items.AIR
                 ? Items.ENDER_EYE.getDefaultInstance() : broom.getDefaultInstance();
     }

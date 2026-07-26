@@ -9,12 +9,14 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import io.github.maidstorageextension.block.TaskBellBlockEntity;
+import io.github.maidstorageextension.migration.ItemDataMigration;
 import studio.fantasyit.maid_storage_manager.maid.task.StorageManageTask;
 
 import java.util.List;
@@ -46,29 +48,30 @@ public class TaskBellItem extends BlockItem {
             return InteractionResult.FAIL;
         }
 
-        CompoundTag blockEntityTag = stack.getOrCreateTagElement(BLOCK_ENTITY_TAG);
+        CompoundTag blockEntityTag = ItemDataMigration.blockEntityData(stack);
         blockEntityTag.putUUID(TaskBellBlockEntity.TAG_MAID_UUID, maid.getUUID());
         blockEntityTag.putString(TaskBellBlockEntity.TAG_MAID_NAME, maid.getName().getString());
         blockEntityTag.putUUID(TaskBellBlockEntity.TAG_OWNER_UUID, player.getUUID());
+        ItemDataMigration.setBlockEntityData(stack, blockEntityTag);
         player.sendSystemMessage(Component.translatable("message.maid_storage_manager_extension.task_bell.bound", maid.getName()));
         return InteractionResult.SUCCESS;
     }
 
     @Nullable
     public static UUID getBoundMaid(ItemStack stack) {
-        CompoundTag blockEntityTag = stack.getTagElement(BLOCK_ENTITY_TAG);
-        if (blockEntityTag == null || !blockEntityTag.hasUUID(TaskBellBlockEntity.TAG_MAID_UUID)) {
+        CompoundTag blockEntityTag = ItemDataMigration.blockEntityData(stack);
+        if (!blockEntityTag.hasUUID(TaskBellBlockEntity.TAG_MAID_UUID)) {
             return null;
         }
         return blockEntityTag.getUUID(TaskBellBlockEntity.TAG_MAID_UUID);
     }
 
     @Override
-    public void appendHoverText(@NotNull ItemStack stack, @Nullable Level level,
+    public void appendHoverText(@NotNull ItemStack stack, Item.TooltipContext context,
                                 @NotNull List<Component> tooltip, @NotNull TooltipFlag flag) {
-        super.appendHoverText(stack, level, tooltip, flag);
-        CompoundTag blockEntityTag = stack.getTagElement(BLOCK_ENTITY_TAG);
-        if (blockEntityTag == null || !blockEntityTag.hasUUID(TaskBellBlockEntity.TAG_MAID_UUID)) {
+        super.appendHoverText(stack, context, tooltip, flag);
+        CompoundTag blockEntityTag = ItemDataMigration.blockEntityData(stack);
+        if (!blockEntityTag.hasUUID(TaskBellBlockEntity.TAG_MAID_UUID)) {
             tooltip.add(Component.translatable("tooltip.maid_storage_manager_extension.task_bell.unbound"));
             tooltip.add(Component.translatable("tooltip.maid_storage_manager_extension.task_bell.bind_hint"));
             return;

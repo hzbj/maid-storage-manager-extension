@@ -8,30 +8,29 @@ import io.github.maidstorageextension.remote.RemoteMaidService;
 import io.github.maidstorageextension.terminal.MaidTransportBoardingService;
 import io.github.maidstorageextension.terminal.MaidTransportService;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.event.entity.EntityLeaveLevelEvent;
-import net.minecraftforge.event.entity.living.LivingEvent;
-import net.minecraftforge.event.entity.player.PlayerInteractEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
+import net.neoforged.neoforge.event.tick.EntityTickEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.fml.common.Mod;
 import io.github.maidstorageextension.maid.courier.CourierService;
 import io.github.maidstorageextension.maid.task.CourierTask;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
 
-@Mod.EventBusSubscriber(modid = MaidStorageManagerExtension.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
+@EventBusSubscriber(modid = MaidStorageManagerExtension.MOD_ID, bus = EventBusSubscriber.Bus.GAME)
 public final class ServerEvents {
     private ServerEvents() {
     }
 
     @SubscribeEvent
-    public static void serverTick(TickEvent.ServerTickEvent event) {
-        if (event.phase == TickEvent.Phase.END) {
-            ReachabilityDebugManager.tick(event.getServer());
-            if (event.getServer().getTickCount() % 20 == 0) {
-                RemoteMaidService.tick(event.getServer());
-            }
+    public static void serverTick(ServerTickEvent.Post event) {
+        ReachabilityDebugManager.tick(event.getServer());
+        if (event.getServer().getTickCount() % 20 == 0) {
+            RemoteMaidService.tick(event.getServer());
         }
     }
 
@@ -57,7 +56,7 @@ public final class ServerEvents {
 
     /** Keeps an in-flight journal safe when the selected task changes mid-transfer. */
     @SubscribeEvent
-    public static void maidTick(LivingEvent.LivingTickEvent event) {
+    public static void maidTick(EntityTickEvent.Post event) {
         if (!(event.getEntity() instanceof EntityMaid maid)
                 || !(maid.level() instanceof ServerLevel level)) {
             return;

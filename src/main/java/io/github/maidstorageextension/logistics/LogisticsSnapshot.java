@@ -3,6 +3,7 @@ package io.github.maidstorageextension.logistics;
 import io.github.maidstorageextension.data.CourierData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
+import io.github.maidstorageextension.migration.ItemDataMigration;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
@@ -132,7 +133,7 @@ public final class LogisticsSnapshot {
     }
 
     public static void clearLegacy(ItemStack stack) {
-        CompoundTag tag = stack.getTag();
+        CompoundTag tag = ItemDataMigration.read(stack);
         if (tag != null) tag.remove(TAG_SNAPSHOT);
     }
 

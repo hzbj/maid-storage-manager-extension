@@ -1,15 +1,25 @@
 package io.github.maidstorageextension.network;
 
+import io.github.maidstorageextension.MaidStorageManagerExtension;
+
 import io.github.maidstorageextension.terminal.TerminalAccountService;
-import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.NetworkEvent;
 
 import java.util.UUID;
-import java.util.function.Supplier;
 
 public record TerminalAccountActionPacket(Action action, UUID terminal, String username,
-                                          String secret, UUID target) {
+                                          String secret, UUID target) implements CustomPacketPayload {
+    public static final Type<TerminalAccountActionPacket> TYPE = new Type<>(MaidStorageManagerExtension.id("terminal_account_action"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, TerminalAccountActionPacket> STREAM_CODEC =
+            StreamCodec.of((buffer, packet) -> encode(packet, buffer), TerminalAccountActionPacket::decode);
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() { return TYPE; }
+
     public enum Action {
         REFRESH,
         CREATE,
@@ -52,7 +62,7 @@ public record TerminalAccountActionPacket(Action action, UUID terminal, String u
                 terminal, "", "", maid);
     }
 
-    public static void encode(TerminalAccountActionPacket packet, FriendlyByteBuf buffer) {
+    public static void encode(TerminalAccountActionPacket packet, RegistryFriendlyByteBuf buffer) {
         buffer.writeEnum(packet.action);
         buffer.writeUUID(packet.terminal);
         buffer.writeUtf(packet.username, 128);
@@ -61,7 +71,7 @@ public record TerminalAccountActionPacket(Action action, UUID terminal, String u
         if (packet.target != null) buffer.writeUUID(packet.target);
     }
 
-    public static TerminalAccountActionPacket decode(FriendlyByteBuf buffer) {
+    public static TerminalAccountActionPacket decode(RegistryFriendlyByteBuf buffer) {
         Action action = buffer.readEnum(Action.class);
         UUID terminal = buffer.readUUID();
         String username = buffer.readUtf(128);
@@ -70,13 +80,10 @@ public record TerminalAccountActionPacket(Action action, UUID terminal, String u
         return new TerminalAccountActionPacket(action, terminal, username, secret, target);
     }
 
-    public static void handle(TerminalAccountActionPacket packet,
-                              Supplier<NetworkEvent.Context> contextSupplier) {
-        NetworkEvent.Context context = contextSupplier.get();
+    public static void handle(TerminalAccountActionPacket packet, IPayloadContext context) {
         context.enqueueWork(() -> {
-            ServerPlayer sender = context.getSender();
+            ServerPlayer sender = (ServerPlayer) context.player();
             if (sender != null) TerminalAccountService.handle(sender, packet);
         });
-        context.setPacketHandled(true);
     }
 }

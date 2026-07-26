@@ -7,6 +7,7 @@ import io.github.maidstorageextension.data.DriverData;
 import io.github.maidstorageextension.data.WarehouseCourierData;
 import io.github.maidstorageextension.maid.ExtensionMemoryUtil;
 import io.github.maidstorageextension.maid.task.CourierTask;
+import io.github.maidstorageextension.migration.ItemDataMigration;
 import io.github.maidstorageextension.terminal.MaidTransportService;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -20,16 +21,18 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
-import net.minecraftforge.items.IItemHandler;
-import net.minecraftforge.items.IItemHandlerModifiable;
-import net.minecraftforge.items.wrapper.InvWrapper;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.capabilities.Capabilities;
+import net.neoforged.neoforge.items.IItemHandler;
+import net.neoforged.neoforge.items.IItemHandlerModifiable;
+import net.neoforged.neoforge.items.wrapper.InvWrapper;
 import studio.fantasyit.maid_storage_manager.Config;
 import studio.fantasyit.maid_storage_manager.api.event.RequestListStatusChangeEvent;
 import studio.fantasyit.maid_storage_manager.items.RequestListItem;
 import studio.fantasyit.maid_storage_manager.maid.task.StorageManageTask;
 import studio.fantasyit.maid_storage_manager.registry.ItemRegistry;
+import studio.fantasyit.maid_storage_manager.registry.DataComponentRegistry;
+import studio.fantasyit.maid_storage_manager.storage.Target;
 import studio.fantasyit.maid_storage_manager.util.MemoryUtil;
 
 import java.util.ArrayList;
@@ -1590,8 +1593,8 @@ public final class CourierService {
     }
 
     private static boolean isActiveCourierList(ItemStack list) {
-        CompoundTag root = list.getTag();
-        return root != null && root.contains(META, Tag.TAG_COMPOUND)
+        CompoundTag root = ItemDataMigration.read(list);
+        return root.contains(META, Tag.TAG_COMPOUND)
                 && root.getCompound(META).hasUUID(META_COURIER);
     }
 
@@ -1601,24 +1604,22 @@ public final class CourierService {
     }
 
     private static void prepareRequestTag(ItemStack list, EntityMaid courier) {
-        CompoundTag root = list.getOrCreateTag();
+        CompoundTag root = ItemDataMigration.read(list);
         CompoundTag meta = new CompoundTag();
         meta.putUUID(META_COURIER, courier.getUUID());
-        if (root.contains(RequestListItem.TAG_STORAGE)) {
-            Tag original = root.get(RequestListItem.TAG_STORAGE);
-            if (original != null) meta.put(META_ORIGINAL_STORAGE, original.copy());
-        }
-        if (root.hasUUID(RequestListItem.TAG_STORAGE_ENTITY)) {
-            meta.putUUID(META_ORIGINAL_ENTITY, root.getUUID(RequestListItem.TAG_STORAGE_ENTITY));
-        }
+        Target originalStorage = list.get(DataComponentRegistry.REQUEST_STORAGE_BLOCK.get());
+        if (originalStorage != null) meta.put(META_ORIGINAL_STORAGE, originalStorage.toNbt());
+        UUID originalEntity = list.get(DataComponentRegistry.REQUEST_STORAGE_ENTITY.get());
+        if (originalEntity != null) meta.putUUID(META_ORIGINAL_ENTITY, originalEntity);
         root.put(META, meta);
-        root.remove(RequestListItem.TAG_STORAGE);
-        root.putUUID(RequestListItem.TAG_STORAGE_ENTITY, courier.getUUID());
+        ItemDataMigration.set(list, root);
+        list.remove(DataComponentRegistry.REQUEST_STORAGE_BLOCK.get());
+        list.set(DataComponentRegistry.REQUEST_STORAGE_ENTITY.get(), courier.getUUID());
     }
 
     public static boolean finishRequest(EntityMaid warehouse, ItemStack list) {
-        CompoundTag root = list.getTag();
-        if (root == null || !root.contains(META, Tag.TAG_COMPOUND)) return false;
+        CompoundTag root = ItemDataMigration.read(list);
+        if (!root.contains(META, Tag.TAG_COMPOUND)) return false;
         CompoundTag meta = root.getCompound(META);
         if (!meta.hasUUID(META_COURIER)) return false;
         Entity entity = ((ServerLevel) warehouse.level()).getEntity(meta.getUUID(META_COURIER));
@@ -1630,12 +1631,13 @@ public final class CourierService {
                 && data.phase() != CourierData.Phase.REQUEST_WAITING_SPACE)) return false;
 
         boolean success = RequestListItem.isAllSuccess(list);
-        MinecraftForge.EVENT_BUS.post(new RequestListStatusChangeEvent(
+        NeoForge.EVENT_BUS.post(new RequestListStatusChangeEvent(
                 RequestListStatusChangeEvent.Status.END, warehouse,
                 RequestListItem.getUUID(list), list));
         restoreRequestTag(list, meta);
-        list.getOrCreateTag().putBoolean(RequestListItem.TAG_IGNORE_TASK, true);
-        list.getOrCreateTag().getCompound(META).putBoolean(META_FAILURE_RETURN, !success);
+        RequestListItem.setIgnore(list);
+        ItemDataMigration.update(list,
+                tag -> tag.getCompound(META).putBoolean(META_FAILURE_RETURN, !success));
 
         if (!returnList(courier, list, !success)) data.pendingList(list);
         data.requestFinished(true);
@@ -1660,19 +1662,19 @@ public final class CourierService {
     }
 
     private static void restoreRequestTag(ItemStack list, CompoundTag meta) {
-        CompoundTag root = list.getOrCreateTag();
-        root.remove(RequestListItem.TAG_STORAGE);
-        root.remove(RequestListItem.TAG_STORAGE_ENTITY);
-        if (meta.contains(META_ORIGINAL_STORAGE)) {
-            Tag original = meta.get(META_ORIGINAL_STORAGE);
-            if (original != null) root.put(RequestListItem.TAG_STORAGE, original.copy());
+        list.remove(DataComponentRegistry.REQUEST_STORAGE_BLOCK.get());
+        list.remove(DataComponentRegistry.REQUEST_STORAGE_ENTITY.get());
+        if (meta.contains(META_ORIGINAL_STORAGE, Tag.TAG_COMPOUND)) {
+            list.set(DataComponentRegistry.REQUEST_STORAGE_BLOCK.get(),
+                    Target.fromNbt(meta.getCompound(META_ORIGINAL_STORAGE)));
         }
         if (meta.hasUUID(META_ORIGINAL_ENTITY)) {
-            root.putUUID(RequestListItem.TAG_STORAGE_ENTITY, meta.getUUID(META_ORIGINAL_ENTITY));
+            list.set(DataComponentRegistry.REQUEST_STORAGE_ENTITY.get(),
+                    meta.getUUID(META_ORIGINAL_ENTITY));
         }
         CompoundTag returned = new CompoundTag();
         returned.putBoolean(META_FAILURE_RETURN, false);
-        root.put(META, returned);
+        ItemDataMigration.update(list, root -> root.put(META, returned));
     }
 
     private static boolean returnList(EntityMaid courier, ItemStack list, boolean failure) {
@@ -1690,8 +1692,8 @@ public final class CourierService {
 
     private static void tryReturnPendingList(EntityMaid courier, CourierData.Data data) {
         ItemStack list = data.pendingList();
-        CompoundTag root = list.getTag();
-        boolean failure = root != null && root.contains(META, Tag.TAG_COMPOUND)
+        CompoundTag root = ItemDataMigration.read(list);
+        boolean failure = root.contains(META, Tag.TAG_COMPOUND)
                 && root.getCompound(META).getBoolean(META_FAILURE_RETURN);
         if (returnList(courier, list, failure)) {
             data.pendingList(ItemStack.EMPTY);
@@ -1831,7 +1833,7 @@ public final class CourierService {
                                       ItemStack prototype, int moved, int baseline) {
         for (int i = 0; i < manifest.size(); i++) {
             CourierData.ManifestEntry entry = manifest.get(i);
-            if (ItemStack.isSameItemSameTags(entry.prototype(), prototype)) {
+            if (ItemStack.isSameItemSameComponents(entry.prototype(), prototype)) {
                 manifest.set(i, new CourierData.ManifestEntry(prototype,
                         entry.amount() + moved, Math.min(entry.baseline(), baseline)));
                 return;
@@ -1949,9 +1951,7 @@ public final class CourierService {
 
     private static IItemHandler deliveryHandler(ServerLevel level, BlockPos position) {
         if (position == null || !level.hasChunkAt(position)) return null;
-        var blockEntity = level.getBlockEntity(position);
-        if (blockEntity == null) return null;
-        return blockEntity.getCapability(ForgeCapabilities.ITEM_HANDLER, null).orElse(null);
+        return level.getCapability(Capabilities.ItemHandler.BLOCK, position, null);
     }
 
     private static EntityMaid resolveWarehouse(ServerLevel level, CourierData.Data data) {

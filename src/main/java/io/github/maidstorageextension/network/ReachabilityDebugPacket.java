@@ -1,16 +1,26 @@
 package io.github.maidstorageextension.network;
 
+import io.github.maidstorageextension.MaidStorageManagerExtension;
+
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
 import io.github.maidstorageextension.client.ReachabilityDebugClientData;
 import io.github.maidstorageextension.scan.StorageScanService;
-import net.minecraftforge.network.NetworkEvent;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Supplier;
 
-public class ReachabilityDebugPacket {
+public class ReachabilityDebugPacket implements CustomPacketPayload {
+    public static final Type<ReachabilityDebugPacket> TYPE = new Type<>(MaidStorageManagerExtension.id("reachability_debug"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, ReachabilityDebugPacket> STREAM_CODEC =
+            StreamCodec.of((buffer, packet) -> encode(packet, buffer), ReachabilityDebugPacket::decode);
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() { return TYPE; }
+
     public record Entry(BlockPos pos, StorageScanService.CandidateStatus status) {
     }
 
@@ -22,7 +32,7 @@ public class ReachabilityDebugPacket {
         this.durationTicks = durationTicks;
     }
 
-    public static ReachabilityDebugPacket decode(FriendlyByteBuf buffer) {
+    public static ReachabilityDebugPacket decode(RegistryFriendlyByteBuf buffer) {
         int size = buffer.readVarInt();
         List<Entry> decoded = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
@@ -34,7 +44,7 @@ public class ReachabilityDebugPacket {
         return new ReachabilityDebugPacket(List.copyOf(decoded), buffer.readVarInt());
     }
 
-    public static void encode(ReachabilityDebugPacket packet, FriendlyByteBuf buffer) {
+    public static void encode(ReachabilityDebugPacket packet, RegistryFriendlyByteBuf buffer) {
         buffer.writeVarInt(packet.entries.size());
         for (Entry entry : packet.entries) {
             buffer.writeBlockPos(entry.pos());
@@ -43,11 +53,7 @@ public class ReachabilityDebugPacket {
         buffer.writeVarInt(packet.durationTicks);
     }
 
-    public static void handle(ReachabilityDebugPacket packet, Supplier<NetworkEvent.Context> contextSupplier) {
-        NetworkEvent.Context context = contextSupplier.get();
-        if (context.getDirection().getReceptionSide().isClient()) {
-            context.enqueueWork(() -> ReachabilityDebugClientData.show(packet.entries, packet.durationTicks));
-        }
-        context.setPacketHandled(true);
+    public static void handle(ReachabilityDebugPacket packet, IPayloadContext context) {
+        context.enqueueWork(() -> ReachabilityDebugClientData.show(packet.entries, packet.durationTicks));
     }
 }

@@ -1,7 +1,7 @@
 package io.github.maidstorageextension.block;
 
+import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
@@ -23,6 +23,8 @@ import org.jetbrains.annotations.Nullable;
 
 /** Placeable mailbox linked to a separately marked 3x3 courier flight pad. */
 public final class CourierWarehouseStationBlock extends BaseEntityBlock {
+    public static final MapCodec<CourierWarehouseStationBlock> CODEC =
+            simpleCodec(ignored -> new CourierWarehouseStationBlock());
     private static final VoxelShape SHAPE = box(3, 0, 3, 13, 16, 13);
 
     public CourierWarehouseStationBlock() {
@@ -44,9 +46,8 @@ public final class CourierWarehouseStationBlock extends BaseEntityBlock {
     }
 
     @Override
-    public @NotNull InteractionResult use(BlockState state, Level level, BlockPos pos, Player player,
-                                          InteractionHand hand, BlockHitResult hit) {
-        if (hand != InteractionHand.MAIN_HAND) return InteractionResult.PASS;
+    protected @NotNull InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos,
+                                                        Player player, BlockHitResult hit) {
         if (level.isClientSide) return InteractionResult.SUCCESS;
         if (level.getBlockEntity(pos) instanceof CourierWarehouseStationBlockEntity station) {
             if (player.isShiftKeyDown()) station.requestNearest(player, true);
@@ -86,5 +87,10 @@ public final class CourierWarehouseStationBlock extends BaseEntityBlock {
     @Override
     public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
         return new CourierWarehouseStationBlockEntity(pos, state);
+    }
+
+    @Override
+    protected MapCodec<? extends BaseEntityBlock> codec() {
+        return CODEC;
     }
 }

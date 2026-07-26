@@ -8,6 +8,7 @@ import io.github.maidstorageextension.data.CourierData;
 import io.github.maidstorageextension.data.DriverData;
 import io.github.maidstorageextension.data.MaintenanceStatusData;
 import io.github.maidstorageextension.item.LogisticsTrackerItem;
+import io.github.maidstorageextension.migration.ItemDataMigration;
 import io.github.maidstorageextension.item.InventoryMaintenanceDevice;
 import io.github.maidstorageextension.logistics.LogisticsDisplayName;
 import io.github.maidstorageextension.logistics.LogisticsTrackerService;
@@ -34,7 +35,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.network.PacketDistributor;
+import net.neoforged.neoforge.network.PacketDistributor;
 import studio.fantasyit.maid_storage_manager.maid.task.StorageManageTask;
 
 import java.util.ArrayList;
@@ -278,8 +279,7 @@ public final class TerminalAccountService {
     private static void sendNotice(ServerPlayer player, UUID terminal,
                                    ScanRequestResult result) {
         message(player, result.messageKey());
-        ExtensionNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
-                new TerminalNoticePacket(terminal, result.messageKey(), result.success()));
+        PacketDistributor.sendToPlayer(player, new TerminalNoticePacket(terminal, result.messageKey(), result.success()));
     }
 
     /** Sneak-use a configured, approved mailbox to add it to the logged-in account. */
@@ -590,8 +590,7 @@ public final class TerminalAccountService {
 
     private static void send(ServerPlayer player, UUID terminal,
                              TerminalAccountSnapshot.Snapshot snapshot) {
-        ExtensionNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
-                new TerminalAccountSnapshotPacket(terminal, snapshot));
+        PacketDistributor.sendToPlayer(player, new TerminalAccountSnapshotPacket(terminal, snapshot));
     }
 
     public static ItemStack findTerminal(ServerPlayer player, UUID terminalId) {
@@ -634,9 +633,10 @@ public final class TerminalAccountService {
     /** Keeps legacy tag details out of the public account API. */
     private static final class CompoundTagAccess {
         private static void removeLegacy(ItemStack stack) {
-            if (stack.getTag() == null) return;
-            stack.getTag().remove(LogisticsTrackerItem.TAG_COURIER);
-            stack.getTag().remove(LogisticsTrackerItem.TAG_OWNER);
+            ItemDataMigration.update(stack, tag -> {
+                tag.remove(LogisticsTrackerItem.TAG_COURIER);
+                tag.remove(LogisticsTrackerItem.TAG_OWNER);
+            });
         }
     }
 }

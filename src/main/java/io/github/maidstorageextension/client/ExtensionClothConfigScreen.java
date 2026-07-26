@@ -247,7 +247,7 @@ public final class ExtensionClothConfigScreen {
             if (previousSave != null) {
                 previousSave.run();
             }
-            ExtensionNetwork.CHANNEL.sendToServer(new ExtensionMaidConfigPacket(
+            net.neoforged.neoforge.network.PacketDistributor.sendToServer(new ExtensionMaidConfigPacket(
                     maid.getId(),
                     draft.interval.ordinal(),
                     draft.localScanRadius,
@@ -259,16 +259,16 @@ public final class ExtensionClothConfigScreen {
                     draft.miscSortMatchNbt));
             draft.approvals.forEach((courierId, choice) -> {
                 if (choice == ApprovalChoice.APPROVE) {
-                    ExtensionNetwork.CHANNEL.sendToServer(new CourierCommandPacket(
+                    net.neoforged.neoforge.network.PacketDistributor.sendToServer(new CourierCommandPacket(
                             maid.getId(), CourierCommandPacket.Command.APPROVE, courierId));
                 } else if (choice == ApprovalChoice.REJECT) {
-                    ExtensionNetwork.CHANNEL.sendToServer(new CourierCommandPacket(
+                    net.neoforged.neoforge.network.PacketDistributor.sendToServer(new CourierCommandPacket(
                             maid.getId(), CourierCommandPacket.Command.REJECT, courierId));
                 }
             });
             draft.stationApprovals.forEach((key, choice) -> {
                 if (choice == ApprovalChoice.PENDING) return;
-                ExtensionNetwork.CHANNEL.sendToServer(new StationApprovalPacket(
+                net.neoforged.neoforge.network.PacketDistributor.sendToServer(new StationApprovalPacket(
                         maid.getId(), choice == ApprovalChoice.APPROVE
                         ? StationApprovalPacket.Decision.APPROVE
                         : StationApprovalPacket.Decision.REJECT,

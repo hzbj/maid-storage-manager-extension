@@ -22,7 +22,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.network.PacketDistributor;
+import net.neoforged.neoforge.network.PacketDistributor;
 import studio.fantasyit.maid_storage_manager.Config;
 import studio.fantasyit.maid_storage_manager.util.MemoryUtil;
 
@@ -472,8 +472,7 @@ public final class MaidTransportService {
     public static void update(ServerPlayer viewer, UUID terminal) {
         UUID driverId = TerminalAccountService.selectedDriver(viewer, terminal);
         MaidTransportSnapshot.Snapshot snapshot = snapshot(viewer, driverId);
-        ExtensionNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> viewer),
-                new MaidTransportSnapshotPacket(terminal, snapshot));
+        PacketDistributor.sendToPlayer(viewer, new MaidTransportSnapshotPacket(terminal, snapshot));
     }
 
     private static MaidTransportSnapshot.Snapshot snapshot(ServerPlayer viewer, UUID driverId) {
@@ -568,14 +567,12 @@ public final class MaidTransportService {
 
     private static void sendGuidance(
             ServerPlayer rider, EntityMaid driver, BlockPos pickup) {
-        ExtensionNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> rider),
-                new MaidPickupGuidancePacket(true, driver.getUUID(),
+        PacketDistributor.sendToPlayer(rider, new MaidPickupGuidancePacket(true, driver.getUUID(),
                         driver.level().dimension().location(), pickup));
     }
 
     private static void clearGuidance(ServerPlayer rider) {
         if (rider == null) return;
-        ExtensionNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> rider),
-                new MaidPickupGuidancePacket(false, null, null, null));
+        PacketDistributor.sendToPlayer(rider, new MaidPickupGuidancePacket(false, null, null, null));
     }
 }

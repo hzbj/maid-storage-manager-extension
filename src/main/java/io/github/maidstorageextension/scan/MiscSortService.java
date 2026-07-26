@@ -6,14 +6,16 @@ import io.github.maidstorageextension.data.ExtensionConfigData;
 import io.github.maidstorageextension.maid.ExtensionMemoryUtil;
 import io.github.maidstorageextension.maid.memory.MiscSortMemory;
 import io.github.maidstorageextension.maid.memory.PeriodicScanMemory;
+import io.github.maidstorageextension.migration.ItemStackNbt;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraft.core.registries.BuiltInRegistries;
 import org.jetbrains.annotations.Nullable;
 import studio.fantasyit.maid_storage_manager.maid.data.StorageManagerConfigData;
 import studio.fantasyit.maid_storage_manager.maid.memory.ViewedInventoryMemory;
+import studio.fantasyit.maid_storage_manager.data.ItemCount;
 import studio.fantasyit.maid_storage_manager.storage.MaidStorage;
 import studio.fantasyit.maid_storage_manager.storage.Target;
 import studio.fantasyit.maid_storage_manager.storage.base.IFilterable;
@@ -66,7 +68,7 @@ public final class MiscSortService {
         MiscSortPlanner.IgnorePolicy policy = policyFor(maid);
         sort.beginGeneration(patrol.getScanGeneration(), policy);
 
-        Map<Target, List<ViewedInventoryMemory.ItemCount>> cache =
+        Map<Target, List<ItemCount>> cache =
                 MemoryUtil.getViewedInventory(maid).positionFlatten();
         LinkedHashMap<String, Target> inspected = new LinkedHashMap<>();
         patrol.getSuccessfullyInspectedTargets().stream()
@@ -171,7 +173,7 @@ public final class MiscSortService {
         Target live = liveAccessibleTarget(level, maid, target);
         if (live == null || !isValidSource(level, maid, live)) return false;
         return cachedItemsFor(level, MemoryUtil.getViewedInventory(maid).positionFlatten(), live).stream()
-                .anyMatch(item -> item.count() > 0 && ItemStack.isSameItemSameTags(item.item(), exact));
+                .anyMatch(item -> item.count() > 0 && ItemStack.isSameItemSameComponents(item.item(), exact));
     }
 
     public static boolean isValidDestination(
@@ -242,11 +244,11 @@ public final class MiscSortService {
         }
     }
 
-    private static List<ViewedInventoryMemory.ItemCount> cachedItemsFor(
+    private static List<ItemCount> cachedItemsFor(
             ServerLevel level,
-            Map<Target, List<ViewedInventoryMemory.ItemCount>> cache,
+            Map<Target, List<ItemCount>> cache,
             Target target) {
-        List<ViewedInventoryMemory.ItemCount> direct = cache.get(target);
+        List<ItemCount> direct = cache.get(target);
         if (direct != null) return List.copyOf(direct);
         String physicalKey = canonicalStorageKey(level, target);
         return cache.entrySet().stream()
@@ -259,14 +261,14 @@ public final class MiscSortService {
     }
 
     private static List<MiscSortPlanner.StackView<ItemStack>> toPlannerStacks(
-            Collection<ViewedInventoryMemory.ItemCount> items) {
+            Collection<ItemCount> items) {
         List<MiscSortPlanner.StackView<ItemStack>> result = new ArrayList<>();
-        for (ViewedInventoryMemory.ItemCount item : items) {
+        for (ItemCount item : items) {
             if (item.item().isEmpty() || item.count() <= 0) continue;
             ItemStack exact = item.item().copyWithCount(1);
-            var itemId = ForgeRegistries.ITEMS.getKey(exact.getItem());
+            var itemId = BuiltInRegistries.ITEM.getKey(exact.getItem());
             if (itemId == null) continue;
-            CompoundTag saved = exact.save(new CompoundTag());
+            CompoundTag saved = ItemStackNbt.save(exact);
             result.add(new MiscSortPlanner.StackView<>(
                     itemId.toString(), saved.toString(), exact, item.count()));
         }

@@ -1,6 +1,7 @@
 package io.github.maidstorageextension.compat;
 
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.item.ItemStack;
+import studio.fantasyit.maid_storage_manager.registry.DataComponentRegistry;
 import studio.fantasyit.maid_storage_manager.items.RequestListItem;
 
 import java.util.UUID;
@@ -17,9 +18,11 @@ public final class RequestListSafety {
      *
      * @return {@code true} when the tag had to be repaired
      */
-    public static boolean ensureJobUuid(CompoundTag tag) {
-        if (tag.hasUUID(RequestListItem.TAG_UUID)) return false;
-        tag.putUUID(RequestListItem.TAG_UUID, UUID.randomUUID());
-        return true;
+    public static UUID ensureJobUuid(ItemStack stack) {
+        UUID current = stack.get(DataComponentRegistry.REQUEST_WORK_UUID.get());
+        if (current != null) return current;
+        UUID created = UUID.randomUUID();
+        stack.set(DataComponentRegistry.REQUEST_WORK_UUID.get(), created);
+        return created;
     }
 }

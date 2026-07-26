@@ -3,14 +3,15 @@ package io.github.maidstorageextension.client;
 import io.github.maidstorageextension.MaidStorageManagerExtension;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.RenderGuiOverlayEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.neoforge.client.event.RenderGuiLayerEvent;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.fml.common.Mod;
 
 /** Minimal HUD compass shown only while the assigned driver is waiting to board. */
-@Mod.EventBusSubscriber(modid = MaidStorageManagerExtension.MOD_ID,
-        bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
+@EventBusSubscriber(modid = MaidStorageManagerExtension.MOD_ID,
+        bus = EventBusSubscriber.Bus.GAME, value = Dist.CLIENT)
 public final class MaidPickupGuidanceOverlay {
     private static final String[] ARROWS = {"↑", "↗", "→", "↘", "↓", "↙", "←", "↖"};
 
@@ -18,7 +19,7 @@ public final class MaidPickupGuidanceOverlay {
     }
 
     @SubscribeEvent
-    public static void render(RenderGuiOverlayEvent.Post event) {
+    public static void render(RenderGuiLayerEvent.Post event) {
         Minecraft minecraft = Minecraft.getInstance();
         var guidance = MaidPickupGuidanceClientData.current();
         if (guidance == null || minecraft.player == null || minecraft.level == null
@@ -33,7 +34,7 @@ public final class MaidPickupGuidanceOverlay {
         Component text = Component.literal(ARROWS[index] + " " + distance + "m")
                 .append(" ").append(Component.translatable(
                         "gui.maid_storage_manager_extension.transport.pickup_guidance"));
-        int x = (event.getWindow().getGuiScaledWidth() - minecraft.font.width(text)) / 2;
+        int x = (minecraft.getWindow().getGuiScaledWidth() - minecraft.font.width(text)) / 2;
         event.getGuiGraphics().drawString(
                 minecraft.font, text, x, 34, 0xFFF1D47B, true);
     }

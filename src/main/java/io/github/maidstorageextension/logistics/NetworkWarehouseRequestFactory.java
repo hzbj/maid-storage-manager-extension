@@ -1,11 +1,13 @@
 package io.github.maidstorageextension.logistics;
 
 import io.github.maidstorageextension.compat.RequestListSafety;
+import io.github.maidstorageextension.migration.ItemDataMigration;
 import io.github.maidstorageextension.network.NetworkWarehouseActionPacket;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
 import net.minecraft.world.item.ItemStack;
 import studio.fantasyit.maid_storage_manager.items.RequestListItem;
+import studio.fantasyit.maid_storage_manager.items.data.RequestItemStackList;
+import studio.fantasyit.maid_storage_manager.registry.DataComponentRegistry;
 import studio.fantasyit.maid_storage_manager.util.ItemStackUtil;
 
 import java.util.List;
@@ -36,35 +38,34 @@ public final class NetworkWarehouseRequestFactory {
         if (request.isEmpty()) {
             throw new IllegalArgumentException("A network warehouse order needs an existing request list");
         }
-        CompoundTag root = request.getOrCreateTag();
-        ListTag items = new ListTag();
+        RequestItemStackList items = new RequestItemStackList();
+        // Upstream creates ten empty editor rows by default; network orders contain only
+        // the explicitly requested lines and must not persist those placeholders.
+        items.list.clear();
         for (NetworkWarehouseActionPacket.RequestedItem requested : requestedItems) {
             if (requested.prototype().isEmpty() || requested.amount() <= 0) {
                 throw new IllegalArgumentException("Network warehouse order contains an empty line");
             }
-            CompoundTag entry = new CompoundTag();
-            entry.put(RequestListItem.TAG_ITEMS_ITEM,
-                    requested.prototype().copyWithCount(1).save(new CompoundTag()));
-            entry.putInt(RequestListItem.TAG_ITEMS_REQUESTED, requested.amount());
-            items.add(entry);
+            items.list.add(new RequestItemStackList.ListItem(
+                    requested.prototype().copyWithCount(1), requested.amount(),
+                    0, 0, List.of(), "", false));
         }
-        root.put(RequestListItem.TAG_ITEMS, items);
-        root.putInt(RequestListItem.TAG_MATCH, ItemStackUtil.MATCH_TYPE.AUTO.ordinal());
-        root.putBoolean(RequestListItem.TAG_BLACKMODE, false);
-        root.putBoolean(RequestListItem.TAG_STOCK_MODE, false);
-        root.putBoolean(RequestListItem.TAG_UNIT_SECOND, false);
-        root.putInt(RequestListItem.TAG_REPEAT_INTERVAL, 0);
-        root.putBoolean(RequestListItem.TAG_IGNORE_TASK, false);
-        RequestListSafety.ensureJobUuid(root);
+        request.set(DataComponentRegistry.REQUEST_ITEMS.get(), items.toImmutable());
+        request.set(DataComponentRegistry.REQUEST_MATCHING.get(),
+                ItemStackUtil.MATCH_TYPE.AUTO.ordinal());
+        request.set(DataComponentRegistry.REQUEST_CD_UNIT.get(), false);
+        request.set(DataComponentRegistry.REQUEST_INTERVAL.get(), 0);
+        request.set(DataComponentRegistry.REQUEST_IGNORE.get(), false);
+        UUID order = RequestListSafety.ensureJobUuid(request);
 
         CompoundTag metadata = new CompoundTag();
-        metadata.putUUID("order", root.getUUID(RequestListItem.TAG_UUID));
+        metadata.putUUID("order", order);
         metadata.putUUID("owner", owner);
         metadata.putUUID("courier", courier);
         metadata.putUUID("warehouse", warehouse);
         metadata.putLong("created", Math.max(0L, createdGameTime));
         metadata.putString("delivery", delivery.name());
-        root.put(TAG_NETWORK_ORDER, metadata);
+        ItemDataMigration.update(request, root -> root.put(TAG_NETWORK_ORDER, metadata));
         return request;
     }
 }

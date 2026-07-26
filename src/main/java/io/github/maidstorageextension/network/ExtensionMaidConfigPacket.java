@@ -1,5 +1,7 @@
 package io.github.maidstorageextension.network;
 
+import io.github.maidstorageextension.MaidStorageManagerExtension;
+
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import io.github.maidstorageextension.compat.EnderPocketCompat;
 import io.github.maidstorageextension.data.ExtensionConfigData;
@@ -8,12 +10,14 @@ import io.github.maidstorageextension.maid.ExtensionMemoryUtil;
 import io.github.maidstorageextension.maid.memory.MiscSortMemory;
 import io.github.maidstorageextension.maid.memory.PeriodicScanMemory;
 import io.github.maidstorageextension.scan.StorageScanService;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.NetworkEvent;
 import studio.fantasyit.maid_storage_manager.maid.task.StorageManageTask;
 
-import java.util.function.Supplier;
 
 /** Complete, owner-validated update for one maid's editable extension settings. */
 public record ExtensionMaidConfigPacket(
@@ -25,7 +29,14 @@ public record ExtensionMaidConfigPacket(
         int taskBellStaySeconds,
         boolean refreshFrameEffects,
         boolean refreshOwnerNotification,
-        boolean miscSortMatchNbt) {
+        boolean miscSortMatchNbt) implements CustomPacketPayload {
+    public static final Type<ExtensionMaidConfigPacket> TYPE = new Type<>(MaidStorageManagerExtension.id("extension_maid_config"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, ExtensionMaidConfigPacket> STREAM_CODEC =
+            StreamCodec.of((buffer, packet) -> encode(packet, buffer), ExtensionMaidConfigPacket::decode);
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() { return TYPE; }
+
 
     public static ExtensionMaidConfigPacket from(EntityMaid maid, ExtensionConfigData.Data data) {
         return new ExtensionMaidConfigPacket(
@@ -65,11 +76,9 @@ public record ExtensionMaidConfigPacket(
                 buffer.readBoolean());
     }
 
-    public static void handle(ExtensionMaidConfigPacket packet,
-                              Supplier<NetworkEvent.Context> contextSupplier) {
-        NetworkEvent.Context context = contextSupplier.get();
+    public static void handle(ExtensionMaidConfigPacket packet, IPayloadContext context) {
         context.enqueueWork(() -> {
-            ServerPlayer sender = context.getSender();
+            ServerPlayer sender = (ServerPlayer) context.player();
             if (sender == null) {
                 return;
             }
@@ -113,6 +122,5 @@ public record ExtensionMaidConfigPacket(
             maid.setAndSyncData(ExtensionConfigData.KEY, data);
             EnderPocketCompat.syncRemoteProxy(sender, maid);
         });
-        context.setPacketHandled(true);
     }
 }
