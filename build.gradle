@@ -1,22 +1,9 @@
-buildscript {
-    repositories {
-        maven { url = 'https://maven.minecraftforge.net/' }
-        maven { url = 'https://repo.spongepowered.org/repository/maven-public/' }
-        mavenCentral()
-    }
-    dependencies {
-        classpath 'net.minecraftforge.gradle:ForgeGradle:6.0.54'
-        classpath 'org.spongepowered:mixingradle:0.7-SNAPSHOT'
-    }
-}
-
 plugins {
+    id 'java-library'
     id 'eclipse'
     id 'idea'
+    id 'net.neoforged.moddev' version '2.0.142'
 }
-
-apply plugin: 'net.minecraftforge.gradle'
-apply plugin: 'org.spongepowered.mixin'
 
 group = mod_group_id
 version = mod_version
@@ -26,35 +13,41 @@ base {
 }
 
 java {
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
     withSourcesJar()
 }
 
-minecraft {
-    mappings channel: mapping_channel, version: mapping_version
-    copyIdeResources = true
+neoForge {
+    version = project.neo_version
 
     runs {
-        configureEach {
-            workingDirectory project.file('run')
-            property 'forge.logging.console.level', 'info'
-            property 'mixin.env.remapRefMap', 'true'
-            property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
-            mods {
-                "${mod_id}" { source sourceSets.main }
-            }
+        client {
+            client()
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
-        client { }
-        server { args '--nogui' }
-        gameTestServer { property 'forge.enabledGameTestNamespaces', mod_id }
+        server {
+            server()
+            programArgument '--nogui'
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+        gameTestServer {
+            type = 'gameTestServer'
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+        configureEach {
+            logLevel = org.slf4j.event.Level.INFO
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet sourceSets.main
+        }
     }
 }
 
-mixin {
-    add sourceSets.main, "${mod_id}.refmap.json"
-    config "${mod_id}.mixins.json"
-}
-
 repositories {
+    maven { name = 'AliyunPublicMirror'; url = 'https://maven.aliyun.com/repository/public' }
     exclusiveContent {
         forRepository {
             maven {
@@ -62,59 +55,48 @@ repositories {
                 url = 'https://api.modrinth.com/maven'
             }
         }
-        // ForgeGradle publishes deobfuscated artifacts to its generated Maven repository.
-        forRepositories(fg.repository)
         filter { includeGroup 'maven.modrinth' }
     }
-    flatDir { dir 'libs' }
     maven { url = 'https://maven.shedaniel.me/' }
 }
 
 configurations {
+    runtimeClasspath.extendsFrom localRuntime
     testCompileOnly.extendsFrom compileOnly
-    testRuntimeOnly.extendsFrom runtimeOnly
+    testRuntimeOnly.extendsFrom localRuntime
 }
 
 dependencies {
-    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+    compileOnly 'maven.modrinth:5sIJPqAj:RgLYYPvs'
+    localRuntime 'maven.modrinth:5sIJPqAj:RgLYYPvs'
+    compileOnly 'maven.modrinth:R0bDWFAW:Dbjwcs2u'
+    localRuntime 'maven.modrinth:R0bDWFAW:Dbjwcs2u'
+    compileOnly 'maven.modrinth:QHB4kBBS:3tvArxwR'
+    localRuntime 'maven.modrinth:QHB4kBBS:3tvArxwR'
+    compileOnly 'me.shedaniel.cloth:cloth-config-neoforge:15.0.140'
+    localRuntime 'me.shedaniel.cloth:cloth-config-neoforge:15.0.140'
 
-    // Version IDs lock the exact Maid Storage Manager 1.15.6 and TLM 1.5.3 files.
-    compileOnly fg.deobf('maven.modrinth:5sIJPqAj:xTNPlwGP')
-    runtimeOnly fg.deobf('maven.modrinth:5sIJPqAj:xTNPlwGP')
-    compileOnly fg.deobf('maven.modrinth:R0bDWFAW:g1SKoGQJ')
-    runtimeOnly fg.deobf('maven.modrinth:R0bDWFAW:g1SKoGQJ')
-    // 1.8.2 adds the 1.20.1 remote maid proxy used by Ender Pocket menus.
-    compileOnly fg.deobf('maven.modrinth:QHB4kBBS:bIBBeovu')
-    // Its dev-only config listener can fail before Forge loads COMMON config; the explicit
-    // property keeps client seam smoke tests runnable without changing release dependencies.
-    if (!project.hasProperty('skipMaidSpellRuntime')) {
-        runtimeOnly fg.deobf('maven.modrinth:QHB4kBBS:bIBBeovu')
-    }
-    compileOnly fg.deobf('libs:1.20.1-tour_guide:1.0.2')
-    implementation fg.deobf('me.shedaniel.cloth:cloth-config-forge:11.1.136')
-
-    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
 }
 
-tasks.named('processResources', ProcessResources).configure {
-    filteringCharset = 'UTF-8'
-    def replaceProperties = [
+def replaceProperties = [
         minecraft_version: minecraft_version,
         minecraft_version_range: minecraft_version_range,
-        forge_version: forge_version,
-        forge_version_range: forge_version_range,
+        neo_version: neo_version,
+        neo_version_range: neo_version_range,
         loader_version_range: loader_version_range,
         mod_id: mod_id,
         mod_name: mod_name,
         mod_license: mod_license,
         mod_version: mod_version,
         mod_authors: mod_authors,
-        mod_description: mod_description,
-        maid_spell_mandatory: !project.hasProperty('skipMaidSpellRuntime')
-    ]
+        mod_description: mod_description
+]
+
+tasks.named('processResources', ProcessResources).configure {
+    filteringCharset = 'UTF-8'
     inputs.properties replaceProperties
-    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) {
+    filesMatching(['META-INF/neoforge.mods.toml', 'pack.mcmeta']) {
         expand replaceProperties
     }
 }
@@ -126,21 +108,20 @@ tasks.named('jar', Jar).configure {
     from('THIRD_PARTY_NOTICES.md')
     manifest {
         attributes([
-            'Specification-Title': mod_id,
-            'Specification-Vendor': mod_authors,
-            'Specification-Version': '1',
-            'Implementation-Title': project.name,
-            'Implementation-Version': project.jar.archiveVersion,
-            'Implementation-Vendor': mod_authors,
-            'MixinConfigs': "${mod_id}.mixins.json"
+                'Specification-Title': mod_id,
+                'Specification-Vendor': mod_authors,
+                'Specification-Version': '1',
+                'Implementation-Title': project.name,
+                'Implementation-Version': project.version,
+                'Implementation-Vendor': mod_authors,
+                'MixinConfigs': "${mod_id}.mixins.json"
         ])
     }
-    finalizedBy 'reobfJar'
 }
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
-    options.release = 17
+    options.release = 21
 }
 
 tasks.named('test', Test).configure {
@@ -148,8 +129,7 @@ tasks.named('test', Test).configure {
 }
 
 // Gradle's Windows test worker can lose class-directory entries when the project path contains CJK.
-// Stage only compiled outputs in an ASCII temp path; dependency jars remain on the normal classpath.
-def asciiTestRuntime = new File(System.getProperty('java.io.tmpdir'), "${mod_id}-test-runtime")
+def asciiTestRuntime = new File(System.getProperty('java.io.tmpdir'), "${mod_id}-neoforge-test-runtime")
 tasks.register('prepareAsciiTestRuntime', Sync) {
     dependsOn tasks.named('testClasses')
     into asciiTestRuntime

@@ -1,7 +1,9 @@
 pluginManagement {
     repositories {
+        // Maven Central can be intermittently unreachable from mainland China.
+        // Keep the mirror as a transport fallback without changing coordinates or versions.
+        maven { name = 'AliyunPublicMirror'; url = 'https://maven.aliyun.com/repository/public' }
         gradlePluginPortal()
-        maven { name = 'MinecraftForge'; url = 'https://maven.minecraftforge.net/' }
     }
 }
 
