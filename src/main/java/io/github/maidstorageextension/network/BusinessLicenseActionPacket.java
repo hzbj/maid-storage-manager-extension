@@ -1,0 +1,67 @@
+package io.github.maidstorageextension.network;
+
+import io.github.maidstorageextension.MaidStorageManagerExtension;
+import io.github.maidstorageextension.data.BusinessLicenseData;
+import io.github.maidstorageextension.license.BusinessLicenseService;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.server.level.ServerPlayer;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
+
+import java.util.UUID;
+public record BusinessLicenseActionPacket(Action action, UUID license,
+                                          BusinessLicenseData.RuleMode mode,
+                                          String value) implements CustomPacketPayload {
+    private static final int MAX_VALUE_BYTES = 128;
+    public static final Type<BusinessLicenseActionPacket> TYPE =
+            new Type<>(MaidStorageManagerExtension.id("business_license_action"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, BusinessLicenseActionPacket> STREAM_CODEC =
+            StreamCodec.of((buffer, packet) -> encode(packet, buffer), BusinessLicenseActionPacket::decode);
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() { return TYPE; }
+
+    public enum Action {
+        REFRESH,
+        SET_MODE,
+        RENAME,
+        TOGGLE_HELD_FILTER,
+        TOGGLE_FILTER,
+        CLEAR_FILTER,
+        ARM_CONTAINER,
+        ARM_LANDING,
+        ARM_WORKER
+    }
+
+    public BusinessLicenseActionPacket {
+        action = action == null ? Action.REFRESH : action;
+        mode = mode == null ? BusinessLicenseData.RuleMode.WHITELIST : mode;
+        value = value == null ? "" : value;
+    }
+
+    public static BusinessLicenseActionPacket refresh(UUID license) {
+        return new BusinessLicenseActionPacket(Action.REFRESH, license,
+                BusinessLicenseData.RuleMode.WHITELIST, "");
+    }
+
+    public static void encode(BusinessLicenseActionPacket packet, RegistryFriendlyByteBuf buffer) {
+        buffer.writeEnum(packet.action);
+        buffer.writeUUID(packet.license);
+        buffer.writeEnum(packet.mode);
+        buffer.writeUtf(packet.value, MAX_VALUE_BYTES);
+    }
+
+    public static BusinessLicenseActionPacket decode(RegistryFriendlyByteBuf buffer) {
+        return new BusinessLicenseActionPacket(buffer.readEnum(Action.class), buffer.readUUID(),
+                buffer.readEnum(BusinessLicenseData.RuleMode.class), buffer.readUtf(MAX_VALUE_BYTES));
+    }
+
+    public static void handle(BusinessLicenseActionPacket packet, IPayloadContext context) {
+        context.enqueueWork(() -> {
+            if (context.player() instanceof ServerPlayer player) {
+                BusinessLicenseService.handle(player, packet);
+            }
+        });
+    }
+}

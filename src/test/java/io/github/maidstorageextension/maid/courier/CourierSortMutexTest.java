@@ -22,6 +22,8 @@ class CourierSortMutexTest {
             CourierData.Phase.OWNER_HANDOFF,
             CourierData.Phase.OWNER_WAITING_SPACE,
             CourierData.Phase.RETURNING_TO_ORIGIN,
+            CourierData.Phase.RETURNING_TO_WAREHOUSE_STANDBY,
+            CourierData.Phase.WAITING_FOR_WAREHOUSE_RETURN,
             CourierData.Phase.RETURNING_AFTER_LANDING_FAILURE,
             CourierData.Phase.WAITING_OWNER_PICKUP,
             CourierData.Phase.WAITING_AT_STATION_AFTER_RECALL,

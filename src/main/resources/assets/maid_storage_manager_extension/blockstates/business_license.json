@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": { "model": "maid_storage_manager_extension:block/business_license" },
+    "facing=east": { "model": "maid_storage_manager_extension:block/business_license", "y": 90 },
+    "facing=south": { "model": "maid_storage_manager_extension:block/business_license", "y": 180 },
+    "facing=west": { "model": "maid_storage_manager_extension:block/business_license", "y": 270 }
+  }
+}

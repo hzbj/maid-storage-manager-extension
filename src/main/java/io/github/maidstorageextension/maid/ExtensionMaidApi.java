@@ -16,6 +16,7 @@ import io.github.maidstorageextension.data.WarehouseNetworkData;
 import io.github.maidstorageextension.maid.task.CourierTask;
 import io.github.maidstorageextension.maid.task.DriverTask;
 import io.github.maidstorageextension.data.DriverData;
+import io.github.maidstorageextension.data.MaidLogisticsCourierData;
 import io.github.maidstorageextension.registry.ExtensionItems;
 import io.github.maidstorageextension.registry.ExtensionMemoryModules;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
@@ -57,6 +58,7 @@ public final class ExtensionMaidApi implements ILittleMaid {
         MaintenanceStatusData.KEY = register.register(new MaintenanceStatusData());
         CourierData.KEY = register.register(new CourierData());
         DriverData.KEY = register.register(new DriverData());
+        MaidLogisticsCourierData.KEY = register.register(new MaidLogisticsCourierData());
         WarehouseCourierData.KEY = register.register(new WarehouseCourierData());
         WarehouseStationData.KEY = register.register(new WarehouseStationData());
         WarehouseNetworkData.KEY = register.register(new WarehouseNetworkData());

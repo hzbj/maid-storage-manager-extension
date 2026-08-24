@@ -6,12 +6,15 @@ import io.github.maidstorageextension.block.CourierWarehouseStationBlockEntity;
 import io.github.maidstorageextension.compat.EnderPocketCompat;
 import io.github.maidstorageextension.data.CourierData;
 import io.github.maidstorageextension.data.DriverData;
+import io.github.maidstorageextension.data.ExtensionConfigData;
 import io.github.maidstorageextension.data.MaintenanceStatusData;
+import io.github.maidstorageextension.data.PeriodicScanInterval;
 import io.github.maidstorageextension.item.LogisticsTrackerItem;
 import io.github.maidstorageextension.migration.ItemDataMigration;
 import io.github.maidstorageextension.item.InventoryMaintenanceDevice;
 import io.github.maidstorageextension.logistics.LogisticsDisplayName;
 import io.github.maidstorageextension.logistics.LogisticsTrackerService;
+import io.github.maidstorageextension.logistics.MaidDisplayName;
 import io.github.maidstorageextension.logistics.NetworkWarehouseService;
 import io.github.maidstorageextension.maid.ExtensionMemoryUtil;
 import io.github.maidstorageextension.maid.memory.PeriodicScanMemory;
@@ -124,7 +127,8 @@ public final class TerminalAccountService {
             message(player, "message.maid_storage_manager_extension.logistics_tracker.not_owner");
             return;
         }
-        TerminalAccountData.RegistrationResult result = session.data.register(session.account, maid.getUUID());
+        TerminalAccountData.RegistrationResult result = session.data.register(
+                session.account, maid.getUUID(), MaidDisplayName.encode(maid));
         String key = switch (result) {
             case ADDED -> "message.maid_storage_manager_extension.terminal.maid_registered";
             case ALREADY_REGISTERED -> "message.maid_storage_manager_extension.terminal.maid_already_registered";
@@ -144,6 +148,12 @@ public final class TerminalAccountService {
                 .findFirst().orElse(null);
         if (registered == null) return;
         MailboxKey mailboxKey = new MailboxKey(registered.dimension(), registered.position());
+        if (packet.action() == TerminalMailboxActionPacket.Action.RENAME) {
+            session.data.renameMailbox(session.account, packet.dimension(), packet.position(),
+                    packet.name());
+            update(player, packet.terminal());
+            return;
+        }
         if (packet.action() == TerminalMailboxActionPacket.Action.UNREGISTER) {
             session.data.unregisterMailbox(session.account, packet.dimension(), packet.position());
             update(player, packet.terminal());
@@ -298,9 +308,12 @@ public final class TerminalAccountService {
             message(player, "message.maid_storage_manager_extension.terminal.mailbox_invalid");
             return true;
         }
+        TerminalAccountData.Mailbox existing = session.account.mailboxes().stream()
+                .filter(value -> value.sameLocation(level.dimension().location(), position))
+                .findFirst().orElse(null);
         boolean changed = session.data.registerMailbox(session.account,
                 new TerminalAccountData.Mailbox(level.dimension().location(), position,
-                        binding.warehouse(), binding.warehouseName()));
+                        binding.warehouse(), existing == null ? "" : existing.warehouseName()));
         message(player, changed
                 ? "message.maid_storage_manager_extension.terminal.mailbox_registered"
                 : "message.maid_storage_manager_extension.terminal.mailbox_limit");
@@ -376,7 +389,8 @@ public final class TerminalAccountService {
         if (legacy == null) return;
         EntityMaid maid = findMaid(player.getServer(), legacy);
         if (maid != null && maid.isOwnedBy(player)) {
-            TerminalAccountData.RegistrationResult result = data.register(account, legacy);
+            TerminalAccountData.RegistrationResult result = data.register(
+                    account, legacy, maid == null ? "" : MaidDisplayName.encode(maid));
             if (result == TerminalAccountData.RegistrationResult.ADDED
                     || result == TerminalAccountData.RegistrationResult.ALREADY_REGISTERED) {
                 data.selectCourier(account, legacy);
@@ -480,6 +494,8 @@ public final class TerminalAccountService {
         List<TerminalAccountSnapshot.Maid> maids = new ArrayList<>();
         for (UUID id : session.account.maids()) {
             EntityMaid maid = findMaid(viewer.getServer(), id);
+            if (maid != null) session.data.rememberMaidName(
+                    session.account, id, MaidDisplayName.encode(maid));
             CourierData.Data courierData = maid == null ? null : CourierData.get(maid);
             DriverData.Data driverData = maid == null ? null : DriverData.get(maid);
             boolean courierTask = maid != null && maid.getTask().getUid().equals(CourierTask.TASK_ID);
@@ -499,7 +515,7 @@ public final class TerminalAccountService {
                     : courierData == null ? "offline"
                             : courierData.phase().name().toLowerCase(java.util.Locale.ROOT);
             maids.add(new TerminalAccountSnapshot.Maid(id,
-                    maid == null ? id.toString().substring(0, 8) : LogisticsDisplayName.encode(maid.getName()),
+                    maid == null ? offlineMaidName(session.account, id) : MaidDisplayName.encode(maid),
                     maid != null, courierTask, driverTask,
                     maid != null && EnderPocketCompat.hasBroom(maid),
                     maid != null && (managerBusy
@@ -533,15 +549,14 @@ public final class TerminalAccountService {
                     .map(id -> managerSnapshot(viewer.getServer(), id))
                     .toList();
             mailboxes.add(new TerminalAccountSnapshot.Mailbox(value.dimension(), value.position(),
-                    displayManager, warehouse == null ? value.warehouseName()
-                    : warehouse.getName().getString(), valid,
+                    displayManager, value.warehouseName(), valid,
                     warehouseOnline, warehouseOnDuty, managerStatuses));
         }
         return new TerminalAccountSnapshot.Snapshot(true,
                 session.account.passwordResetRequired(), session.account.username(),
-                session.account.id(), session.account.selectedCourier(),
-                session.account.selectedDriver(), session.account.selectedMailbox(),
-                maids, mailboxes, "");
+                 session.account.id(), session.account.selectedCourier(),
+                 session.account.selectedDriver(), session.account.selectedMailbox(),
+                 maids, mailboxes, session.account.licenses().size(), "");
     }
 
     private static TerminalAccountSnapshot.WarehouseManager managerSnapshot(
@@ -549,43 +564,75 @@ public final class TerminalAccountService {
         EntityMaid maid = findMaid(server, managerId);
         if (maid == null) {
             return new TerminalAccountSnapshot.WarehouseManager(managerId,
-                    managerId.toString().substring(0, 8), "offline", "");
+                    managerId.toString().substring(0, 8), "offline", "",
+                    TerminalAccountSnapshot.InspectionReadiness.OFFLINE, "disabled");
         }
-        String name = LogisticsDisplayName.encode(maid.getName());
+        String name = MaidDisplayName.encode(maid);
         if (!maid.getTask().getUid().equals(StorageManageTask.TASK_ID)) {
+            String interval = ExtensionConfigData.get(maid).periodicScanInterval().name()
+                    .toLowerCase(java.util.Locale.ROOT);
             return new TerminalAccountSnapshot.WarehouseManager(
-                    managerId, name, "off_duty", "");
+                    managerId, name, "off_duty", "",
+                    TerminalAccountSnapshot.InspectionReadiness.OFF_DUTY, interval);
         }
         PeriodicScanMemory scan = ExtensionMemoryUtil.getPeriodicScan(maid);
         MaintenanceStatusData.Data status = MaintenanceStatusData.get(maid);
+        ExtensionConfigData.Data config = ExtensionConfigData.get(maid);
+        TerminalAccountSnapshot.InspectionReadiness readiness =
+                inspectionReadiness(maid, status, config);
+        String interval = config.periodicScanInterval().name()
+                .toLowerCase(java.util.Locale.ROOT);
         if (scan.isQueuedRefreshRequested()) {
             return new TerminalAccountSnapshot.WarehouseManager(
-                    managerId, name, "queued", "");
+                    managerId, name, "queued", "", readiness, interval);
         }
         if (scan.getPhase() == PeriodicScanMemory.Phase.REFRESH_PENDING
                 || status.phase() == MaintenanceStatusData.Phase.REFRESHING) {
             return new TerminalAccountSnapshot.WarehouseManager(
-                    managerId, name, "writing", "");
+                    managerId, name, "writing", "", readiness, interval);
         }
         if (scan.getPhase() != PeriodicScanMemory.Phase.IDLE
                 || ExtensionMemoryUtil.getMiscSort(maid).hasInFlight()) {
             return new TerminalAccountSnapshot.WarehouseManager(
-                    managerId, name, "inspecting", "");
+                    managerId, name, "inspecting", "", readiness, interval);
         }
         if (status.lastResult() == MaintenanceStatusData.Result.SUCCESS) {
             return new TerminalAccountSnapshot.WarehouseManager(
-                    managerId, name, "completed", "");
+                    managerId, name, "completed", "", readiness, interval);
         }
         if (status.lastResult() != MaintenanceStatusData.Result.NEVER) {
             return new TerminalAccountSnapshot.WarehouseManager(
-                    managerId, name, "failed", status.lastResult().translationKey());
+                    managerId, name, "failed", status.lastResult().translationKey(),
+                    readiness, interval);
         }
         return new TerminalAccountSnapshot.WarehouseManager(
-                managerId, name, "on_duty", "");
+                managerId, name, "on_duty", "", readiness, interval);
+    }
+
+    private static TerminalAccountSnapshot.InspectionReadiness inspectionReadiness(
+            EntityMaid maid, MaintenanceStatusData.Data status, ExtensionConfigData.Data config) {
+        ItemStack device = InventoryMaintenanceDevice.findOn(maid).orElse(ItemStack.EMPTY);
+        if (device.isEmpty()) return TerminalAccountSnapshot.InspectionReadiness.DEVICE_MISSING;
+        if (!InventoryMaintenanceDevice.isBound(device)) {
+            return TerminalAccountSnapshot.InspectionReadiness.DEVICE_UNBOUND;
+        }
+        if (status.lastResult() == MaintenanceStatusData.Result.INVALID_FRAME
+                || status.lastResult() == MaintenanceStatusData.Result.INVALID_CONTENT
+                || status.lastResult() == MaintenanceStatusData.Result.OUT_OF_SCOPE) {
+            return TerminalAccountSnapshot.InspectionReadiness.FRAME_UNAVAILABLE;
+        }
+        return config.periodicScanInterval() == PeriodicScanInterval.DISABLED
+                ? TerminalAccountSnapshot.InspectionReadiness.MANUAL_ONLY
+                : TerminalAccountSnapshot.InspectionReadiness.READY;
     }
 
     private static void sendLoggedOut(ServerPlayer player, UUID terminal, String error) {
         send(player, terminal, TerminalAccountSnapshot.Snapshot.loggedOut(error));
+    }
+
+    private static String offlineMaidName(TerminalAccountData.Account account, UUID maid) {
+        String stored = account == null ? "" : account.maidName(maid);
+        return stored.isBlank() ? maid.toString().substring(0, 8) : stored;
     }
 
     private static void send(ServerPlayer player, UUID terminal,

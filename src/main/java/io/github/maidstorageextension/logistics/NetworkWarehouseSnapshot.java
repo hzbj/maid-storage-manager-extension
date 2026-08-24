@@ -1,5 +1,6 @@
 package io.github.maidstorageextension.logistics;
 
+import io.github.maidstorageextension.data.CourierData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
@@ -31,6 +32,24 @@ public final class NetworkWarehouseSnapshot {
         ACTIVE_TRANSACTION
     }
 
+    public enum RequestListAvailability {
+        NONE,
+        HAND,
+        BACKPACK
+    }
+
+    public enum TransportHint {
+        WALK,
+        ENDER_POCKET,
+        BROOM,
+        BROOM_ENDER_POCKET,
+        MISSING_ENDER_POCKET,
+        MISSING_BROOM,
+        MISSING_BROOM_AND_ENDER_POCKET,
+        MISSING_MAILBOX,
+        STATION_BLOCKED
+    }
+
     public record InventoryEntry(ItemStack prototype, int available) {
         public InventoryEntry {
             prototype = prototype == null || prototype.isEmpty()
@@ -55,8 +74,11 @@ public final class NetworkWarehouseSnapshot {
                            long publishedGameTime, long inventoryAge,
                            List<InventoryEntry> inventory, boolean enderPocketAvailable,
                            boolean nearbyHandoffAvailable, boolean fixedDeliveryAvailable,
-                           boolean heldRequestListAvailable, boolean activeTransaction,
-                           Blocker blocker,
+                           RequestListAvailability requestListAvailability,
+                           TransportHint transportHint,
+                           boolean activeTransaction, Blocker blocker,
+                           CourierData.PostDeliveryMode postDeliveryMode,
+                           CourierData.ReturnBlocker returnBlocker,
                            MapPoint player, MapPoint courier, MapPoint warehousePoint,
                            MapPoint mailbox, MapPoint delivery) {
         public Snapshot {
@@ -67,22 +89,34 @@ public final class NetworkWarehouseSnapshot {
             publishedGameTime = Math.max(-1L, publishedGameTime);
             inventoryAge = Math.max(0L, inventoryAge);
             inventory = inventory == null ? List.of() : List.copyOf(inventory);
+            requestListAvailability = requestListAvailability == null
+                    ? RequestListAvailability.NONE : requestListAvailability;
+            transportHint = transportHint == null ? TransportHint.MISSING_MAILBOX : transportHint;
             blocker = blocker == null ? Blocker.NONE : blocker;
+            postDeliveryMode = postDeliveryMode == null
+                    ? CourierData.PostDeliveryMode.FOLLOW_OWNER : postDeliveryMode;
+            returnBlocker = returnBlocker == null
+                    ? CourierData.ReturnBlocker.NONE : returnBlocker;
         }
 
         public static Snapshot empty() {
             return new Snapshot(false, true, null, null, 0L, null, "", InventoryState.UNAVAILABLE,
-                    -1L, 0L, List.of(), false, false, false, false,
-                    false, Blocker.UNBOUND, null, null, null, null, null);
+                    -1L, 0L, List.of(), false, false, false,
+                    RequestListAvailability.NONE, TransportHint.MISSING_MAILBOX,
+                    false, Blocker.UNBOUND,
+                    CourierData.PostDeliveryMode.FOLLOW_OWNER, CourierData.ReturnBlocker.NONE,
+                    null, null, null, null, null);
         }
 
         public Snapshot offline() {
             return new Snapshot(false, authorized, mailboxKey, inventoryList, generation,
                     warehouse, warehouseName, inventoryState,
                     publishedGameTime, inventoryAge, inventory, enderPocketAvailable,
-                    nearbyHandoffAvailable, fixedDeliveryAvailable, heldRequestListAvailable,
+                    nearbyHandoffAvailable, fixedDeliveryAvailable, requestListAvailability,
+                    transportHint,
                     activeTransaction,
                     online ? Blocker.COURIER_OFFLINE : blocker,
+                    postDeliveryMode, returnBlocker,
                     player, courier, warehousePoint, mailbox, delivery);
         }
     }
@@ -105,9 +139,12 @@ public final class NetworkWarehouseSnapshot {
         tag.putBoolean("enderPocketAvailable", snapshot.enderPocketAvailable());
         tag.putBoolean("nearbyHandoffAvailable", snapshot.nearbyHandoffAvailable());
         tag.putBoolean("fixedDeliveryAvailable", snapshot.fixedDeliveryAvailable());
-        tag.putBoolean("heldRequestListAvailable", snapshot.heldRequestListAvailable());
+        tag.putString("requestListAvailability", snapshot.requestListAvailability().name());
+        tag.putString("transportHint", snapshot.transportHint().name());
         tag.putBoolean("activeTransaction", snapshot.activeTransaction());
         tag.putString("blocker", snapshot.blocker().name());
+        tag.putString("postDeliveryMode", snapshot.postDeliveryMode().name());
+        tag.putString("returnBlocker", snapshot.returnBlocker().name());
 
         ListTag inventory = new ListTag();
         for (InventoryEntry value : snapshot.inventory()) {
@@ -154,9 +191,12 @@ public final class NetworkWarehouseSnapshot {
                 tag.getBoolean("enderPocketAvailable"),
                 tag.getBoolean("nearbyHandoffAvailable"),
                 tag.getBoolean("fixedDeliveryAvailable"),
-                tag.getBoolean("heldRequestListAvailable"),
+                parseRequestListAvailability(tag),
+                parseTransportHint(tag.getString("transportHint")),
                 tag.getBoolean("activeTransaction"),
                 parseBlocker(tag.getString("blocker")),
+                parsePostDeliveryMode(tag.getString("postDeliveryMode")),
+                parseReturnBlocker(tag.getString("returnBlocker")),
                 readPoint(tag, "player"),
                 readPoint(tag, "courier"),
                 readPoint(tag, "warehousePoint"),
@@ -185,6 +225,39 @@ public final class NetworkWarehouseSnapshot {
             return InventoryState.valueOf(value);
         } catch (IllegalArgumentException ignored) {
             return InventoryState.UNAVAILABLE;
+        }
+    }
+
+    private static RequestListAvailability parseRequestListAvailability(CompoundTag tag) {
+        try {
+            return RequestListAvailability.valueOf(tag.getString("requestListAvailability"));
+        } catch (IllegalArgumentException ignored) {
+            return tag.getBoolean("heldRequestListAvailable")
+                    ? RequestListAvailability.HAND : RequestListAvailability.NONE;
+        }
+    }
+
+    private static TransportHint parseTransportHint(String value) {
+        try {
+            return TransportHint.valueOf(value);
+        } catch (IllegalArgumentException ignored) {
+            return TransportHint.MISSING_MAILBOX;
+        }
+    }
+
+    private static CourierData.PostDeliveryMode parsePostDeliveryMode(String value) {
+        try {
+            return CourierData.PostDeliveryMode.valueOf(value);
+        } catch (IllegalArgumentException ignored) {
+            return CourierData.PostDeliveryMode.FOLLOW_OWNER;
+        }
+    }
+
+    private static CourierData.ReturnBlocker parseReturnBlocker(String value) {
+        try {
+            return CourierData.ReturnBlocker.valueOf(value);
+        } catch (IllegalArgumentException ignored) {
+            return CourierData.ReturnBlocker.NONE;
         }
     }
 

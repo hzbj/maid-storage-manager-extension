@@ -4,6 +4,7 @@ import io.github.maidstorageextension.MaidStorageManagerExtension;
 
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import io.github.maidstorageextension.compat.EnderPocketCompat;
+import io.github.maidstorageextension.data.CourierData;
 import io.github.maidstorageextension.maid.courier.CourierService;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.FriendlyByteBuf;
@@ -32,7 +33,7 @@ public record CourierCommandPacket(int maidId, Command command, UUID targetCouri
         SET_BROOM_FLIGHT_DISTANCE,
         APPROVE,
         REJECT,
-        SET_POST_DELIVERY_HOME,
+        SET_POST_DELIVERY_MODE,
         CLEAR_WORK
     }
 
@@ -48,9 +49,12 @@ public record CourierCommandPacket(int maidId, Command command, UUID targetCouri
         return new CourierCommandPacket(maidId, Command.SET_BROOM_FLIGHT_DISTANCE, null, value);
     }
 
-    public static CourierCommandPacket postDeliveryHomeMode(int maidId, boolean stayHome) {
-        return new CourierCommandPacket(maidId, Command.SET_POST_DELIVERY_HOME,
-                null, stayHome ? 1 : 0);
+    public static CourierCommandPacket postDeliveryMode(
+            int maidId, CourierData.PostDeliveryMode mode) {
+        CourierData.PostDeliveryMode value = mode == null
+                ? CourierData.PostDeliveryMode.FOLLOW_OWNER : mode;
+        return new CourierCommandPacket(maidId, Command.SET_POST_DELIVERY_MODE,
+                null, value.ordinal());
     }
 
     public static CourierCommandPacket selectWarehouse(int maidId, UUID warehouse) {
@@ -118,8 +122,8 @@ public record CourierCommandPacket(int maidId, Command command, UUID targetCouri
                 case CLEAR_WORK -> { }
                 case SET_BROOM_FLIGHT_DISTANCE ->
                         CourierService.setBroomFlightDistance(sender, maid, packet.value);
-                case SET_POST_DELIVERY_HOME ->
-                        CourierService.setPostDeliveryHomeMode(sender, maid, packet.value != 0);
+                case SET_POST_DELIVERY_MODE ->
+                        CourierService.setPostDeliveryMode(sender, maid, packet.value);
                 case APPROVE -> {
                     if (packet.targetCourier != null) CourierService.approve(sender, maid, packet.targetCourier);
                 }

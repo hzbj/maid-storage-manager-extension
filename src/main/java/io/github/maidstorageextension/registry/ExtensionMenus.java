@@ -4,6 +4,7 @@ import net.minecraft.core.registries.Registries;
 import io.github.maidstorageextension.MaidStorageManagerExtension;
 import io.github.maidstorageextension.maid.courier.CourierConfigMenu;
 import io.github.maidstorageextension.logistics.LogisticsTrackerMenu;
+import io.github.maidstorageextension.license.BusinessLicenseMenu;
 import net.minecraft.world.inventory.MenuType;
 import net.neoforged.neoforge.common.extensions.IMenuTypeExtension;
 import net.neoforged.bus.api.IEventBus;
@@ -18,6 +19,8 @@ public final class ExtensionMenus {
             "courier_config", () -> IMenuTypeExtension.create(CourierConfigMenu::fromNetwork));
     public static final DeferredHolder<MenuType<?>, MenuType<LogisticsTrackerMenu>> LOGISTICS_TRACKER = MENUS.register(
             "logistics_tracker", () -> IMenuTypeExtension.create(LogisticsTrackerMenu::fromNetwork));
+    public static final DeferredHolder<MenuType<?>, MenuType<BusinessLicenseMenu>> BUSINESS_LICENSE = MENUS.register(
+            "business_license", () -> IMenuTypeExtension.create(BusinessLicenseMenu::fromNetwork));
 
     private ExtensionMenus() {
     }

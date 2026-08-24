@@ -19,10 +19,12 @@ class TerminalAccountSnapshotTest {
                 dimension, key.position(), manager, "仓管", true, true, true,
                 List.of(new TerminalAccountSnapshot.WarehouseManager(
                         manager, "仓管", "failed",
-                        "gui.maid_storage_manager_extension.status.result.path_timeout")));
+                        "gui.maid_storage_manager_extension.status.result.path_timeout",
+                        TerminalAccountSnapshot.InspectionReadiness.MANUAL_ONLY,
+                        "disabled")));
         TerminalAccountSnapshot.Snapshot source = new TerminalAccountSnapshot.Snapshot(
                 true, false, "owner", UUID.randomUUID(), null, null, key,
-                List.of(), List.of(mailbox), "");
+                List.of(), List.of(mailbox), 2, "");
 
         TerminalAccountSnapshot.Snapshot decoded = TerminalAccountSnapshot.fromTag(
                 TerminalAccountSnapshot.toTag(source));
@@ -31,5 +33,9 @@ class TerminalAccountSnapshotTest {
         assertEquals("failed", decoded.mailboxes().get(0).managers().get(0).status());
         assertEquals("gui.maid_storage_manager_extension.status.result.path_timeout",
                 decoded.mailboxes().get(0).managers().get(0).detail());
+        assertEquals(TerminalAccountSnapshot.InspectionReadiness.MANUAL_ONLY,
+                decoded.mailboxes().get(0).managers().get(0).inspectionReadiness());
+        assertEquals("disabled", decoded.mailboxes().get(0).managers().get(0).scanInterval());
+        assertEquals(2, decoded.registeredLicenses());
     }
 }

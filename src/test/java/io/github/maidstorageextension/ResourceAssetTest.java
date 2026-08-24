@@ -161,6 +161,25 @@ class ResourceAssetTest {
     }
 
     @Test
+    void businessLicenseHasTheDocumentedSurvivalRecipe() throws IOException {
+        JsonObject recipe = JsonParser.parseString(Files.readString(Path.of(
+                "src/main/resources/data/maid_storage_manager_extension/recipe/business_license.json"),
+                StandardCharsets.UTF_8)).getAsJsonObject();
+        String pattern = recipe.getAsJsonArray("pattern").toString();
+
+        assertEquals(3, pattern.chars().filter(value -> value == 'P').count());
+        assertEquals("minecraft:paper", recipe.getAsJsonObject("key")
+                .getAsJsonObject("P").get("item").getAsString());
+        assertEquals("minecraft:gold_nugget", recipe.getAsJsonObject("key")
+                .getAsJsonObject("G").get("item").getAsString());
+        assertEquals("minecraft:item_frame", recipe.getAsJsonObject("key")
+                .getAsJsonObject("F").get("item").getAsString());
+        assertEquals("maid_storage_manager_extension:business_license",
+                recipe.getAsJsonObject("result").get("id").getAsString());
+        assertEquals(1, recipe.getAsJsonObject("result").get("count").getAsInt());
+    }
+
+    @Test
     void redesignedInventoryIconsAreTransparentSixteenPixelSprites() throws IOException {
         String[] names = {"courier_warehouse_station", "inventory_maintenance_device",
                 "logistics_tracker", "task_bell", "misc_storage"};

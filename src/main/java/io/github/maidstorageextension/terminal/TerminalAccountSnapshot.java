@@ -12,6 +12,15 @@ import java.util.UUID;
 
 /** Client-safe account roster. Password hashes and device grants never enter this payload. */
 public final class TerminalAccountSnapshot {
+    public enum InspectionReadiness {
+        OFFLINE,
+        OFF_DUTY,
+        DEVICE_MISSING,
+        DEVICE_UNBOUND,
+        FRAME_UNAVAILABLE,
+        MANUAL_ONLY,
+        READY
+    }
     public record Maid(UUID id, String name, boolean online, boolean courierTask, boolean driverTask,
                        boolean hasBroom, boolean busy, String phase, String transportMode,
                        ResourceLocation dimension, BlockPos position) {
@@ -36,18 +45,25 @@ public final class TerminalAccountSnapshot {
         }
     }
 
-    public record WarehouseManager(UUID id, String name, String status, String detail) {
+    public record WarehouseManager(UUID id, String name, String status, String detail,
+                                   InspectionReadiness inspectionReadiness,
+                                   String scanInterval) {
         public WarehouseManager {
             name = name == null ? "" : name;
             status = status == null || status.isBlank() ? "offline" : status;
             detail = detail == null ? "" : detail;
+            inspectionReadiness = inspectionReadiness == null
+                    ? InspectionReadiness.OFFLINE : inspectionReadiness;
+            scanInterval = scanInterval == null || scanInterval.isBlank()
+                    ? "disabled" : scanInterval;
         }
     }
 
     public record Snapshot(boolean authenticated, boolean passwordChangeRequired,
                            String username, UUID account,
                            UUID selectedCourier, UUID selectedDriver, MailboxKey selectedMailbox,
-                           List<Maid> maids, List<Mailbox> mailboxes, String error) {
+                           List<Maid> maids, List<Mailbox> mailboxes,
+                           int registeredLicenses, String error) {
         public Snapshot {
             username = username == null ? "" : username;
             maids = maids == null ? List.of() : List.copyOf(maids);
@@ -57,7 +73,7 @@ public final class TerminalAccountSnapshot {
 
         public static Snapshot loggedOut(String error) {
             return new Snapshot(false, false, "", null, null, null, null,
-                    List.of(), List.of(), error);
+                    List.of(), List.of(), 0, error);
         }
     }
 
@@ -76,6 +92,7 @@ public final class TerminalAccountSnapshot {
             tag.put("selectedMailbox", snapshot.selectedMailbox().toTag());
         }
         tag.putString("error", snapshot.error());
+        tag.putInt("registeredLicenses", snapshot.registeredLicenses());
         ListTag maids = new ListTag();
         for (Maid maid : snapshot.maids()) {
             CompoundTag entry = new CompoundTag();
@@ -114,6 +131,8 @@ public final class TerminalAccountSnapshot {
                 managerTag.putString("name", manager.name());
                 managerTag.putString("status", manager.status());
                 managerTag.putString("detail", manager.detail());
+                managerTag.putString("inspectionReadiness", manager.inspectionReadiness().name());
+                managerTag.putString("scanInterval", manager.scanInterval());
                 managers.add(managerTag);
             }
             entry.put("managers", managers);
@@ -155,7 +174,9 @@ public final class TerminalAccountSnapshot {
                 if (!manager.hasUUID("id")) continue;
                 managers.add(new WarehouseManager(manager.getUUID("id"),
                         manager.getString("name"), manager.getString("status"),
-                        manager.getString("detail")));
+                        manager.getString("detail"),
+                        parseInspectionReadiness(manager.getString("inspectionReadiness")),
+                        manager.getString("scanInterval")));
             }
             mailboxes.add(new Mailbox(dimension, position,
                     entry.hasUUID("warehouse") ? entry.getUUID("warehouse") : null,
@@ -170,6 +191,15 @@ public final class TerminalAccountSnapshot {
                 tag.hasUUID("selectedDriver") ? tag.getUUID("selectedDriver") : null,
                 tag.contains("selectedMailbox", Tag.TAG_COMPOUND)
                         ? MailboxKey.fromTag(tag.getCompound("selectedMailbox")) : null,
-                maids, mailboxes, tag.getString("error"));
+                maids, mailboxes, Math.max(0, tag.getInt("registeredLicenses")),
+                tag.getString("error"));
+    }
+
+    private static InspectionReadiness parseInspectionReadiness(String value) {
+        try {
+            return InspectionReadiness.valueOf(value);
+        } catch (IllegalArgumentException ignored) {
+            return InspectionReadiness.OFFLINE;
+        }
     }
 }

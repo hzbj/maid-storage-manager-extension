@@ -20,6 +20,9 @@ import io.github.maidstorageextension.maid.task.CourierTask;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
+import io.github.maidstorageextension.license.BusinessLicenseService;
+import io.github.maidstorageextension.license.BusinessLicenseWorkerService;
+import io.github.maidstorageextension.logistics.MaidLogisticsTransactionService;
 
 @EventBusSubscriber(modid = MaidStorageManagerExtension.MOD_ID, bus = EventBusSubscriber.Bus.GAME)
 public final class ServerEvents {
@@ -29,6 +32,7 @@ public final class ServerEvents {
     @SubscribeEvent
     public static void serverTick(ServerTickEvent.Post event) {
         ReachabilityDebugManager.tick(event.getServer());
+        BusinessLicenseService.tick(event.getServer());
         if (event.getServer().getTickCount() % 20 == 0) {
             RemoteMaidService.tick(event.getServer());
         }
@@ -65,6 +69,8 @@ public final class ServerEvents {
         RemoteMaidService.observe(level.getServer(), maid);
         MaidTransportService.tick(level, maid);
         CourierService.tickBroomFlight(level, maid);
+        BusinessLicenseWorkerService.tick(level, maid);
+        MaidLogisticsTransactionService.tick(level, maid);
         if (maid.tickCount % 10 != 0 || !CourierService.hasActiveTransaction(maid)) return;
         if (!maid.getTask().getUid().equals(CourierTask.TASK_ID)) {
             CourierService.tick(level, maid);

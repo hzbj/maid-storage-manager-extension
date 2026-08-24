@@ -31,10 +31,20 @@ public final class LegacyConfigMigration {
             return;
         }
         Object baseData = StorageManagerConfigData.get(maid);
-        extension.periodicScanInterval(CAPTURED.getOrDefault(baseData, Optional.empty())
-                .orElse(PeriodicScanInterval.DISABLED));
+        boolean loadedLegacyData = CAPTURED.containsKey(baseData);
+        Optional<PeriodicScanInterval> captured = CAPTURED.getOrDefault(
+                baseData, Optional.empty());
+        extension.periodicScanInterval(migratedInterval(loadedLegacyData, captured,
+                extension.periodicScanInterval()));
         extension.legacyMigrationComplete(true);
         maid.setAndSyncData(ExtensionConfigData.KEY, extension);
         CAPTURED.remove(baseData);
+    }
+
+    static PeriodicScanInterval migratedInterval(boolean loadedLegacyData,
+                                                 Optional<PeriodicScanInterval> captured,
+                                                 PeriodicScanInterval newDefault) {
+        // A captured empty value means an old save omitted the field; no capture means a new maid.
+        return loadedLegacyData ? captured.orElse(PeriodicScanInterval.DISABLED) : newDefault;
     }
 }

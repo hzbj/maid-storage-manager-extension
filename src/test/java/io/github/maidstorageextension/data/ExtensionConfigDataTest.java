@@ -11,6 +11,12 @@ class ExtensionConfigDataTest {
     private final ExtensionConfigData key = new ExtensionConfigData();
 
     @Test
+    void newlyCreatedConfigStartsWithFifteenMinuteInspections() {
+        assertEquals(PeriodicScanInterval.MINUTES_15,
+                ExtensionConfigData.Data.defaults().periodicScanInterval());
+    }
+
+    @Test
     void oldOrInvalidDataDefaultsToDisabled() {
         ExtensionConfigData.Data missing = key.readSaveData(new CompoundTag());
         assertEquals(PeriodicScanInterval.DISABLED, missing.periodicScanInterval());

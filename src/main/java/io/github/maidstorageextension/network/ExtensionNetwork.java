@@ -8,7 +8,7 @@ import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 
 @EventBusSubscriber(modid = MaidStorageManagerExtension.MOD_ID, bus = EventBusSubscriber.Bus.MOD)
 public final class ExtensionNetwork {
-    public static final String PROTOCOL = "14";
+    public static final String PROTOCOL = "17";
 
     private ExtensionNetwork() {
     }
@@ -31,6 +31,10 @@ public final class ExtensionNetwork {
                 TerminalMailboxActionPacket.STREAM_CODEC, TerminalMailboxActionPacket::handle);
         registrar.playToServer(MaidTransportActionPacket.TYPE,
                 MaidTransportActionPacket.STREAM_CODEC, MaidTransportActionPacket::handle);
+        registrar.playToServer(BusinessLicenseActionPacket.TYPE,
+                BusinessLicenseActionPacket.STREAM_CODEC, BusinessLicenseActionPacket::handle);
+        registrar.playToServer(MaidLogisticsActionPacket.TYPE,
+                MaidLogisticsActionPacket.STREAM_CODEC, MaidLogisticsActionPacket::handle);
 
         registrar.playToClient(ReachabilityDebugPacket.TYPE,
                 ReachabilityDebugPacket.STREAM_CODEC, ReachabilityDebugPacket::handle);
@@ -46,5 +50,9 @@ public final class ExtensionNetwork {
                 TerminalNoticePacket.STREAM_CODEC, TerminalNoticePacket::handle);
         registrar.playToClient(MaidPickupGuidancePacket.TYPE,
                 MaidPickupGuidancePacket.STREAM_CODEC, MaidPickupGuidancePacket::handle);
+        registrar.playToClient(BusinessLicenseSnapshotPacket.TYPE,
+                BusinessLicenseSnapshotPacket.STREAM_CODEC, BusinessLicenseSnapshotPacket::handle);
+        registrar.playToClient(MaidLogisticsSnapshotPacket.TYPE,
+                MaidLogisticsSnapshotPacket.STREAM_CODEC, MaidLogisticsSnapshotPacket::handle);
     }
 }

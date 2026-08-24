@@ -21,6 +21,8 @@ class TerminalScanFeedbackContractTest {
 
         assertTrue(screen.contains("TerminalNoticeClientData"));
         assertTrue(screen.contains("renderTerminalNotice"));
+        assertTrue(screen.contains("scanWarehouseButton"));
+        assertTrue(screen.contains("TerminalMailboxActionPacket.Action.REQUEST_SCAN"));
         assertTrue(service.contains("TerminalNoticePacket"));
         assertTrue(service.contains("activateMailbox"),
                 "Scanning a registered mailbox must also leave the terminal viewing that warehouse");

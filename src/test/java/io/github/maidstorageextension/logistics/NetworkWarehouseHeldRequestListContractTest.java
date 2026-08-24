@@ -14,16 +14,17 @@ class NetworkWarehouseHeldRequestListContractTest {
             "src/main/java/io/github/maidstorageextension/logistics/NetworkWarehouseService.java");
 
     @Test
-    void withdrawalOnlyUpdatesAnExistingListHeldByTheCourier() throws Exception {
+    void withdrawalOnlyUpdatesAnExistingCourierListFromHandsOrBackpack() throws Exception {
         String source = Files.readString(SERVICE, StandardCharsets.UTF_8)
                 .replace("\r\n", "\n");
         String submit = between(source, "private static void submitRequest(",
                 "private static void confirmDeposit(");
 
-        assertTrue(submit.contains("InteractionHand requestHand = editableHeldRequestHand(courier)"));
-        assertTrue(submit.contains("ItemStack request = courier.getItemInHand(requestHand)"));
+        assertTrue(submit.contains("CourierService.findEditableRequestList(courier)"));
+        assertTrue(submit.contains("ItemStack request = requestSelection.stack()"));
         assertTrue(submit.contains("NetworkWarehouseRequestFactory.update("));
-        assertTrue(submit.contains("if (requestHand == null)"));
+        assertTrue(submit.contains("if (requestSelection == null)"));
+        assertTrue(submit.contains("CourierService.updateEditableRequestList("));
         assertFalse(submit.contains("new ItemStack("));
         assertFalse(submit.contains("ItemHandlerHelper"));
         assertFalse(submit.contains("InvWrapper"));

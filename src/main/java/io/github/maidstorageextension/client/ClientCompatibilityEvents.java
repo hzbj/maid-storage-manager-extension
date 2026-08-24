@@ -24,5 +24,6 @@ public final class ClientCompatibilityEvents {
     public static void registerScreens(RegisterMenuScreensEvent event) {
         event.register(ExtensionMenus.COURIER_CONFIG.get(), CourierConfigScreen::new);
         event.register(ExtensionMenus.LOGISTICS_TRACKER.get(), LogisticsTrackerScreen::new);
+        event.register(ExtensionMenus.BUSINESS_LICENSE.get(), BusinessLicenseScreen::new);
     }
 }

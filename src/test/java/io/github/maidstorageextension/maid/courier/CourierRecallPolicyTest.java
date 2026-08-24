@@ -35,5 +35,8 @@ class CourierRecallPolicyTest {
                         CourierData.Phase.TRAVEL_TO_WAREHOUSE_DEPOSIT));
         assertEquals(CourierData.Phase.WAITING_AT_STATION_AFTER_RECALL,
                 CourierRecallPolicy.afterStationRecall(CourierData.Phase.TRAVEL_TO_OWNER));
+        assertEquals(CourierData.Phase.RETURNING_TO_WAREHOUSE_STANDBY,
+                CourierRecallPolicy.afterStationRecall(
+                        CourierData.Phase.RETURNING_TO_WAREHOUSE_STANDBY));
     }
 }

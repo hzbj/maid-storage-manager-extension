@@ -1,10 +1,13 @@
 package io.github.maidstorageextension.data;
 
+import io.github.maidstorageextension.migration.ItemDataMigration;
 import net.minecraft.core.BlockPos;
 import net.minecraft.SharedConstants;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.Bootstrap;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -48,7 +51,12 @@ class CourierDataTest {
         source.transportMode(CourierData.TransportMode.BROOM);
         source.dispatchSource(CourierData.DispatchSource.TERMINAL);
         source.broomFlightDistance(56);
-        source.stayHomeAfterDelivery(true);
+        source.postDeliveryMode(CourierData.PostDeliveryMode.RETURN_TO_DEFAULT_WAREHOUSE);
+        source.returnBlocker(CourierData.ReturnBlocker.BROOM_MISSING);
+        source.requestListOrigin(CourierData.RequestListOrigin.BACKPACK, 7);
+        ItemStack pendingList = new ItemStack(Items.PAPER);
+        ItemDataMigration.update(pendingList, tag -> tag.putString("custom", "preserved"));
+        source.pendingList(pendingList);
         source.beginFollowOverride(true);
         UUID broom = UUID.randomUUID();
         BlockPos takeoff = new BlockPos(12, 66, 15);
@@ -83,7 +91,12 @@ class CourierDataTest {
         assertEquals(CourierData.TransportMode.BROOM, decoded.transportMode());
         assertEquals(CourierData.DispatchSource.TERMINAL, decoded.dispatchSource());
         assertEquals(56, decoded.broomFlightDistance());
-        assertTrue(decoded.stayHomeAfterDelivery());
+        assertEquals(CourierData.PostDeliveryMode.RETURN_TO_DEFAULT_WAREHOUSE,
+                decoded.postDeliveryMode());
+        assertEquals(CourierData.ReturnBlocker.BROOM_MISSING, decoded.returnBlocker());
+        assertEquals(CourierData.RequestListOrigin.BACKPACK, decoded.requestListOrigin());
+        assertEquals(7, decoded.requestListSlot());
+        assertEquals("preserved", ItemDataMigration.read(decoded.pendingList()).getString("custom"));
         assertTrue(decoded.followOverrideActive());
         assertTrue(decoded.homeModeBeforeCourier());
         assertEquals(broom, decoded.courierBroom());
@@ -119,12 +132,25 @@ class CourierDataTest {
         assertFalse(decoded.originOwner());
         assertEquals(CourierData.TransportMode.NONE, decoded.transportMode());
         assertEquals(CourierData.DEFAULT_BROOM_FLIGHT_DISTANCE, decoded.broomFlightDistance());
-        assertFalse(decoded.stayHomeAfterDelivery());
+        assertEquals(CourierData.PostDeliveryMode.FOLLOW_OWNER, decoded.postDeliveryMode());
+        assertEquals(CourierData.RequestListOrigin.LEGACY, decoded.requestListOrigin());
         assertFalse(decoded.followOverrideActive());
         assertNull(decoded.courierBroom());
         assertNull(decoded.flightTakeoffPos());
         assertFalse(decoded.flightLanded());
         assertEquals(-1L, decoded.handoffStartedGameTime());
+    }
+
+    @Test
+    void legacyStayHomeChoiceMigratesWithoutChangingPlayerIntent() {
+        CompoundTag legacy = new CompoundTag();
+        legacy.putBoolean("stayHomeAfterDelivery", true);
+
+        CourierData.Data decoded = key.readSaveData(legacy);
+
+        assertEquals(CourierData.PostDeliveryMode.STAY_AT_DELIVERY,
+                decoded.postDeliveryMode());
+        assertEquals(CourierData.RequestListOrigin.LEGACY, decoded.requestListOrigin());
     }
 
     @Test

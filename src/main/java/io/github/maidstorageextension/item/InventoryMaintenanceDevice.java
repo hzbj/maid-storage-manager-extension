@@ -75,6 +75,12 @@ public class InventoryMaintenanceDevice extends MaidInteractItem implements IMai
                                 List<Component> tooltip, TooltipFlag flag) {
         super.appendHoverText(stack, context, tooltip, flag);
         tooltip.add(Component.translatable("tooltip.maid_storage_manager_extension.inventory_maintenance_device.desc").withStyle(ChatFormatting.GRAY));
+        tooltip.add(Component.translatable(
+                "tooltip.maid_storage_manager_extension.inventory_maintenance_device.steps")
+                .withStyle(ChatFormatting.GRAY));
+        tooltip.add(Component.translatable(
+                "tooltip.maid_storage_manager_extension.inventory_maintenance_device.scan_hint")
+                .withStyle(ChatFormatting.DARK_GRAY));
         if (isBound(stack)) {
             BlockPos pos = getFramePos(stack);
             tooltip.add(Component.translatable("tooltip.maid_storage_manager_extension.inventory_maintenance_device.bound",

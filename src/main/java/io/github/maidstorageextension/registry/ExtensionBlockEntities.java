@@ -4,6 +4,7 @@ import net.minecraft.core.registries.Registries;
 import io.github.maidstorageextension.MaidStorageManagerExtension;
 import io.github.maidstorageextension.block.TaskBellBlockEntity;
 import io.github.maidstorageextension.block.CourierWarehouseStationBlockEntity;
+import io.github.maidstorageextension.block.BusinessLicenseBlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.bus.api.IEventBus;
@@ -20,6 +21,9 @@ public final class ExtensionBlockEntities {
             COURIER_WAREHOUSE_STATION = REGISTER.register("courier_warehouse_station",
             () -> BlockEntityType.Builder.of(CourierWarehouseStationBlockEntity::new,
                     ExtensionBlocks.COURIER_WAREHOUSE_STATION.get()).build(null));
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<BusinessLicenseBlockEntity>> BUSINESS_LICENSE =
+            REGISTER.register("business_license", () -> BlockEntityType.Builder
+                    .of(BusinessLicenseBlockEntity::new, ExtensionBlocks.BUSINESS_LICENSE.get()).build(null));
 
     private ExtensionBlockEntities() {
     }

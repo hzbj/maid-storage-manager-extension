@@ -5,6 +5,7 @@ import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import io.github.maidstorageextension.compat.touhoulittlemaid.BroomAutopilotAccess;
 import io.github.maidstorageextension.data.CourierData;
 import io.github.maidstorageextension.data.DriverData;
+import io.github.maidstorageextension.data.MaidLogisticsCourierData;
 import io.github.maidstorageextension.scan.StorageScanService;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
@@ -729,7 +730,8 @@ public final class CourierBroomFlightService {
     }
 
     private static void sync(EntityMaid courier, CourierData.Data data) {
-        if (!DriverData.syncFlight(courier, data)) {
+        if (!DriverData.syncFlight(courier, data)
+                && !MaidLogisticsCourierData.syncFlight(courier, data)) {
             courier.setAndSyncData(CourierData.KEY, data);
         }
     }

@@ -1,5 +1,6 @@
 package io.github.maidstorageextension.logistics;
 
+import io.github.maidstorageextension.data.CourierData;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
@@ -36,8 +37,12 @@ class NetworkWarehouseSnapshotTest {
                 20_000L, 168_001L,
                 List.of(new NetworkWarehouseSnapshot.InventoryEntry(
                         new ItemStack(Items.OAK_LOG), 512)),
-                true, false, true, true, true,
+                true, false, true,
+                NetworkWarehouseSnapshot.RequestListAvailability.BACKPACK,
+                NetworkWarehouseSnapshot.TransportHint.BROOM_ENDER_POCKET, true,
                 NetworkWarehouseSnapshot.Blocker.ACTIVE_TRANSACTION,
+                CourierData.PostDeliveryMode.RETURN_TO_DEFAULT_WAREHOUSE,
+                CourierData.ReturnBlocker.BROOM_MISSING,
                 new NetworkWarehouseSnapshot.MapPoint(overworld, new BlockPos(0, 64, 0)),
                 new NetworkWarehouseSnapshot.MapPoint(overworld, new BlockPos(20, 64, 4)),
                 new NetworkWarehouseSnapshot.MapPoint(overworld, new BlockPos(80, 70, -10)),
@@ -59,9 +64,15 @@ class NetworkWarehouseSnapshotTest {
         assertEquals(new BlockPos(76, 64, -6), decoded.mailbox().position());
         assertTrue(decoded.enderPocketAvailable());
         assertTrue(decoded.fixedDeliveryAvailable());
-        assertTrue(decoded.heldRequestListAvailable());
+        assertEquals(NetworkWarehouseSnapshot.RequestListAvailability.BACKPACK,
+                decoded.requestListAvailability());
+        assertEquals(NetworkWarehouseSnapshot.TransportHint.BROOM_ENDER_POCKET,
+                decoded.transportHint());
         assertTrue(decoded.activeTransaction());
         assertEquals(NetworkWarehouseSnapshot.Blocker.ACTIVE_TRANSACTION, decoded.blocker());
+        assertEquals(CourierData.PostDeliveryMode.RETURN_TO_DEFAULT_WAREHOUSE,
+                decoded.postDeliveryMode());
+        assertEquals(CourierData.ReturnBlocker.BROOM_MISSING, decoded.returnBlocker());
 
         NetworkWarehouseSnapshot.Snapshot offline = decoded.offline();
         assertFalse(offline.online());

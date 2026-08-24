@@ -4,12 +4,15 @@ import io.github.maidstorageextension.logistics.LogisticsDisplayName;
 import io.github.maidstorageextension.logistics.LogisticsSnapshot;
 import io.github.maidstorageextension.logistics.LogisticsTrackerMenu;
 import io.github.maidstorageextension.logistics.NetworkWarehouseSnapshot;
+import io.github.maidstorageextension.logistics.MaidLogisticsData;
+import io.github.maidstorageextension.data.CourierData;
+import io.github.maidstorageextension.logistics.MaidLogisticsSnapshot;
 import io.github.maidstorageextension.network.MaidTransportActionPacket;
 import io.github.maidstorageextension.network.CourierCommandPacket;
-import io.github.maidstorageextension.network.ExtensionNetwork;
 import io.github.maidstorageextension.network.NetworkWarehouseActionPacket;
 import io.github.maidstorageextension.network.TerminalAccountActionPacket;
 import io.github.maidstorageextension.network.TerminalMailboxActionPacket;
+import io.github.maidstorageextension.network.MaidLogisticsActionPacket;
 import io.github.maidstorageextension.terminal.TerminalAccountSnapshot;
 import io.github.maidstorageextension.terminal.MaidTransportSnapshot;
 import io.github.maidstorageextension.terminal.MailboxKey;
@@ -59,7 +62,8 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
 
     private enum ServiceTab {
         NETWORK_WAREHOUSE,
-        MAID_TRANSPORT
+        MAID_TRANSPORT,
+        MAID_LOGISTICS
     }
 
     private enum WarehouseMode {
@@ -96,12 +100,25 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
     private Button changePasswordButton;
     private Button logoutButton;
     private Button settingsButton;
+    private Button guideButton;
+    private Button scanWarehouseButton;
     private Button choosePickupButton;
     private Button chooseDestinationButton;
     private Button startTransportButton;
     private Button endTransportButton;
     private Button returnWarehouseButton;
     private Button clearDriverStatusButton;
+    private Button logisticsCourierButton;
+    private Button confirmRouteButton;
+    private Button deleteRouteButton;
+    private Button addSlotButton;
+    private Button removeSlotButton;
+    private Button moveSlotUpButton;
+    private Button moveSlotDownButton;
+    private Button configureLicenseButton;
+    private EditBox logisticsAmountBox;
+    private EditBox mailboxNameBox;
+    private Button saveMailboxNameButton;
     private int inventoryScroll;
     private int refreshTicker;
     private boolean staleConfirmed;
@@ -120,7 +137,14 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
     private double transportMapPressY;
     private int expandedMailbox = -1;
     private boolean settingsPage;
+    private boolean guidePage;
     private PendingConversion pendingConversion;
+    private MaidLogisticsData.NodeRef logisticsSource;
+    private MaidLogisticsData.NodeRef logisticsDestination;
+    private MaidLogisticsData.NodeRef selectedLogisticsNode;
+    private UUID selectedLogisticsRoute;
+    private UUID selectedLogisticsCourier;
+    private MailboxKey renamingMailbox;
 
     public LogisticsTrackerScreen(LogisticsTrackerMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
@@ -139,7 +163,7 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
         Layout layout = layout();
 
         serviceButtons.clear();
-        int tabEnd = width - 120;
+        int tabEnd = width - 168;
         int tabWidth = Mth.clamp((tabEnd - 84) / ServiceTab.values().length, 58, 112);
         int tabStart = Math.max(84, tabEnd - tabWidth * ServiceTab.values().length);
         ServiceTab[] tabs = ServiceTab.values();
@@ -148,19 +172,44 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
             Button button = addRenderableWidget(Button.builder(serviceName(tab), ignored -> {
                         serviceTab = tab;
                         settingsPage = false;
+                        guidePage = false;
                         staleConfirmed = false;
                         updateWidgetState();
                     }).bounds(tabStart + i * tabWidth, 5, tabWidth - 2, 20).build());
             serviceButtons.add(button);
         }
 
+        guideButton = addRenderableWidget(Button.builder(Component.translatable(
+                        "gui.maid_storage_manager_extension.terminal.guide_button"), ignored -> {
+                    guidePage = true;
+                    settingsPage = false;
+                    updateWidgetState();
+                }).bounds(width - 164, 5, 44, 20).build());
+        guideButton.setTooltip(Tooltip.create(Component.translatable(
+                "gui.maid_storage_manager_extension.terminal.guide")));
+
         settingsButton = addRenderableWidget(Button.builder(Component.translatable(
                         "gui.maid_storage_manager_extension.terminal.settings_button"), ignored -> {
                     settingsPage = true;
+                    guidePage = false;
                     updateWidgetState();
                 }).bounds(width - 116, 5, 40, 20).build());
         settingsButton.setTooltip(Tooltip.create(Component.translatable(
                 "gui.maid_storage_manager_extension.terminal.settings")));
+
+        SettingsLayout settings = settingsLayout();
+        mailboxNameBox = addRenderableWidget(new EditBox(font, settings.leftX,
+                layout.contentBottom - 22, settings.columnWidth - 55, 20,
+                Component.translatable("gui.maid_storage_manager_extension.terminal.mailbox_name")));
+        mailboxNameBox.setMaxLength(io.github.maidstorageextension.terminal.TerminalAccountData
+                .MAX_MAILBOX_NAME_LENGTH);
+        mailboxNameBox.setHint(Component.translatable(
+                "gui.maid_storage_manager_extension.terminal.mailbox_name_hint"));
+        saveMailboxNameButton = addRenderableWidget(Button.builder(Component.translatable(
+                        "gui.maid_storage_manager_extension.terminal.save_name"), ignored ->
+                        saveMailboxName())
+                .bounds(settings.leftX + settings.columnWidth - 51,
+                        layout.contentBottom - 22, 51, 20).build());
 
         logoutButton = addRenderableWidget(Button.builder(Component.translatable(
                         "gui.maid_storage_manager_extension.terminal.logout"), ignored ->
@@ -215,22 +264,30 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
                         "gui.maid_storage_manager_extension.compass.withdraw"), ignored -> {
                     warehouseMode = WarehouseMode.WITHDRAW;
                     updateWidgetState();
-                }).bounds(layout.rightX + 5, layout.contentY + 24,
+                }).bounds(layout.rightX + 5, layout.contentY + 31,
                         Math.max(55, (layout.rightWidth - 14) / 2), 18).build());
         depositButton = addRenderableWidget(Button.builder(Component.translatable(
                         "gui.maid_storage_manager_extension.compass.deposit"), ignored -> {
                     warehouseMode = WarehouseMode.DEPOSIT;
                     updateWidgetState();
                 }).bounds(layout.rightX + 8 + Math.max(55, (layout.rightWidth - 14) / 2),
-                        layout.contentY + 24, Math.max(55, (layout.rightWidth - 14) / 2), 18).build());
+                        layout.contentY + 31, Math.max(55, (layout.rightWidth - 14) / 2), 18).build());
 
         searchBox = addRenderableWidget(new EditBox(font, layout.rightX + 6,
-                layout.contentY + 47, layout.rightWidth - 12, 18,
+                layout.contentY + 52, layout.rightWidth - 12, 18,
                 Component.translatable("gui.maid_storage_manager_extension.compass.search")));
         searchBox.setHint(Component.translatable(
                 "gui.maid_storage_manager_extension.compass.search_hint"));
         searchBox.setResponder(ignored -> inventoryScroll = 0);
         searchBox.setMaxLength(80);
+
+        scanWarehouseButton = addRenderableWidget(Button.builder(Component.translatable(
+                        "gui.maid_storage_manager_extension.compass.scan_now"), ignored ->
+                        requestWarehouseScan())
+                .bounds(layout.rightX + Math.max(5, layout.rightWidth - 66),
+                        layout.contentY + 3, 60, 18).build());
+        scanWarehouseButton.setTooltip(Tooltip.create(Component.translatable(
+                "gui.maid_storage_manager_extension.compass.scan_now_hint")));
 
         int deliveryWidth = Math.max(62, (layout.rightWidth - 14) / 2);
         int deliveryY = layout.contentBottom - 65;
@@ -317,6 +374,58 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
                 .bounds(transportX, layout.contentBottom - 48,
                         transportWidth, 20).build());
 
+        logisticsAmountBox = addRenderableWidget(new EditBox(font, layout.rightX + 6,
+                layout.contentBottom - 94, Math.max(58, layout.rightWidth / 3), 18,
+                Component.translatable("gui.maid_storage_manager_extension.maid_logistics.amount")));
+        logisticsAmountBox.setValue("64");
+        logisticsAmountBox.setFilter(value -> value.isEmpty()
+                || value.chars().allMatch(Character::isDigit));
+        logisticsAmountBox.setMaxLength(7);
+        logisticsCourierButton = addRenderableWidget(Button.builder(Component.empty(), ignored ->
+                        cycleLogisticsCourier())
+                .bounds(layout.rightX + 6, layout.contentBottom - 70,
+                        layout.rightWidth - 12, 18).build());
+        confirmRouteButton = addRenderableWidget(Button.builder(Component.translatable(
+                        "gui.maid_storage_manager_extension.maid_logistics.confirm"), ignored ->
+                        confirmLogisticsRoute())
+                .bounds(layout.rightX + 6, layout.contentBottom - 46,
+                        layout.rightWidth - 12, 20).build());
+        deleteRouteButton = addRenderableWidget(Button.builder(Component.translatable(
+                        "gui.maid_storage_manager_extension.maid_logistics.delete"), ignored ->
+                        mutateSelectedRoute(MaidLogisticsActionPacket.Action.DELETE_ROUTE, 0, 0))
+                .bounds(layout.rightX + 6, layout.contentBottom - 46,
+                        layout.rightWidth - 12, 20).build());
+        int scheduleWidth = Math.max(38, (layout.rightWidth - 18) / 4);
+        addSlotButton = addRenderableWidget(Button.builder(Component.literal("+"), ignored ->
+                        mutateSelectedRoute(MaidLogisticsActionPacket.Action.ADD_SLOT, 0, 0))
+                .bounds(layout.rightX + 6, layout.contentBottom - 70, scheduleWidth, 18).build());
+        removeSlotButton = addRenderableWidget(Button.builder(Component.literal("−"), ignored ->
+                        mutateSelectedRoute(MaidLogisticsActionPacket.Action.REMOVE_SLOT,
+                                selectedScheduleIndex(), 0))
+                .bounds(layout.rightX + 10 + scheduleWidth, layout.contentBottom - 70,
+                        scheduleWidth, 18).build());
+        moveSlotUpButton = addRenderableWidget(Button.builder(Component.literal("↑"), ignored -> {
+                    int index = selectedScheduleIndex();
+                    mutateSelectedRoute(MaidLogisticsActionPacket.Action.MOVE_SLOT,
+                            index, Math.max(0, index - 1));
+                }).bounds(layout.rightX + 14 + scheduleWidth * 2, layout.contentBottom - 70,
+                        scheduleWidth, 18).build());
+        moveSlotDownButton = addRenderableWidget(Button.builder(Component.literal("↓"), ignored -> {
+                    int index = selectedScheduleIndex();
+                    mutateSelectedRoute(MaidLogisticsActionPacket.Action.MOVE_SLOT,
+                            index, Math.min(Math.max(0, selectedScheduleSize() - 1), index + 1));
+                }).bounds(layout.rightX + 18 + scheduleWidth * 3, layout.contentBottom - 70,
+                        scheduleWidth, 18).build());
+        configureLicenseButton = addRenderableWidget(Button.builder(Component.translatable(
+                        "gui.maid_storage_manager_extension.maid_logistics.configure_license"), ignored -> {
+                    MaidLogisticsSnapshot.Node node = logisticsNode(selectedLogisticsNode);
+                    if (node != null && node.kind() == MaidLogisticsData.NodeKind.LICENSE) {
+                        net.neoforged.neoforge.network.PacketDistributor.sendToServer(MaidLogisticsActionPacket.openLicense(
+                                menu.terminal(), node.ref()));
+                    }
+                }).bounds(layout.rightX + 6, layout.contentBottom - 46,
+                        layout.rightWidth - 12, 20).build());
+
         net.neoforged.neoforge.network.PacketDistributor.sendToServer(
                 TerminalAccountActionPacket.refresh(menu.terminal()));
         if (isBound()) {
@@ -324,6 +433,8 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
                     NetworkWarehouseActionPacket.refresh(
                             menu.terminal(), activeCourier(), activeMailbox()));
         }
+        net.neoforged.neoforge.network.PacketDistributor.sendToServer(
+                MaidLogisticsActionPacket.refresh(menu.terminal()));
         updateWidgetState();
     }
 
@@ -334,6 +445,10 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
             refreshTicker = 0;
             net.neoforged.neoforge.network.PacketDistributor.sendToServer(
                     TerminalAccountActionPacket.refresh(menu.terminal()));
+            if (serviceTab == ServiceTab.MAID_LOGISTICS) {
+                net.neoforged.neoforge.network.PacketDistributor.sendToServer(
+                        MaidLogisticsActionPacket.refresh(menu.terminal()));
+            }
         }
         updateWidgetState();
     }
@@ -343,16 +458,19 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
         boolean mustChangePassword = authenticated
                 && accountSnapshot().passwordChangeRequired();
         boolean usable = authenticated && !mustChangePassword;
-        boolean network = usable && !settingsPage
+        boolean pageFree = !settingsPage && !guidePage;
+        boolean network = usable && pageFree
                 && serviceTab == ServiceTab.NETWORK_WAREHOUSE && isBound();
-        boolean transport = usable && !settingsPage && serviceTab == ServiceTab.MAID_TRANSPORT
+        boolean transport = usable && pageFree && serviceTab == ServiceTab.MAID_TRANSPORT
                 && accountSnapshot().selectedDriver() != null;
+        boolean maidLogistics = usable && pageFree
+                && serviceTab == ServiceTab.MAID_LOGISTICS;
         NetworkWarehouseSnapshot.Snapshot warehouse = warehouseSnapshot();
         LogisticsSnapshot.Snapshot logistics = logisticsSnapshot();
         MaidTransportSnapshot.Snapshot ride = transportSnapshot();
         for (int i = 0; i < serviceButtons.size(); i++) {
             serviceButtons.get(i).visible = usable;
-            serviceButtons.get(i).active = settingsPage || serviceTab.ordinal() != i;
+            serviceButtons.get(i).active = settingsPage || guidePage || serviceTab.ordinal() != i;
         }
         usernameBox.setVisible(!authenticated);
         passwordBox.setVisible(!authenticated || mustChangePassword);
@@ -367,7 +485,15 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
                 "gui.maid_storage_manager_extension.terminal.logout")));
         settingsButton.visible = usable;
         settingsButton.active = !settingsPage;
-        centerMapButton.visible = usable && !settingsPage && layout().mapWidth >= 150;
+        guideButton.visible = usable;
+        guideButton.active = !guidePage;
+        boolean renaming = usable && settingsPage && renamingMailbox != null;
+        mailboxNameBox.setVisible(renaming);
+        saveMailboxNameButton.visible = renaming;
+        centerMapButton.visible = usable && pageFree && layout().mapWidth >= 150;
+        if (centerMapButton.visible) {
+            centerMapButton.setX(layout().mapX + Math.max(0, layout().mapWidth - 61));
+        }
         if (withdrawButton == null) return;
         withdrawButton.visible = network;
         depositButton.visible = network;
@@ -375,6 +501,8 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
         depositButton.active = warehouseMode != WarehouseMode.DEPOSIT;
         boolean withdraw = network && warehouseMode == WarehouseMode.WITHDRAW;
         searchBox.setVisible(withdraw);
+        scanWarehouseButton.visible = network && activeMailbox() != null;
+        scanWarehouseButton.active = scanWarehouseButton.visible;
         playerDeliveryButton.visible = withdraw;
         chestDeliveryButton.visible = withdraw;
         playerDeliveryButton.active = deliveryTarget
@@ -390,11 +518,14 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
         actionButton.active = warehouse.online() && warehouse.authorized()
                 && warehouse.warehouse() != null && !warehouse.activeTransaction()
                 && (warehouseMode == WarehouseMode.DEPOSIT
-                || warehouse.heldRequestListAvailable() && !selectedAmounts.isEmpty()
+                || warehouse.requestListAvailability()
+                != NetworkWarehouseSnapshot.RequestListAvailability.NONE
+                && !selectedAmounts.isEmpty()
                 && warehouse.inventoryState() != NetworkWarehouseSnapshot.InventoryState.UNAVAILABLE);
         actionButton.setMessage(Component.translatable(warehouseMode == WarehouseMode.DEPOSIT
                 ? "gui.maid_storage_manager_extension.compass.confirm_deposit"
-                : !warehouse.heldRequestListAvailable()
+                : warehouse.requestListAvailability()
+                == NetworkWarehouseSnapshot.RequestListAvailability.NONE
                 ? "gui.maid_storage_manager_extension.compass.request_list_required"
                 : warehouse.inventoryState() == NetworkWarehouseSnapshot.InventoryState.STALE
                 && !staleConfirmed
@@ -431,6 +562,33 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
         endTransportButton.visible = transport && ride.active();
         endTransportButton.active = ride.state() != MaidTransportSnapshot.State.EMERGENCY_LANDING
                 && ride.state() != MaidTransportSnapshot.State.PLAYER_CONTROLLED;
+
+        boolean drafting = maidLogistics && logisticsSource != null && logisticsDestination != null;
+        boolean editing = maidLogistics && selectedLogisticsRoute != null && !drafting;
+        logisticsAmountBox.setVisible(drafting);
+        logisticsCourierButton.visible = drafting;
+        confirmRouteButton.visible = drafting;
+        confirmRouteButton.active = selectedLogisticsCourier != null
+                && logisticsAmount() > 0 && heldRouteItem() != null;
+        MaidLogisticsSnapshot.Courier chosen = selectedLogisticsCourier();
+        logisticsCourierButton.setMessage(Component.translatable(
+                "gui.maid_storage_manager_extension.maid_logistics.courier",
+                chosen == null ? Component.literal("-")
+                        : LogisticsDisplayName.decode(chosen.name())));
+        deleteRouteButton.visible = editing;
+        addSlotButton.visible = editing;
+        removeSlotButton.visible = editing;
+        moveSlotUpButton.visible = editing;
+        moveSlotDownButton.visible = editing;
+        MaidLogisticsSnapshot.Node selectedNode = logisticsNode(selectedLogisticsNode);
+        configureLicenseButton.visible = maidLogistics && !drafting && !editing
+                && selectedNode != null
+                && selectedNode.kind() == MaidLogisticsData.NodeKind.LICENSE;
+        configureLicenseButton.active = configureLicenseButton.visible && selectedNode.valid();
+        int selectedIndex = selectedScheduleIndex();
+        removeSlotButton.active = selectedIndex >= 0;
+        moveSlotUpButton.active = selectedIndex > 0;
+        moveSlotDownButton.active = selectedIndex >= 0 && selectedIndex + 1 < selectedScheduleSize();
     }
 
     private void authenticate(boolean create) {
@@ -440,6 +598,14 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
                 ? TerminalAccountActionPacket.create(menu.terminal(), username, password)
                 : TerminalAccountActionPacket.login(menu.terminal(), username, password));
         passwordBox.setValue("");
+    }
+
+    private void requestWarehouseScan() {
+        MailboxKey mailbox = activeMailbox();
+        if (mailbox == null || !mailbox.valid()) return;
+        net.neoforged.neoforge.network.PacketDistributor.sendToServer(new TerminalMailboxActionPacket(
+                TerminalMailboxActionPacket.Action.REQUEST_SCAN, menu.terminal(),
+                mailbox.dimension(), mailbox.position()));
     }
 
     private void submit() {
@@ -476,12 +642,14 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
     protected void renderBg(GuiGraphics graphics, float partialTick, int mouseX, int mouseY) {
         graphics.fill(0, 0, width, height, SCREEN_BG);
         Layout layout = layout();
-        if (settingsPage && accountSnapshot().authenticated()
+        if ((settingsPage || guidePage) && accountSnapshot().authenticated()
                 && !accountSnapshot().passwordChangeRequired()) {
             panel(graphics, layout.leftX, layout.contentY,
                     width - layout.leftX * 2, layout.contentHeight);
         } else {
-            panel(graphics, layout.leftX, layout.contentY, layout.leftWidth, layout.contentHeight);
+            if (layout.leftWidth > 0) {
+                panel(graphics, layout.leftX, layout.contentY, layout.leftWidth, layout.contentHeight);
+            }
             if (layout.mapWidth > 0) {
                 panel(graphics, layout.mapX, layout.contentY, layout.mapWidth, layout.contentHeight);
             }
@@ -506,6 +674,10 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
             renderSettings(graphics, mouseX, mouseY);
             return;
         }
+        if (guidePage) {
+            renderGuide(graphics);
+            return;
+        }
         if (serviceTab == ServiceTab.NETWORK_WAREHOUSE && !isBound()
                 || serviceTab == ServiceTab.MAID_TRANSPORT
                 && accountSnapshot().selectedDriver() == null) {
@@ -514,6 +686,8 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
         }
         if (serviceTab == ServiceTab.MAID_TRANSPORT) {
             renderMaidTransport(graphics, mouseX, mouseY);
+        } else if (serviceTab == ServiceTab.MAID_LOGISTICS) {
+            renderMaidLogistics(graphics, mouseX, mouseY);
         } else {
             renderNetworkWarehouse(graphics, mouseX, mouseY);
         }
@@ -545,15 +719,18 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
         for (int i = 0; i < mailboxRows; i++) {
             TerminalAccountSnapshot.Mailbox mailbox = account.mailboxes().get(i);
             int rowY = settings.rowsY + i * settings.rowStride;
-            boolean hovered = inside(mouseX, mouseY, settings.leftX + settings.columnWidth - 51,
-                    rowY + 3, 47, 20);
+            boolean renameHovered = inside(mouseX, mouseY,
+                    settings.leftX + settings.columnWidth - 102, rowY + 3, 47, 20);
+            boolean removeHovered = inside(mouseX, mouseY,
+                    settings.leftX + settings.columnWidth - 51, rowY + 3, 47, 20);
             Component name = mailbox.warehouseName().isBlank()
                     ? Component.literal(mailbox.warehouse() == null ? "?"
                     : mailbox.warehouse().toString().substring(0, 8))
                     : LogisticsDisplayName.decode(mailbox.warehouseName());
-            renderSettingsRow(graphics, settings.leftX, rowY, settings.columnWidth,
+            renderMailboxSettingsRow(graphics, settings.leftX, rowY, settings.columnWidth,
                     name, Component.literal(mailbox.position().getX() + ", "
-                            + mailbox.position().getY() + ", " + mailbox.position().getZ()), hovered);
+                            + mailbox.position().getY() + ", " + mailbox.position().getZ()),
+                    renameHovered, removeHovered);
         }
 
         if (account.maids().isEmpty()) {
@@ -576,6 +753,107 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
         }
     }
 
+    private void renderGuide(GuiGraphics graphics) {
+        TerminalAccountSnapshot.Snapshot account = accountSnapshot();
+        NetworkWarehouseSnapshot.Snapshot warehouse = warehouseSnapshot();
+        Layout layout = layout();
+        int x = layout.leftX + 12;
+        int availableWidth = width - layout.leftX * 2 - 24;
+        graphics.drawString(font, Component.translatable(
+                        "gui.maid_storage_manager_extension.terminal.guide"),
+                x, layout.contentY + 10, TEXT, false);
+        graphics.drawString(font, trim(Component.translatable(
+                        "gui.maid_storage_manager_extension.terminal.guide_help"), availableWidth),
+                x, layout.contentY + 23, MUTED, false);
+
+        TerminalAccountSnapshot.Mailbox selectedMailbox = account.mailboxes().stream()
+                .filter(mailbox -> activeMailbox() != null
+                        && activeMailbox().equals(new MailboxKey(
+                        mailbox.dimension(), mailbox.position())))
+                .findFirst().orElse(null);
+        List<TerminalAccountSnapshot.WarehouseManager> managers = selectedMailbox == null
+                ? account.mailboxes().stream().flatMap(mailbox -> mailbox.managers().stream()).toList()
+                : selectedMailbox.managers();
+        TerminalAccountSnapshot.InspectionReadiness inspection = managers.stream()
+                .map(TerminalAccountSnapshot.WarehouseManager::inspectionReadiness)
+                .filter(value -> value == TerminalAccountSnapshot.InspectionReadiness.READY
+                        || value == TerminalAccountSnapshot.InspectionReadiness.MANUAL_ONLY)
+                .findFirst().orElse(managers.stream()
+                        .map(TerminalAccountSnapshot.WarehouseManager::inspectionReadiness)
+                        .findFirst().orElse(TerminalAccountSnapshot.InspectionReadiness.OFFLINE));
+        boolean inspectionReady = inspection == TerminalAccountSnapshot.InspectionReadiness.READY;
+
+        TerminalAccountSnapshot.Maid courier = account.maids().stream()
+                .filter(maid -> maid.id().equals(account.selectedCourier()))
+                .findFirst().orElse(null);
+        boolean mailboxCourierReady = selectedMailbox != null && selectedMailbox.valid()
+                && courier != null && courier.courierTask();
+        boolean orderReady = warehouse.requestListAvailability()
+                != NetworkWarehouseSnapshot.RequestListAvailability.NONE
+                && warehouse.inventoryState() != NetworkWarehouseSnapshot.InventoryState.UNAVAILABLE;
+        TerminalAccountSnapshot.Maid driver = account.maids().stream()
+                .filter(maid -> maid.id().equals(account.selectedDriver()))
+                .findFirst().orElse(null);
+        boolean transportReady = driver != null && driver.driverTask() && driver.hasBroom();
+
+        int y = layout.contentY + 42;
+        int rowHeight = Math.max(25, Math.min(34, (layout.contentHeight - 53) / 5));
+        renderGuideStep(graphics, x, y, availableWidth, "inspection", inspectionReady,
+                inspectionNextKey(inspection));
+        y += rowHeight;
+        renderGuideStep(graphics, x, y, availableWidth, "mailbox_courier", mailboxCourierReady,
+                selectedMailbox == null
+                        ? "gui.maid_storage_manager_extension.terminal.guide.next_mailbox"
+                        : courier == null || !courier.courierTask()
+                        ? "gui.maid_storage_manager_extension.terminal.guide.next_courier"
+                        : "gui.maid_storage_manager_extension.terminal.guide.done");
+        y += rowHeight;
+        renderGuideStep(graphics, x, y, availableWidth, "order", orderReady,
+                warehouse.requestListAvailability()
+                        == NetworkWarehouseSnapshot.RequestListAvailability.NONE
+                        ? "gui.maid_storage_manager_extension.terminal.guide.next_request_list"
+                        : warehouse.inventoryState() == NetworkWarehouseSnapshot.InventoryState.UNAVAILABLE
+                        ? "gui.maid_storage_manager_extension.terminal.guide.next_scan"
+                        : "gui.maid_storage_manager_extension.terminal.guide.done");
+        y += rowHeight;
+        renderGuideStep(graphics, x, y, availableWidth, "transport", transportReady,
+                driver == null || !driver.driverTask()
+                        ? "gui.maid_storage_manager_extension.terminal.guide.next_driver"
+                        : !driver.hasBroom()
+                        ? "gui.maid_storage_manager_extension.terminal.guide.next_broom"
+                        : "gui.maid_storage_manager_extension.terminal.guide.done");
+        y += rowHeight;
+        renderGuideStep(graphics, x, y, availableWidth, "license",
+                account.registeredLicenses() > 0,
+                account.registeredLicenses() > 0
+                        ? "gui.maid_storage_manager_extension.terminal.guide.done"
+                        : "gui.maid_storage_manager_extension.terminal.guide.next_license");
+    }
+
+    private void renderGuideStep(GuiGraphics graphics, int x, int y, int width,
+                                 String suffix, boolean complete, String nextKey) {
+        graphics.fill(x, y, x + width, y + 24, PANEL_ALT);
+        outline(graphics, x, y, width, 24, complete ? GOOD : BORDER);
+        graphics.drawString(font, Component.literal(complete ? "✓ " : "→ ").append(
+                        Component.translatable(
+                                "gui.maid_storage_manager_extension.terminal.guide." + suffix)),
+                x + 5, y + 4, complete ? GOOD : ACCENT, false);
+        graphics.drawString(font, trim(Component.translatable(nextKey), width - 12),
+                x + 6, y + 14, MUTED, false);
+    }
+
+    private String inspectionNextKey(TerminalAccountSnapshot.InspectionReadiness readiness) {
+        return switch (readiness) {
+            case READY -> "gui.maid_storage_manager_extension.terminal.guide.done";
+            case MANUAL_ONLY -> "gui.maid_storage_manager_extension.terminal.guide.next_enable_scan";
+            case DEVICE_MISSING -> "gui.maid_storage_manager_extension.terminal.guide.next_device";
+            case DEVICE_UNBOUND -> "gui.maid_storage_manager_extension.terminal.guide.next_bind_device";
+            case FRAME_UNAVAILABLE -> "gui.maid_storage_manager_extension.terminal.guide.next_frame";
+            case OFF_DUTY -> "gui.maid_storage_manager_extension.terminal.guide.next_manager_task";
+            case OFFLINE -> "gui.maid_storage_manager_extension.terminal.guide.next_manager_online";
+        };
+    }
+
     private void renderSettingsHeading(GuiGraphics graphics, int x, int y, int width, String key) {
         graphics.drawString(font, trim(Component.translatable(key), width), x, y, ACCENT, false);
         graphics.hLine(x, x + width - 1, y + 12, BORDER);
@@ -594,6 +872,29 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
         graphics.drawCenteredString(font, Component.translatable(
                         "gui.maid_storage_manager_extension.terminal.unbind"),
                 buttonX + 23, y + 9, TEXT);
+    }
+
+    private void renderMailboxSettingsRow(GuiGraphics graphics, int x, int y, int width,
+                                          Component name, Component detail,
+                                          boolean renameHovered, boolean removeHovered) {
+        graphics.fill(x, y, x + width, y + 26, PANEL_ALT);
+        outline(graphics, x, y, width, 26, BORDER);
+        graphics.drawString(font, trim(name, width - 111), x + 5, y + 4, TEXT, false);
+        graphics.drawString(font, trim(detail, width - 111), x + 5, y + 15, MUTED, false);
+        int renameX = x + width - 102;
+        graphics.fill(renameX, y + 3, renameX + 47, y + 23,
+                renameHovered ? 0xFF68527A : 0xFF473A52);
+        outline(graphics, renameX, y + 3, 47, 20, renameHovered ? BORDER_ACTIVE : BORDER);
+        graphics.drawCenteredString(font, Component.translatable(
+                        "gui.maid_storage_manager_extension.terminal.rename"),
+                renameX + 23, y + 9, TEXT);
+        int removeX = x + width - 51;
+        graphics.fill(removeX, y + 3, removeX + 47, y + 23,
+                removeHovered ? 0xFF7A3442 : 0xFF542B34);
+        outline(graphics, removeX, y + 3, 47, 20, removeHovered ? ERROR : 0xFF9B5260);
+        graphics.drawCenteredString(font, Component.translatable(
+                        "gui.maid_storage_manager_extension.terminal.unbind"),
+                removeX + 23, y + 9, TEXT);
     }
 
     private void renderLogin(GuiGraphics graphics) {
@@ -854,6 +1155,519 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
         renderFooterStatus(graphics);
     }
 
+    private void renderMaidLogistics(GuiGraphics graphics, int mouseX, int mouseY) {
+        Layout layout = layout();
+        renderMaidLogisticsMap(graphics, layout, mouseX, mouseY);
+        renderMaidLogisticsPanel(graphics, layout);
+    }
+
+    private void renderMaidLogisticsMap(GuiGraphics graphics, Layout layout,
+                                        int mouseX, int mouseY) {
+        int x = layout.mapX + 5;
+        int y = layout.contentY + 22;
+        int w = layout.mapWidth - 10;
+        int h = layout.contentHeight - 28;
+        graphics.drawString(font, Component.translatable(
+                "gui.maid_storage_manager_extension.maid_logistics.map"),
+                layout.mapX + 6, layout.contentY + 7, TEXT, false);
+        graphics.fill(x, y, x + w, y + h, MAP_BG);
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.level == null || minecraft.player == null) return;
+        if (!mapCenterInitialized) centerMapOnPlayer();
+        TerrainMapTexture.View view = terrainMap.update(minecraft, mapCenterX, mapCenterZ,
+                blocksPerScreenPixel(), w, h);
+        renderedMapView = view;
+        if (view.texture() != null) {
+            graphics.blit(view.texture(), x, y, w, h, 0.0F, 0.0F,
+                    TerrainMapTexture.TEXTURE_SIZE, TerrainMapTexture.TEXTURE_SIZE,
+                    TerrainMapTexture.TEXTURE_SIZE, TerrainMapTexture.TEXTURE_SIZE);
+        }
+        MaidLogisticsSnapshot.Snapshot snapshot = maidLogisticsSnapshot();
+        ResourceLocation dimension = minecraft.level.dimension().location();
+        for (MaidLogisticsData.Route route : snapshot.routes()) {
+            MaidLogisticsSnapshot.Node source = logisticsNode(route.source());
+            MaidLogisticsSnapshot.Node destination = logisticsNode(route.destination());
+            if (source == null || destination == null) continue;
+            Projected from = projectNode(source, dimension, x, y, w, h, view);
+            Projected to = projectNode(destination, dimension, x, y, w, h, view);
+            if (from == null || to == null) continue;
+            int color = routeColor(route, snapshot);
+            boolean selected = route.id().equals(selectedLogisticsRoute)
+                    || logisticsSource != null && route.source().equals(logisticsSource)
+                    && logisticsDestination != null && route.destination().equals(logisticsDestination);
+            drawDashedArrow(graphics, from, to, selected && (System.currentTimeMillis() / 300L) % 2L == 0L
+                    ? 0xFFFFFFFF : color);
+        }
+        if (logisticsSource != null && logisticsDestination != null) {
+            MaidLogisticsSnapshot.Node source = logisticsNode(logisticsSource);
+            MaidLogisticsSnapshot.Node destination = logisticsNode(logisticsDestination);
+            if (source != null && destination != null) {
+                Projected from = projectNode(source, dimension, x, y, w, h, view);
+                Projected to = projectNode(destination, dimension, x, y, w, h, view);
+                if (from != null && to != null) drawDashedArrow(graphics, from, to,
+                        (System.currentTimeMillis() / 250L) % 2L == 0L ? 0xFFFFFFFF : ACCENT);
+            }
+        }
+        for (MaidLogisticsSnapshot.Node node : snapshot.nodes()) {
+            Projected point = projectNode(node, dimension, x, y, w, h, view);
+            if (point == null) continue;
+            boolean selected = node.ref().equals(selectedLogisticsNode)
+                    || node.ref().equals(logisticsSource) || node.ref().equals(logisticsDestination);
+            if (node.kind() == MaidLogisticsData.NodeKind.WAREHOUSE) {
+                drawWarehouse(graphics, point, selected, node.valid());
+            } else {
+                drawLicense(graphics, point, selected, node.valid());
+            }
+        }
+        for (MaidLogisticsSnapshot.Courier courier : snapshot.couriers()) {
+            if (courier.position() == null || !dimension.equals(courier.dimension())) continue;
+            Projected point = projectPosition(courier.position(), x, y, w, h, view);
+            if (point != null) drawDot(graphics, point, 0xFF000000 | courier.color(),
+                    courier.id().equals(selectedLogisticsCourier));
+        }
+        long day = Math.max(0L, snapshot.dayTime() / 24_000L) + 1L;
+        long clock = Math.floorMod(snapshot.dayTime(), 24_000L);
+        int hour = (int) ((clock / 1_000L + 6L) % 24L);
+        int minute = (int) ((clock % 1_000L) * 60L / 1_000L);
+        Component time = Component.translatable(
+                "gui.maid_storage_manager_extension.maid_logistics.time",
+                day, String.format(Locale.ROOT, "%02d:%02d", hour, minute));
+        int timeWidth = font.width(time) + 8;
+        graphics.fill(x + w - timeWidth - 4, y + 4, x + w - 4, y + 17, 0xC0101212);
+        graphics.drawString(font, time, x + w - timeWidth, y + 7, TEXT, false);
+    }
+
+    private void renderMaidLogisticsPanel(GuiGraphics graphics, Layout layout) {
+        MaidLogisticsSnapshot.Snapshot snapshot = maidLogisticsSnapshot();
+        int x = layout.rightX + 6;
+        int y = layout.contentY + 8;
+        int maxWidth = layout.rightWidth - 12;
+        graphics.drawString(font, Component.translatable(
+                "gui.maid_storage_manager_extension.compass.tab.maid_logistics"),
+                x, y, ACCENT, false);
+        y += 15;
+        if (!snapshot.error().isBlank()) {
+            graphics.drawString(font, Component.literal(snapshot.error()), x, y, ERROR, false);
+            return;
+        }
+        MaidLogisticsData.Route route = selectedLogisticsRoute();
+        if (logisticsSource != null && logisticsDestination != null) {
+            graphics.drawString(font, trim(Component.literal(nodeName(logisticsSource))
+                    .append(" → ").append(nodeName(logisticsDestination)), maxWidth),
+                    x, y, TEXT, false);
+            y += 15;
+            ItemStack item = heldRouteItem();
+            graphics.drawString(font, trim(Component.translatable(
+                    "gui.maid_storage_manager_extension.maid_logistics.cargo",
+                    item == null ? "-" : item.getHoverName(), logisticsAmount()), maxWidth),
+                    x, y, item == null ? ERROR : GOOD, false);
+            y += 15;
+            graphics.drawString(font, Component.translatable(
+                    "gui.maid_storage_manager_extension.maid_logistics.draft_help"),
+                    x, y, MUTED, false);
+            return;
+        }
+        if (route != null) {
+            graphics.drawString(font, trim(Component.literal(nodeName(route.source()))
+                    .append(" → ").append(nodeName(route.destination())), maxWidth),
+                    x, y, TEXT, false);
+            y += 15;
+            graphics.drawString(font, Component.translatable(
+                    "gui.maid_storage_manager_extension.maid_logistics.status."
+                            + route.status().name().toLowerCase(Locale.ROOT)),
+                    x, y, route.status() == MaidLogisticsData.RouteStatus.DESTINATION_FULL
+                            ? ERROR : route.status() == MaidLogisticsData.RouteStatus.READY
+                            || route.status() == MaidLogisticsData.RouteStatus.ACTIVE ? GOOD : MUTED,
+                    false);
+            y += 17;
+            for (MaidLogisticsData.CargoLine line : route.lines()) {
+                graphics.drawString(font, trim(line.prototype().getHoverName().copy()
+                        .append(" ×").append(Integer.toString(line.amount())), maxWidth),
+                        x, y, TEXT, false);
+                y += 12;
+            }
+            MaidLogisticsSnapshot.Courier courier = snapshot.couriers().stream()
+                    .filter(value -> value.id().equals(route.courier())).findFirst().orElse(null);
+            if (courier != null) {
+                y += 4;
+                graphics.drawString(font, Component.translatable(
+                        "gui.maid_storage_manager_extension.maid_logistics.courier",
+                        LogisticsDisplayName.decode(courier.name())),
+                        x, y, courier.onDuty() ? GOOD : MUTED, false);
+                y += 13;
+                graphics.drawString(font, Component.translatable(
+                        "gui.maid_storage_manager_extension.maid_logistics.schedule",
+                        courier.cursor() + 1, courier.slots().size()), x, y, MUTED, false);
+            }
+            return;
+        }
+        MaidLogisticsSnapshot.Courier selectedCourier = selectedLogisticsCourier();
+        if (selectedCourier != null && selectedLogisticsNode == null) {
+            graphics.drawString(font, trim(LogisticsDisplayName.decode(selectedCourier.name()), maxWidth),
+                    x, y, selectedCourier.onDuty() ? TEXT : MUTED, false);
+            y += 15;
+            graphics.drawString(font, Component.translatable(
+                    selectedCourier.activeRoute() == null
+                            ? "gui.maid_storage_manager_extension.maid_logistics.status.idle"
+                            : "gui.maid_storage_manager_extension.maid_logistics.status.active"),
+                    x, y, selectedCourier.activeRoute() == null ? MUTED : GOOD, false);
+            y += 15;
+            MaidLogisticsData.Route active = snapshot.routes().stream()
+                    .filter(value -> value.id().equals(selectedCourier.activeRoute()))
+                    .findFirst().orElse(null);
+            if (active != null) {
+                graphics.drawString(font, trim(Component.translatable(
+                        "gui.maid_storage_manager_extension.maid_logistics.current_route",
+                        nodeName(active.source()) + " → " + nodeName(active.destination())), maxWidth),
+                        x, y, TEXT, false);
+                y += 14;
+            }
+            graphics.drawString(font, Component.translatable(
+                    "gui.maid_storage_manager_extension.maid_logistics.carried"),
+                    x, y, ACCENT, false);
+            y += 13;
+            if (selectedCourier.cargo().isEmpty()) {
+                graphics.drawString(font, Component.literal("-"), x, y, MUTED, false);
+                y += 12;
+            } else {
+                for (MaidLogisticsData.CargoLine line : selectedCourier.cargo()) {
+                    graphics.drawString(font, trim(line.prototype().getHoverName().copy()
+                            .append(" ×").append(Integer.toString(line.amount())), maxWidth),
+                            x, y, TEXT, false);
+                    y += 12;
+                }
+            }
+            graphics.drawString(font, Component.translatable(
+                    "gui.maid_storage_manager_extension.maid_logistics.schedule",
+                    selectedCourier.slots().isEmpty() ? 0 : selectedCourier.cursor() + 1,
+                    selectedCourier.slots().size()), x, y, MUTED, false);
+            y += 13;
+            for (int i = 0; i < selectedCourier.slots().size() && y < layout.contentBottom() - 10; i++) {
+                UUID routeId = selectedCourier.slots().get(i);
+                MaidLogisticsData.Route slotRoute = snapshot.routes().stream()
+                        .filter(value -> value.id().equals(routeId)).findFirst().orElse(null);
+                String label = slotRoute == null ? routeId.toString().substring(0, 8)
+                        : nodeName(slotRoute.source()) + " → " + nodeName(slotRoute.destination());
+                graphics.drawString(font, trim(Component.literal(
+                        (i == selectedCourier.cursor() ? "▶ " : "  ") + label), maxWidth),
+                        x, y, i == selectedCourier.cursor() ? ACCENT : TEXT, false);
+                y += 11;
+            }
+            return;
+        }
+        MaidLogisticsSnapshot.Node node = logisticsNode(selectedLogisticsNode);
+        if (node != null) {
+            graphics.drawString(font, trim(node.kind() == MaidLogisticsData.NodeKind.WAREHOUSE
+                            ? LogisticsDisplayName.decode(node.name()) : Component.literal(node.name()), maxWidth),
+                    x, y, node.valid() ? TEXT : ERROR, false);
+            y += 15;
+            if (node.kind() == MaidLogisticsData.NodeKind.WAREHOUSE) {
+                graphics.drawString(font, Component.translatable(
+                        "gui.maid_storage_manager_extension.maid_logistics.inventory_types",
+                        node.inventoryTypes()), x, y, TEXT, false);
+                y += 13;
+                graphics.drawString(font, Component.translatable(
+                        "gui.maid_storage_manager_extension.maid_logistics.warehouse_state",
+                        Component.translatable(node.full()
+                                ? "gui.maid_storage_manager_extension.maid_logistics.full"
+                                : "gui.maid_storage_manager_extension.maid_logistics.accepting")),
+                        x, y, node.full() ? ERROR : GOOD, false);
+            } else {
+                graphics.drawString(font, Component.translatable(
+                        "gui.maid_storage_manager_extension.maid_logistics.bound_workers",
+                        node.boundWorkers()), x, y, TEXT, false);
+                y += 13;
+                graphics.drawString(font, Component.translatable(
+                        "gui.maid_storage_manager_extension.maid_logistics.rule",
+                        Component.translatable("gui.maid_storage_manager_extension.maid_logistics.rule."
+                                + node.ruleMode())), x, y, TEXT, false);
+                y += 13;
+                graphics.drawString(font, Component.translatable(
+                        "gui.maid_storage_manager_extension.maid_logistics.containers",
+                        node.containerCount()), x, y, TEXT, false);
+                y += 13;
+                for (MaidLogisticsSnapshot.LicenseWorker worker : node.workers()) {
+                    graphics.drawString(font, trim(LogisticsDisplayName.decode(worker.name()).copy().append(" · ")
+                            .append(Component.translatable(worker.onDuty()
+                                    ? "gui.maid_storage_manager_extension.maid_logistics.on_duty"
+                                    : "gui.maid_storage_manager_extension.maid_logistics.off_duty")),
+                            maxWidth), x, y, worker.onDuty() ? GOOD : MUTED, false);
+                    y += 11;
+                }
+                for (ResourceLocation item : node.filterItems()) {
+                    if (y >= layout.contentBottom() - 30) break;
+                    graphics.drawString(font, trim(Component.literal("• " + item), maxWidth),
+                            x, y, MUTED, false);
+                    y += 11;
+                }
+                if (!node.blocker().isBlank()) {
+                    graphics.drawString(font, trim(Component.literal(node.blocker()), maxWidth),
+                            x, y, ERROR, false);
+                }
+            }
+            y += 15;
+            graphics.drawString(font, Component.literal(node.position().toShortString()),
+                    x, y, MUTED, false);
+            y += 14;
+            for (MaidLogisticsData.Route related : snapshot.routes()) {
+                if (!related.source().equals(node.ref()) && !related.destination().equals(node.ref())) {
+                    continue;
+                }
+                MaidLogisticsSnapshot.Courier courier = snapshot.couriers().stream()
+                        .filter(value -> value.id().equals(related.courier())).findFirst().orElse(null);
+                String label = nodeName(related.source()) + " → " + nodeName(related.destination())
+                        + " · " + (courier == null ? related.courier().toString().substring(0, 8)
+                        : LogisticsDisplayName.decode(courier.name()).getString());
+                graphics.drawString(font, trim(Component.literal(label), maxWidth), x, y,
+                        related.status() == MaidLogisticsData.RouteStatus.DESTINATION_FULL
+                                ? ERROR : MUTED, false);
+                y += 11;
+                if (y >= layout.contentBottom() - 10) break;
+            }
+            return;
+        }
+        graphics.drawString(font, Component.translatable(
+                "gui.maid_storage_manager_extension.maid_logistics.select_help"),
+                x, y, MUTED, false);
+    }
+
+    private boolean handleLogisticsMapClick(double mouseX, double mouseY) {
+        Layout layout = layout();
+        if (!insideLogisticsMap(mouseX, mouseY, layout)) return false;
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.level == null || renderedMapView == null) return true;
+        int x = layout.mapX + 5;
+        int y = layout.contentY + 22;
+        int w = layout.mapWidth - 10;
+        int h = layout.contentHeight - 28;
+        ResourceLocation dimension = minecraft.level.dimension().location();
+        for (MaidLogisticsSnapshot.Courier courier : maidLogisticsSnapshot().couriers()) {
+            if (courier.position() == null || !dimension.equals(courier.dimension())) continue;
+            Projected point = projectPosition(courier.position(), x, y, w, h, renderedMapView);
+            if (point == null || !inside(mouseX, mouseY, point.x - 7, point.y - 7, 14, 14)) continue;
+            selectedLogisticsCourier = courier.id();
+            selectedLogisticsNode = null;
+            selectedLogisticsRoute = null;
+            logisticsSource = null;
+            logisticsDestination = null;
+            return true;
+        }
+        for (MaidLogisticsSnapshot.Node node : maidLogisticsSnapshot().nodes()) {
+            Projected point = projectNode(node, dimension, x, y, w, h, renderedMapView);
+            if (point == null || !inside(mouseX, mouseY, point.x - 8, point.y - 8, 16, 16)) continue;
+            selectedLogisticsNode = node.ref();
+            selectedLogisticsRoute = null;
+            if (logisticsSource == null) {
+                logisticsSource = node.ref();
+                logisticsDestination = null;
+                if (selectedLogisticsCourier == null && !maidLogisticsSnapshot().couriers().isEmpty()) {
+                    selectedLogisticsCourier = maidLogisticsSnapshot().couriers().get(0).id();
+                }
+            } else if (logisticsSource.equals(node.ref())) {
+                logisticsSource = null;
+                logisticsDestination = null;
+            } else if (MaidLogisticsData.validEndpoints(logisticsSource, node.ref())) {
+                logisticsDestination = node.ref();
+            }
+            return true;
+        }
+        MaidLogisticsData.Route clicked = routeAt(mouseX, mouseY, dimension, x, y, w, h);
+        if (clicked != null) {
+            selectedLogisticsRoute = clicked.id();
+            selectedLogisticsCourier = clicked.courier();
+            selectedLogisticsNode = null;
+            logisticsSource = null;
+            logisticsDestination = null;
+            return true;
+        }
+        selectedLogisticsNode = null;
+        selectedLogisticsRoute = null;
+        logisticsSource = null;
+        logisticsDestination = null;
+        return true;
+    }
+
+    private MaidLogisticsData.Route routeAt(double mouseX, double mouseY,
+                                            ResourceLocation dimension,
+                                            int x, int y, int w, int h) {
+        for (MaidLogisticsData.Route route : maidLogisticsSnapshot().routes()) {
+            MaidLogisticsSnapshot.Node source = logisticsNode(route.source());
+            MaidLogisticsSnapshot.Node destination = logisticsNode(route.destination());
+            if (source == null || destination == null) continue;
+            Projected a = projectNode(source, dimension, x, y, w, h, renderedMapView);
+            Projected b = projectNode(destination, dimension, x, y, w, h, renderedMapView);
+            if (a != null && b != null && pointSegmentDistance(mouseX, mouseY,
+                    a.x, a.y, b.x, b.y) <= 5.0D) return route;
+        }
+        return null;
+    }
+
+    private void confirmLogisticsRoute() {
+        ItemStack item = heldRouteItem();
+        if (logisticsSource == null || logisticsDestination == null
+                || selectedLogisticsCourier == null || item == null || logisticsAmount() <= 0) return;
+        net.neoforged.neoforge.network.PacketDistributor.sendToServer(new MaidLogisticsActionPacket(
+                MaidLogisticsActionPacket.Action.CREATE_ROUTE, menu.terminal(), null, 0L,
+                logisticsSource, logisticsDestination, selectedLogisticsCourier,
+                List.of(new MaidLogisticsData.CargoLine(item, logisticsAmount())), 0, 0));
+        logisticsSource = null;
+        logisticsDestination = null;
+    }
+
+    private void mutateSelectedRoute(MaidLogisticsActionPacket.Action action, int first, int second) {
+        MaidLogisticsData.Route route = selectedLogisticsRoute();
+        if (route == null) return;
+        net.neoforged.neoforge.network.PacketDistributor.sendToServer(new MaidLogisticsActionPacket(action,
+                menu.terminal(), route.id(), route.revision(), null, null,
+                route.courier(), List.of(), first, second));
+        if (action == MaidLogisticsActionPacket.Action.DELETE_ROUTE) selectedLogisticsRoute = null;
+    }
+
+    private void cycleLogisticsCourier() {
+        List<MaidLogisticsSnapshot.Courier> couriers = maidLogisticsSnapshot().couriers();
+        if (couriers.isEmpty()) {
+            selectedLogisticsCourier = null;
+            return;
+        }
+        int current = -1;
+        for (int i = 0; i < couriers.size(); i++) {
+            if (couriers.get(i).id().equals(selectedLogisticsCourier)) current = i;
+        }
+        selectedLogisticsCourier = couriers.get((current + 1) % couriers.size()).id();
+    }
+
+    private int selectedScheduleIndex() {
+        MaidLogisticsData.Route route = selectedLogisticsRoute();
+        if (route == null) return -1;
+        MaidLogisticsSnapshot.Courier courier = maidLogisticsSnapshot().couriers().stream()
+                .filter(value -> value.id().equals(route.courier())).findFirst().orElse(null);
+        return courier == null ? -1 : courier.slots().indexOf(route.id());
+    }
+
+    private int selectedScheduleSize() {
+        MaidLogisticsData.Route route = selectedLogisticsRoute();
+        if (route == null) return 0;
+        return maidLogisticsSnapshot().couriers().stream()
+                .filter(value -> value.id().equals(route.courier()))
+                .map(value -> value.slots().size()).findFirst().orElse(0);
+    }
+
+    private int logisticsAmount() {
+        try {
+            return Mth.clamp(Integer.parseInt(logisticsAmountBox.getValue()), 1,
+                    MaidLogisticsData.MAX_LINE_AMOUNT);
+        } catch (NumberFormatException ignored) {
+            return 0;
+        }
+    }
+
+    private ItemStack heldRouteItem() {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player == null) return null;
+        ItemStack stack = minecraft.player.getMainHandItem();
+        if (stack.isEmpty()) stack = minecraft.player.getOffhandItem();
+        return stack.isEmpty() ? null : stack.copyWithCount(1);
+    }
+
+    private MaidLogisticsData.Route selectedLogisticsRoute() {
+        return maidLogisticsSnapshot().routes().stream()
+                .filter(value -> value.id().equals(selectedLogisticsRoute))
+                .findFirst().orElse(null);
+    }
+
+    private MaidLogisticsSnapshot.Courier selectedLogisticsCourier() {
+        return maidLogisticsSnapshot().couriers().stream()
+                .filter(value -> value.id().equals(selectedLogisticsCourier))
+                .findFirst().orElse(null);
+    }
+
+    private MaidLogisticsSnapshot.Node logisticsNode(MaidLogisticsData.NodeRef ref) {
+        if (ref == null) return null;
+        return maidLogisticsSnapshot().nodes().stream()
+                .filter(value -> value.ref().equals(ref)).findFirst().orElse(null);
+    }
+
+    private String nodeName(MaidLogisticsData.NodeRef ref) {
+        MaidLogisticsSnapshot.Node node = logisticsNode(ref);
+        return node == null || node.name().isBlank()
+                ? ref.position().toShortString()
+                : node.kind() == MaidLogisticsData.NodeKind.WAREHOUSE
+                ? LogisticsDisplayName.decode(node.name()).getString() : node.name();
+    }
+
+    private int routeColor(MaidLogisticsData.Route route,
+                           MaidLogisticsSnapshot.Snapshot snapshot) {
+        if (route.status() == MaidLogisticsData.RouteStatus.DESTINATION_FULL) return ERROR;
+        boolean scheduled = snapshot.couriers().stream().filter(value ->
+                        value.id().equals(route.courier()))
+                .anyMatch(value -> value.slots().contains(route.id()));
+        if (!scheduled || route.status() == MaidLogisticsData.RouteStatus.SOURCE_EMPTY
+                || route.status() == MaidLogisticsData.RouteStatus.BLOCKED) return 0xFF8A8A8A;
+        return 0xFF000000 | snapshot.couriers().stream()
+                .filter(value -> value.id().equals(route.courier()))
+                .map(MaidLogisticsSnapshot.Courier::color).findFirst().orElse(0xBBBBBB);
+    }
+
+    private Projected projectNode(MaidLogisticsSnapshot.Node node, ResourceLocation dimension,
+                                  int x, int y, int w, int h, TerrainMapTexture.View view) {
+        if (!dimension.equals(node.dimension())) return null;
+        return projectPosition(node.position(), x, y, w, h, view);
+    }
+
+    private Projected projectPosition(BlockPos position, int x, int y, int w, int h,
+                                      TerrainMapTexture.View view) {
+        int px = (int) Math.round(x + w / 2.0D
+                + (position.getX() + 0.5D - view.centerX()) / view.blocksPerScreenPixel());
+        int py = (int) Math.round(y + h / 2.0D
+                + (position.getZ() + 0.5D - view.centerZ()) / view.blocksPerScreenPixel());
+        return px < x + 5 || px >= x + w - 5 || py < y + 5 || py >= y + h - 5
+                ? null : new Projected(px, py);
+    }
+
+    private static void drawLicense(GuiGraphics graphics, Projected point,
+                                    boolean selected, boolean valid) {
+        int border = selected ? BORDER_ACTIVE : valid ? 0xFFE4D7B5 : ERROR;
+        graphics.fill(point.x - 5, point.y - 6, point.x + 6, point.y + 7, border);
+        graphics.fill(point.x - 3, point.y - 4, point.x + 4, point.y + 5,
+                valid ? 0xFF546E7A : 0xFF6E4B52);
+        graphics.fill(point.x - 2, point.y - 7, point.x + 3, point.y - 4, border);
+    }
+
+    private static void drawDashedArrow(GuiGraphics graphics, Projected from,
+                                        Projected to, int color) {
+        double dx = to.x - from.x;
+        double dy = to.y - from.y;
+        int steps = Math.max(1, (int) Math.ceil(Math.sqrt(dx * dx + dy * dy)));
+        for (int i = 0; i <= steps; i++) {
+            if ((i / 4) % 2 != 0) continue;
+            int px = (int) Math.round(from.x + dx * i / steps);
+            int py = (int) Math.round(from.y + dy * i / steps);
+            graphics.fill(px, py, px + 2, py + 2, color);
+        }
+        double length = Math.max(1.0D, Math.sqrt(dx * dx + dy * dy));
+        double ux = dx / length;
+        double uy = dy / length;
+        int ax = (int) Math.round(to.x - ux * 6.0D);
+        int ay = (int) Math.round(to.y - uy * 6.0D);
+        graphics.fill(ax - 2, ay - 2, ax + 3, ay + 3, color);
+    }
+
+    private static double pointSegmentDistance(double px, double py,
+                                               double ax, double ay, double bx, double by) {
+        double dx = bx - ax;
+        double dy = by - ay;
+        if (dx == 0.0D && dy == 0.0D) return Math.hypot(px - ax, py - ay);
+        double t = Mth.clamp(((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy),
+                0.0D, 1.0D);
+        return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+    }
+
+    private static boolean insideLogisticsMap(double mouseX, double mouseY, Layout layout) {
+        return layout.mapWidth > 0 && inside(mouseX, mouseY,
+                layout.mapX + 5, layout.contentY + 22,
+                layout.mapWidth - 10, layout.contentHeight - 28);
+    }
+
     private void renderAccountSidebar(GuiGraphics graphics, Layout layout) {
         TerminalAccountSnapshot.Snapshot account = accountSnapshot();
         graphics.drawString(font, Component.translatable(
@@ -878,7 +1692,7 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
             Component name = mailbox.warehouseName().isBlank()
                     ? Component.literal(mailbox.warehouse() == null ? "?"
                     : mailbox.warehouse().toString().substring(0, 8))
-                    : Component.literal(mailbox.warehouseName());
+                    : LogisticsDisplayName.decode(mailbox.warehouseName());
             graphics.drawString(font, trim(Component.literal(expanded ? "▾ " : "▸ ").append(name),
                             layout.leftWidth - 16), layout.leftX + 8, y + 4,
                     mailbox.valid() ? TEXT : ERROR, false);
@@ -1089,13 +1903,15 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
         Component name = snapshot.warehouseName().isBlank()
                 ? Component.translatable("gui.maid_storage_manager_extension.compass.no_warehouse")
                 : LogisticsDisplayName.decode(snapshot.warehouseName());
-        graphics.drawString(font, trim(name, layout.rightWidth - 12),
+        graphics.drawString(font, trim(name, layout.rightWidth - 76),
                 layout.rightX + 6, layout.contentY + 7, TEXT, false);
         int stateColor = snapshot.inventoryState() == NetworkWarehouseSnapshot.InventoryState.FRESH
                 ? GOOD : snapshot.inventoryState() == NetworkWarehouseSnapshot.InventoryState.STALE
                 ? WARN : ERROR;
         graphics.drawString(font, inventoryState(snapshot), layout.rightX + 6,
                 layout.contentY + 17, stateColor, false);
+        graphics.drawString(font, trim(inventoryDiagnostic(snapshot), layout.rightWidth - 12),
+                layout.rightX + 6, layout.contentY + 26, MUTED, false);
         if (warehouseMode == WarehouseMode.DEPOSIT) {
             renderDepositHelp(graphics, layout, snapshot);
             return;
@@ -1103,8 +1919,8 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
 
         List<NetworkWarehouseSnapshot.InventoryEntry> filtered = filteredInventory(snapshot);
         int columns = Math.max(3, (layout.rightWidth - 12) / SLOT);
-        int gridY = layout.contentY + 70;
-        int gridBottom = layout.contentBottom - 70;
+        int gridY = layout.contentY + 75;
+        int gridBottom = layout.contentBottom - 94;
         int rows = Math.max(1, (gridBottom - gridY) / SLOT);
         int maxScroll = Math.max(0, (filtered.size() + columns - 1) / columns - rows);
         inventoryScroll = Mth.clamp(inventoryScroll, 0, maxScroll);
@@ -1141,12 +1957,15 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
                         "gui.maid_storage_manager_extension.compass.order_lines",
                         selectedAmounts.size(), NetworkWarehouseActionPacket.MAX_REQUEST_LINES),
                 layout.rightX + 6, layout.contentBottom - 78, MUTED, false);
+        graphics.drawString(font, trim(deliveryPreflight(snapshot), layout.rightWidth - 12),
+                layout.rightX + 6, layout.contentBottom - 90,
+                deliveryPreflightReady(snapshot) ? GOOD : WARN, false);
         if (!hovered.isEmpty()) graphics.renderTooltip(font, hovered, mouseX, mouseY);
     }
 
     private void renderDepositHelp(GuiGraphics graphics, Layout layout,
                                    NetworkWarehouseSnapshot.Snapshot snapshot) {
-        int y = layout.contentY + 55;
+        int y = layout.contentY + 61;
         List<Component> lines = List.of(
                 Component.translatable("gui.maid_storage_manager_extension.compass.deposit_help_1"),
                 Component.translatable("gui.maid_storage_manager_extension.compass.deposit_help_2"),
@@ -1186,11 +2005,15 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
                         + logistics.phase().toLowerCase(Locale.ROOT));
         graphics.drawString(font, trim(status, segment - 5),
                 footerX + segment, height - 23, TEXT, false);
-        Component link = Component.translatable(warehouse.enderPocketAvailable()
+        boolean returnBlocked = warehouse.returnBlocker() != CourierData.ReturnBlocker.NONE;
+        Component link = Component.translatable(returnBlocked
+                ? "gui.maid_storage_manager_extension.courier.return_blocker."
+                + warehouse.returnBlocker().name().toLowerCase(Locale.ROOT)
+                : warehouse.enderPocketAvailable()
                 ? "gui.maid_storage_manager_extension.compass.ender_ready"
                 : "gui.maid_storage_manager_extension.compass.ender_missing");
         graphics.drawString(font, trim(link, segment - 5), footerX + segment * 2, height - 23,
-                warehouse.enderPocketAvailable() ? GOOD : WARN, false);
+                !returnBlocked && warehouse.enderPocketAvailable() ? GOOD : WARN, false);
     }
 
     @Override
@@ -1204,6 +2027,14 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
         if (settingsPage) {
             return handleSettingsClick(mouseX, mouseY, button)
                     || super.mouseClicked(mouseX, mouseY, button);
+        }
+        if (serviceTab == ServiceTab.MAID_LOGISTICS) {
+            if (button == 2 && insideLogisticsMap(mouseX, mouseY, layout())) {
+                centerMapOnPlayer();
+                return true;
+            }
+            if (button == 0 && handleLogisticsMapClick(mouseX, mouseY)) return true;
+            return super.mouseClicked(mouseX, mouseY, button);
         }
         if (serviceTab == ServiceTab.MAID_TRANSPORT) {
             Layout layout = layout();
@@ -1317,12 +2148,25 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
         int mailboxRows = Math.min(settings.maxRows, account.mailboxes().size());
         for (int i = 0; i < mailboxRows; i++) {
             int rowY = settings.rowsY + i * settings.rowStride;
+            TerminalAccountSnapshot.Mailbox mailbox = account.mailboxes().get(i);
+            if (inside(mouseX, mouseY, settings.leftX + settings.columnWidth - 102,
+                    rowY + 3, 47, 20)) {
+                renamingMailbox = new MailboxKey(mailbox.dimension(), mailbox.position());
+                mailboxNameBox.setValue(LogisticsDisplayName.decode(
+                        mailbox.warehouseName()).getString());
+                mailboxNameBox.setFocused(true);
+                updateWidgetState();
+                return true;
+            }
             if (!inside(mouseX, mouseY, settings.leftX + settings.columnWidth - 51,
                     rowY + 3, 47, 20)) continue;
-            TerminalAccountSnapshot.Mailbox mailbox = account.mailboxes().get(i);
             net.neoforged.neoforge.network.PacketDistributor.sendToServer(new TerminalMailboxActionPacket(
                     TerminalMailboxActionPacket.Action.UNREGISTER, menu.terminal(),
                     mailbox.dimension(), mailbox.position()));
+            if (renamingMailbox != null && renamingMailbox.equals(
+                    new MailboxKey(mailbox.dimension(), mailbox.position()))) {
+                renamingMailbox = null;
+            }
             return true;
         }
         int maidRows = Math.min(settings.maxRows, account.maids().size());
@@ -1336,6 +2180,16 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
             return true;
         }
         return false;
+    }
+
+    private void saveMailboxName() {
+        if (renamingMailbox == null) return;
+        net.neoforged.neoforge.network.PacketDistributor.sendToServer(new TerminalMailboxActionPacket(
+                TerminalMailboxActionPacket.Action.RENAME, menu.terminal(),
+                renamingMailbox.dimension(), renamingMailbox.position(), mailboxNameBox.getValue()));
+        renamingMailbox = null;
+        mailboxNameBox.setFocused(false);
+        updateWidgetState();
     }
 
     private void requestWarehouseScan(TerminalAccountSnapshot.Mailbox mailbox) {
@@ -1597,6 +2451,57 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
         };
     }
 
+    private Component inventoryDiagnostic(NetworkWarehouseSnapshot.Snapshot snapshot) {
+        TerminalAccountSnapshot.WarehouseManager manager = selectedWarehouseManager();
+        Component interval = Component.translatable(
+                "gui.maid_storage_manager_extension.terminal.scan_interval."
+                        + (manager == null ? "unknown" : manager.scanInterval()));
+        if (snapshot.publishedGameTime() < 0L) {
+            Component reason = manager == null
+                    ? Component.translatable(
+                    "gui.maid_storage_manager_extension.terminal.inspection.offline")
+                    : Component.translatable(
+                    "gui.maid_storage_manager_extension.terminal.inspection."
+                            + manager.inspectionReadiness().name().toLowerCase(Locale.ROOT));
+            return Component.translatable(
+                    "gui.maid_storage_manager_extension.compass.inventory_never_detail",
+                    reason, interval);
+        }
+        return Component.translatable(
+                "gui.maid_storage_manager_extension.compass.inventory_updated_detail",
+                Math.max(0L, snapshot.inventoryAge() / 1_200L), interval);
+    }
+
+    private TerminalAccountSnapshot.WarehouseManager selectedWarehouseManager() {
+        MailboxKey selected = activeMailbox();
+        if (selected == null) return null;
+        return accountSnapshot().mailboxes().stream()
+                .filter(mailbox -> selected.equals(new MailboxKey(
+                        mailbox.dimension(), mailbox.position())))
+                .flatMap(mailbox -> mailbox.managers().stream())
+                .findFirst().orElse(null);
+    }
+
+    private Component deliveryPreflight(NetworkWarehouseSnapshot.Snapshot snapshot) {
+        if (deliveryTarget == NetworkWarehouseActionPacket.DeliveryTarget.FIXED_CHEST
+                && !snapshot.fixedDeliveryAvailable()) {
+            return Component.translatable(
+                    "gui.maid_storage_manager_extension.compass.preflight.fixed_delivery_missing");
+        }
+        return Component.translatable(
+                "gui.maid_storage_manager_extension.compass.preflight."
+                        + snapshot.transportHint().name().toLowerCase(Locale.ROOT));
+    }
+
+    private boolean deliveryPreflightReady(NetworkWarehouseSnapshot.Snapshot snapshot) {
+        if (deliveryTarget == NetworkWarehouseActionPacket.DeliveryTarget.FIXED_CHEST
+                && !snapshot.fixedDeliveryAvailable()) return false;
+        return switch (snapshot.transportHint()) {
+            case WALK, ENDER_POCKET, BROOM, BROOM_ENDER_POCKET -> true;
+            default -> false;
+        };
+    }
+
     private List<MapMarker> mapMarkers(Minecraft minecraft,
                                        NetworkWarehouseSnapshot.Snapshot snapshot) {
         List<MapMarker> result = new ArrayList<>();
@@ -1817,6 +2722,11 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
         return MaidTransportClientData.get(menu.terminal());
     }
 
+    private MaidLogisticsSnapshot.Snapshot maidLogisticsSnapshot() {
+        MaidLogisticsSnapshot.Snapshot snapshot = MaidLogisticsClientData.get(menu.terminal());
+        return snapshot == null ? MaidLogisticsSnapshot.Snapshot.empty("") : snapshot;
+    }
+
     private boolean isBound() {
         return accountSnapshot().authenticated() && activeCourier() != null;
     }
@@ -1863,7 +2773,7 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
         int contentY = 31;
         int contentBottom = height - 36;
         int contentHeight = Math.max(100, contentBottom - contentY);
-        int leftWidth = width < 640 ? 112 : 158;
+        int leftWidth = serviceTab == ServiceTab.MAID_LOGISTICS ? 0 : width < 640 ? 112 : 158;
         int rightWidth = width < 640 ? 214 : Math.min(292, Math.max(242, width / 3));
         int gap = 4;
         int mapWidth = width - margin * 2 - leftWidth - rightWidth - gap * 2;
@@ -1888,7 +2798,7 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
         int headingY = layout.contentY + 39;
         int rowsY = headingY + 18;
         int rowStride = 30;
-        int maxRows = Math.max(1, (layout.contentBottom - rowsY - 7) / rowStride);
+        int maxRows = Math.max(1, (layout.contentBottom - rowsY - 34) / rowStride);
         return new SettingsLayout(inset, rightX, columnWidth, titleY,
                 headingY, rowsY, rowStride, maxRows);
     }

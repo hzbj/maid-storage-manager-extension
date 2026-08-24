@@ -14,7 +14,8 @@ import net.minecraft.server.level.ServerPlayer;
 import java.util.UUID;
 
 public record TerminalMailboxActionPacket(Action action, UUID terminal,
-                                          ResourceLocation dimension, BlockPos position) implements CustomPacketPayload {
+                                          ResourceLocation dimension, BlockPos position,
+                                          String name) implements CustomPacketPayload {
     public static final Type<TerminalMailboxActionPacket> TYPE = new Type<>(MaidStorageManagerExtension.id("terminal_mailbox_action"));
     public static final StreamCodec<RegistryFriendlyByteBuf, TerminalMailboxActionPacket> STREAM_CODEC =
             StreamCodec.of((buffer, packet) -> encode(packet, buffer), TerminalMailboxActionPacket::decode);
@@ -22,18 +23,28 @@ public record TerminalMailboxActionPacket(Action action, UUID terminal,
     @Override
     public Type<? extends CustomPacketPayload> type() { return TYPE; }
 
-    public enum Action { BIND, UNBIND, SELECT_DEFAULT, ACTIVATE, UNREGISTER, REQUEST_SCAN }
+    public enum Action { BIND, UNBIND, SELECT_DEFAULT, ACTIVATE, UNREGISTER, REQUEST_SCAN, RENAME }
+
+    public TerminalMailboxActionPacket {
+        name = name == null ? "" : name;
+    }
+
+    public TerminalMailboxActionPacket(Action action, UUID terminal,
+                                       ResourceLocation dimension, BlockPos position) {
+        this(action, terminal, dimension, position, "");
+    }
 
     public static void encode(TerminalMailboxActionPacket packet, RegistryFriendlyByteBuf buffer) {
         buffer.writeEnum(packet.action);
         buffer.writeUUID(packet.terminal);
         buffer.writeResourceLocation(packet.dimension);
         buffer.writeBlockPos(packet.position);
+        buffer.writeUtf(packet.name, 128);
     }
 
     public static TerminalMailboxActionPacket decode(RegistryFriendlyByteBuf buffer) {
         return new TerminalMailboxActionPacket(buffer.readEnum(Action.class), buffer.readUUID(),
-                buffer.readResourceLocation(), buffer.readBlockPos());
+                buffer.readResourceLocation(), buffer.readBlockPos(), buffer.readUtf(128));
     }
 
     public static void handle(TerminalMailboxActionPacket packet, IPayloadContext context) {

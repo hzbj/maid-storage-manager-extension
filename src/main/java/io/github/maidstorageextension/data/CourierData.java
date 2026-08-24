@@ -39,6 +39,9 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
         OWNER_HANDOFF,
         OWNER_WAITING_SPACE,
         RETURNING_TO_ORIGIN,
+        RETURNING_TO_WAREHOUSE_STANDBY,
+        WAITING_FOR_WAREHOUSE_RETURN,
+        WAITING_AT_WAREHOUSE,
         RETURNING_AFTER_LANDING_FAILURE,
         WAITING_OWNER_PICKUP,
         WAITING_AT_STATION_AFTER_RECALL,
@@ -78,6 +81,27 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
         ENDER_POCKET,
         TERMINAL,
         LEGACY
+    }
+
+    public enum PostDeliveryMode {
+        FOLLOW_OWNER,
+        STAY_AT_DELIVERY,
+        RETURN_TO_DEFAULT_WAREHOUSE
+    }
+
+    public enum ReturnBlocker {
+        NONE,
+        DEFAULT_WAREHOUSE_UNAVAILABLE,
+        WRONG_DIMENSION,
+        STATION_UNAVAILABLE,
+        BROOM_MISSING
+    }
+
+    public enum RequestListOrigin {
+        LEGACY,
+        MAIN_HAND,
+        OFF_HAND,
+        BACKPACK
     }
 
     public static final class ManifestEntry {
@@ -137,7 +161,8 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
         private boolean targetWarningSent;
         private TransportMode transportMode = TransportMode.NONE;
         private int broomFlightDistance = DEFAULT_BROOM_FLIGHT_DISTANCE;
-        private boolean stayHomeAfterDelivery;
+        private PostDeliveryMode postDeliveryMode = PostDeliveryMode.FOLLOW_OWNER;
+        private ReturnBlocker returnBlocker = ReturnBlocker.NONE;
         private DispatchSource dispatchSource = DispatchSource.LEGACY;
         private boolean followOverrideActive;
         private boolean homeModeBeforeCourier;
@@ -153,9 +178,12 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
         private int flightRejectedLandings;
         private int flightLandingFailures;
         private ItemStack pendingList = ItemStack.EMPTY;
+        private RequestListOrigin requestListOrigin = RequestListOrigin.LEGACY;
+        private int requestListSlot = -1;
         private final List<ItemStack> pendingCargo = new ArrayList<>();
         private final List<ManifestEntry> requestManifest = new ArrayList<>();
         private final List<ManifestEntry> depositManifest = new ArrayList<>();
+        private final List<ManifestEntry> logisticsDepositFilter = new ArrayList<>();
         private long lastDepositProgressGameTime;
         private int lastDepositRemaining = -1;
         private long handoffStartedGameTime = -1L;
@@ -204,7 +232,8 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
         public boolean targetWarningSent() { return targetWarningSent; }
         public TransportMode transportMode() { return transportMode; }
         public int broomFlightDistance() { return broomFlightDistance; }
-        public boolean stayHomeAfterDelivery() { return stayHomeAfterDelivery; }
+        public PostDeliveryMode postDeliveryMode() { return postDeliveryMode; }
+        public ReturnBlocker returnBlocker() { return returnBlocker; }
         public DispatchSource dispatchSource() { return dispatchSource; }
         public boolean followOverrideActive() { return followOverrideActive; }
         public boolean homeModeBeforeCourier() { return homeModeBeforeCourier; }
@@ -220,9 +249,12 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
         public int flightRejectedLandings() { return flightRejectedLandings; }
         public int flightLandingFailures() { return flightLandingFailures; }
         public ItemStack pendingList() { return pendingList; }
+        public RequestListOrigin requestListOrigin() { return requestListOrigin; }
+        public int requestListSlot() { return requestListSlot; }
         public List<ItemStack> pendingCargo() { return pendingCargo; }
         public List<ManifestEntry> requestManifest() { return requestManifest; }
         public List<ManifestEntry> depositManifest() { return depositManifest; }
+        public List<ManifestEntry> logisticsDepositFilter() { return logisticsDepositFilter; }
         public long lastDepositProgressGameTime() { return lastDepositProgressGameTime; }
         public int lastDepositRemaining() { return lastDepositRemaining; }
         public long handoffStartedGameTime() { return handoffStartedGameTime; }
@@ -357,8 +389,12 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
         public void broomFlightDistance(int value) {
             broomFlightDistance = clampBroomFlightDistance(value);
         }
-        public void stayHomeAfterDelivery(boolean value) {
-            stayHomeAfterDelivery = value;
+        public void postDeliveryMode(PostDeliveryMode value) {
+            postDeliveryMode = value == null ? PostDeliveryMode.FOLLOW_OWNER : value;
+            returnBlocker = ReturnBlocker.NONE;
+        }
+        public void returnBlocker(ReturnBlocker value) {
+            returnBlocker = value == null ? ReturnBlocker.NONE : value;
         }
         public void dispatchSource(DispatchSource value) {
             dispatchSource = value == null ? DispatchSource.LEGACY : value;
@@ -456,6 +492,14 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
             flightLandingFailures = 0;
         }
         public void pendingList(ItemStack value) { pendingList = value == null ? ItemStack.EMPTY : value.copy(); }
+        public void requestListOrigin(RequestListOrigin origin, int slot) {
+            requestListOrigin = origin == null ? RequestListOrigin.LEGACY : origin;
+            requestListSlot = requestListOrigin == RequestListOrigin.BACKPACK ? Math.max(0, slot) : -1;
+        }
+        public void clearRequestListOrigin() {
+            requestListOrigin = RequestListOrigin.LEGACY;
+            requestListSlot = -1;
+        }
         public void lastDepositProgressGameTime(long value) { lastDepositProgressGameTime = Math.max(0L, value); }
         public void lastDepositRemaining(int value) { lastDepositRemaining = value; }
         public void handoffStartedGameTime(long value) { handoffStartedGameTime = value; }
@@ -598,7 +642,8 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
         tag.putBoolean("targetWarningSent", data.targetWarningSent);
         tag.putString("transportMode", data.transportMode.name());
         tag.putInt("broomFlightDistance", data.broomFlightDistance);
-        tag.putBoolean("stayHomeAfterDelivery", data.stayHomeAfterDelivery);
+        tag.putString("postDeliveryMode", data.postDeliveryMode.name());
+        tag.putString("returnBlocker", data.returnBlocker.name());
         tag.putString("dispatchSource", data.dispatchSource.name());
         tag.putBoolean("followOverrideActive", data.followOverrideActive);
         tag.putBoolean("homeModeBeforeCourier", data.homeModeBeforeCourier);
@@ -614,9 +659,12 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
         tag.putInt("flightRejectedLandings", data.flightRejectedLandings);
         tag.putInt("flightLandingFailures", data.flightLandingFailures);
         if (!data.pendingList.isEmpty()) tag.put("pendingList", ItemStackNbt.save(data.pendingList));
+        tag.putString("requestListOrigin", data.requestListOrigin.name());
+        tag.putInt("requestListSlot", data.requestListSlot);
         tag.put("pendingCargo", writeStacks(data.pendingCargo));
         tag.put("requestManifest", writeManifest(data.requestManifest));
         tag.put("depositManifest", writeManifest(data.depositManifest));
+        tag.put("logisticsDepositFilter", writeManifest(data.logisticsDepositFilter));
         tag.putLong("lastDepositProgressGameTime", data.lastDepositProgressGameTime);
         tag.putInt("lastDepositRemaining", data.lastDepositRemaining);
         tag.putLong("handoffStartedGameTime", data.handoffStartedGameTime);
@@ -703,7 +751,18 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
         data.broomFlightDistance = tag.contains("broomFlightDistance")
                 ? clampBroomFlightDistance(tag.getInt("broomFlightDistance"))
                 : DEFAULT_BROOM_FLIGHT_DISTANCE;
-        data.stayHomeAfterDelivery = tag.getBoolean("stayHomeAfterDelivery");
+        try {
+            data.postDeliveryMode = PostDeliveryMode.valueOf(tag.getString("postDeliveryMode"));
+        } catch (IllegalArgumentException ignored) {
+            // 1.4.0 stored only the old two-state flag; preserve that exact choice on upgrade.
+            data.postDeliveryMode = tag.getBoolean("stayHomeAfterDelivery")
+                    ? PostDeliveryMode.STAY_AT_DELIVERY : PostDeliveryMode.FOLLOW_OWNER;
+        }
+        try {
+            data.returnBlocker = ReturnBlocker.valueOf(tag.getString("returnBlocker"));
+        } catch (IllegalArgumentException ignored) {
+            data.returnBlocker = ReturnBlocker.NONE;
+        }
         try {
             data.dispatchSource = DispatchSource.valueOf(tag.getString("dispatchSource"));
         } catch (IllegalArgumentException ignored) {
@@ -734,9 +793,19 @@ public final class CourierData implements TaskDataKey<CourierData.Data> {
         if (tag.contains("pendingList", Tag.TAG_COMPOUND)) {
             data.pendingList = ItemStackNbt.load(tag.getCompound("pendingList"));
         }
+        try {
+            data.requestListOrigin = RequestListOrigin.valueOf(tag.getString("requestListOrigin"));
+        } catch (IllegalArgumentException ignored) {
+            // In-flight legacy requests did not remember a slot and must use the old safe fallback.
+            data.requestListOrigin = RequestListOrigin.LEGACY;
+        }
+        data.requestListSlot = data.requestListOrigin == RequestListOrigin.BACKPACK
+                ? Math.max(0, tag.getInt("requestListSlot")) : -1;
         data.pendingCargo.addAll(readStacks(tag.getList("pendingCargo", Tag.TAG_COMPOUND)));
         data.requestManifest.addAll(readManifest(tag.getList("requestManifest", Tag.TAG_COMPOUND)));
         data.depositManifest.addAll(readManifest(tag.getList("depositManifest", Tag.TAG_COMPOUND)));
+        data.logisticsDepositFilter.addAll(readManifest(
+                tag.getList("logisticsDepositFilter", Tag.TAG_COMPOUND)));
         data.lastDepositProgressGameTime = Math.max(0L, tag.getLong("lastDepositProgressGameTime"));
         data.lastDepositRemaining = tag.contains("lastDepositRemaining")
                 ? tag.getInt("lastDepositRemaining") : -1;

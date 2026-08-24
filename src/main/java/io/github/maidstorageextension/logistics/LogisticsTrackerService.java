@@ -107,6 +107,8 @@ public final class LogisticsTrackerService {
                     REQUEST_WAITING_SPACE, TRAVEL_TO_WAREHOUSE_DEPOSIT, DEPOSIT_HANDOFF,
                     DEPOSIT_RUNNING, DEPOSIT_RETURNING, DEPOSIT_WAITING_SPACE,
                     WAITING_APPROVAL, WAITING_AT_STATION_AFTER_RECALL,
+                    RETURNING_TO_WAREHOUSE_STANDBY, WAITING_FOR_WAREHOUSE_RETURN,
+                    WAITING_AT_WAREHOUSE,
                     LINK_UNAVAILABLE -> warehouseTarget(courier, data, warehouse);
             case TRAVEL_TO_OWNER, OWNER_HANDOFF, OWNER_WAITING_SPACE,
                     WAITING_OWNER_PICKUP ->
@@ -183,7 +185,7 @@ public final class LogisticsTrackerService {
         for (CourierData.WarehouseBinding binding : data.warehouses()) {
             EntityMaid warehouse = findMaid(server, binding.warehouse());
             String name = warehouse == null ? binding.warehouseName()
-                    : LogisticsDisplayName.encode(warehouse.getName());
+                    : MaidDisplayName.encode(warehouse);
             if (warehouse == null && !name.isBlank()) {
                 name = LogisticsDisplayName.encode(net.minecraft.network.chat.Component.literal(name));
             }

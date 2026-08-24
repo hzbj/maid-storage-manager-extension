@@ -55,8 +55,8 @@ class EnderPocketRemoteAccessContractTest {
                 "CourierCommandPacket.broomFlightDistance(\n"
                         + "                menu.maidId(), broomFlightDistance)"));
         assertTrue(source.contains(
-                "CourierCommandPacket.postDeliveryHomeMode(\n"
-                        + "                menu.maidId(), stayHomeAfterDelivery)"));
+                "CourierCommandPacket.postDeliveryMode(\n"
+                        + "                menu.maidId(), postDeliveryMode)"));
         assertTrue(source.contains(
                 "CourierCommandPacket.selectWarehouse(menu.maidId(), warehouse)"));
     }
