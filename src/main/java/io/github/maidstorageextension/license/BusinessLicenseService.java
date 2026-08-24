@@ -8,6 +8,7 @@ import io.github.maidstorageextension.logistics.MaidDisplayName;
 import io.github.maidstorageextension.network.BusinessLicenseActionPacket;
 import io.github.maidstorageextension.network.BusinessLicenseSnapshotPacket;
 import io.github.maidstorageextension.network.ExtensionNetwork;
+import io.github.maidstorageextension.terminal.TerminalAccountData;
 import io.github.maidstorageextension.terminal.TerminalAccountService;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -225,7 +226,9 @@ public final class BusinessLicenseService {
         }
         BusinessLicenseSnapshot.Snapshot snapshot = new BusinessLicenseSnapshot.Snapshot(
                 value.id(), value.name(), value.mode(), value.filterItems(), value.profession(),
-                workers, value.containers().size(), value.landingPos(), value.revision(), value.blocker());
+                workers, value.containers().size(), value.landingPos(),
+                TerminalAccountData.get(player.getServer()).isLicenseRegistered(value.id()),
+                value.revision(), value.blocker());
         ExtensionNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
                 new BusinessLicenseSnapshotPacket(snapshot));
     }

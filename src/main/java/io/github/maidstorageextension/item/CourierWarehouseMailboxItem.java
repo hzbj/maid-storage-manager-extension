@@ -134,6 +134,9 @@ public final class CourierWarehouseMailboxItem extends BlockItem {
             tooltip.add(Component.translatable(
                     "tooltip.maid_storage_manager_extension.courier_mailbox.unmarked")
                     .withStyle(ChatFormatting.YELLOW));
+            tooltip.add(Component.translatable(
+                    "tooltip.maid_storage_manager_extension.courier_mailbox.pad_requirements")
+                    .withStyle(ChatFormatting.GRAY));
         } else {
             tooltip.add(Component.translatable(
                     "tooltip.maid_storage_manager_extension.courier_mailbox.marked",

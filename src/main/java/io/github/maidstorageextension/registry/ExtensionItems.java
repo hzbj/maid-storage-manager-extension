@@ -6,20 +6,20 @@ import io.github.maidstorageextension.item.LogisticsTrackerItem;
 import io.github.maidstorageextension.item.TaskBellItem;
 import io.github.maidstorageextension.item.CourierWarehouseMailboxItem;
 import io.github.maidstorageextension.item.BusinessLicenseItem;
+import io.github.maidstorageextension.item.MiscStorageMarkerItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.BlockItem;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.registries.RegistryObject;
-import studio.fantasyit.maid_storage_manager.items.HangUpItem;
 
 public final class ExtensionItems {
     public static final DeferredRegister<Item> REGISTER =
             DeferredRegister.create(ForgeRegistries.ITEMS, MaidStorageManagerExtension.MOD_ID);
 
     public static final RegistryObject<Item> MISC_STORAGE =
-            REGISTER.register("misc_storage", HangUpItem::new);
+            REGISTER.register("misc_storage", MiscStorageMarkerItem::new);
     public static final RegistryObject<Item> INVENTORY_MAINTENANCE_DEVICE =
             REGISTER.register("inventory_maintenance_device", InventoryMaintenanceDevice::new);
     public static final RegistryObject<Item> LOGISTICS_TRACKER =

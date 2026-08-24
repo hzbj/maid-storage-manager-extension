@@ -23,7 +23,7 @@ class ChineseRequestListTerminologyTest {
         String language = Files.readString(languageFile, StandardCharsets.UTF_8);
         JsonObject json = JsonParser.parseString(language).getAsJsonObject();
 
-        assertEquals("需要女仆手持请求列表",
+        assertEquals("女仆手中或背包需要可编辑请求列表",
                 json.get("gui.maid_storage_manager_extension.compass.request_list_required")
                         .getAsString());
         assertFalse(language.contains("需求清单"));

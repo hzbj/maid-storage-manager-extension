@@ -21,7 +21,7 @@ public final class BusinessLicenseSnapshot {
     public record Snapshot(UUID id, String name, BusinessLicenseData.RuleMode mode,
                            List<ResourceLocation> filterItems, ResourceLocation profession,
                            List<Worker> workers, int containers, BlockPos landing,
-                           long revision, String blocker) {
+                           boolean terminalRegistered, long revision, String blocker) {
         public Snapshot {
             name = name == null ? "" : name;
             mode = mode == null ? BusinessLicenseData.RuleMode.WHITELIST : mode;
@@ -60,6 +60,7 @@ public final class BusinessLicenseSnapshot {
         tag.put("workers", workers);
         tag.putInt("containers", snapshot.containers());
         if (snapshot.landing() != null) tag.putLong("landing", snapshot.landing().asLong());
+        tag.putBoolean("terminalRegistered", snapshot.terminalRegistered());
         tag.putLong("revision", snapshot.revision());
         tag.putString("blocker", snapshot.blocker());
         return tag;
@@ -68,7 +69,7 @@ public final class BusinessLicenseSnapshot {
     public static Snapshot fromTag(CompoundTag tag) {
         UUID id = tag != null && tag.hasUUID("id") ? tag.getUUID("id") : null;
         if (tag == null) return new Snapshot(null, "", BusinessLicenseData.RuleMode.WHITELIST,
-                List.of(), null, List.of(), 0, null, 0L, "");
+                List.of(), null, List.of(), 0, null, false, 0L, "");
         BusinessLicenseData.RuleMode mode;
         try {
             mode = BusinessLicenseData.RuleMode.valueOf(tag.getString("mode"));
@@ -91,8 +92,9 @@ public final class BusinessLicenseSnapshot {
         }
         return new Snapshot(id, tag.getString("name"), mode, filters,
                 ResourceLocation.tryParse(tag.getString("profession")), workers,
-                Math.max(0, tag.getInt("containers")),
-                tag.contains("landing", Tag.TAG_LONG) ? BlockPos.of(tag.getLong("landing")) : null,
-                Math.max(0L, tag.getLong("revision")), tag.getString("blocker"));
+                 Math.max(0, tag.getInt("containers")),
+                 tag.contains("landing", Tag.TAG_LONG) ? BlockPos.of(tag.getLong("landing")) : null,
+                 tag.getBoolean("terminalRegistered"),
+                 Math.max(0L, tag.getLong("revision")), tag.getString("blocker"));
     }
 }

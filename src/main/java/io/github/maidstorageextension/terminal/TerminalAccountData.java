@@ -191,6 +191,12 @@ public final class TerminalAccountData extends SavedData {
         return Set.copyOf(keys);
     }
 
+    public boolean isLicenseRegistered(UUID licenseId) {
+        return licenseId != null && accounts.values().stream()
+                .anyMatch(account -> account.licenses.stream()
+                        .anyMatch(license -> licenseId.equals(license.id())));
+    }
+
     public byte[] grant(Account account, UUID terminalId) {
         if (account == null || terminalId == null) return new byte[0];
         byte[] token = TerminalPassword.token();

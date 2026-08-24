@@ -17,7 +17,7 @@ import java.util.UUID;
 
 public final class CourierConfigScreen extends AbstractContainerScreen<CourierConfigMenu> {
     private int broomFlightDistance;
-    private boolean stayHomeAfterDelivery;
+    private CourierData.PostDeliveryMode postDeliveryMode;
 
     public CourierConfigScreen(CourierConfigMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
@@ -34,8 +34,8 @@ public final class CourierConfigScreen extends AbstractContainerScreen<CourierCo
         broomFlightDistance = maid == null
                 ? CourierData.DEFAULT_BROOM_FLIGHT_DISTANCE
                 : CourierData.get(maid).broomFlightDistance();
-        stayHomeAfterDelivery = maid != null
-                && CourierData.get(maid).stayHomeAfterDelivery();
+        postDeliveryMode = maid == null ? CourierData.PostDeliveryMode.FOLLOW_OWNER
+                : CourierData.get(maid).postDeliveryMode();
         List<CourierData.WarehouseBinding> stations = maid == null
                 ? List.of() : CourierData.get(maid).warehouses();
         for (int i = 0; i < stations.size(); i++) {
@@ -69,9 +69,10 @@ public final class CourierConfigScreen extends AbstractContainerScreen<CourierCo
                 })
                 .bounds(x + 116, controlsY + 24, 104, 20).build());
         addRenderableWidget(Button.builder(postDeliveryModeLabel(), button -> {
-                    stayHomeAfterDelivery = !stayHomeAfterDelivery;
+                    CourierData.PostDeliveryMode[] values = CourierData.PostDeliveryMode.values();
+                    postDeliveryMode = values[(postDeliveryMode.ordinal() + 1) % values.length];
                     button.setMessage(postDeliveryModeLabel());
-                    sendPostDeliveryHomeMode();
+                    sendPostDeliveryMode();
                 })
                 .bounds(x, controlsY + 48, 220, 20).build());
     }
@@ -86,9 +87,9 @@ public final class CourierConfigScreen extends AbstractContainerScreen<CourierCo
                 menu.maidId(), broomFlightDistance));
     }
 
-    private void sendPostDeliveryHomeMode() {
-        ExtensionNetwork.CHANNEL.sendToServer(CourierCommandPacket.postDeliveryHomeMode(
-                menu.maidId(), stayHomeAfterDelivery));
+    private void sendPostDeliveryMode() {
+        ExtensionNetwork.CHANNEL.sendToServer(CourierCommandPacket.postDeliveryMode(
+                menu.maidId(), postDeliveryMode));
     }
 
     private void sendSelect(UUID warehouse) {
@@ -116,9 +117,8 @@ public final class CourierConfigScreen extends AbstractContainerScreen<CourierCo
     private Component postDeliveryModeLabel() {
         return Component.translatable(
                 "gui.maid_storage_manager_extension.courier.post_delivery_mode",
-                Component.translatable(stayHomeAfterDelivery
-                        ? "gui.maid_storage_manager_extension.courier.post_delivery_home"
-                        : "gui.maid_storage_manager_extension.courier.post_delivery_follow"));
+                Component.translatable("gui.maid_storage_manager_extension.courier.post_delivery_"
+                        + postDeliveryMode.name().toLowerCase(java.util.Locale.ROOT)));
     }
 
     @Override

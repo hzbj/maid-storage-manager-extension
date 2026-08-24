@@ -86,7 +86,7 @@ public final class ExtensionConfigData implements TaskDataKey<ExtensionConfigDat
         }
 
         public static Data defaults() {
-            return new Data(PeriodicScanInterval.DISABLED, false);
+            return new Data(PeriodicScanInterval.MINUTES_15, false);
         }
 
         public PeriodicScanInterval periodicScanInterval() {

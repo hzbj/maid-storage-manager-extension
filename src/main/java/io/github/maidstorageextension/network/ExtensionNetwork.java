@@ -6,7 +6,7 @@ import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.simple.SimpleChannel;
 
 public final class ExtensionNetwork {
-    private static final String PROTOCOL = "16";
+    private static final String PROTOCOL = "17";
     static final int EXTENSION_CONFIG_ID = 0;
     static final int REACHABILITY_DEBUG_ID = 1;
     static final int COURIER_COMMAND_ID = 2;

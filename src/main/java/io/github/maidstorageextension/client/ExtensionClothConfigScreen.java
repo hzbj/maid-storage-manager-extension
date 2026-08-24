@@ -181,7 +181,7 @@ public final class ExtensionClothConfigScreen {
                         current.periodicScanInterval())
                 .setEnumNameProvider(value -> Component.translatable(
                         ((PeriodicScanInterval) value).translationKey()))
-                .setDefaultValue(PeriodicScanInterval.DISABLED)
+                .setDefaultValue(PeriodicScanInterval.MINUTES_15)
                 .setSaveConsumer(value -> draft.interval = value)
                 .build());
 

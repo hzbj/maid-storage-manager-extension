@@ -55,6 +55,12 @@ class CourierRuntimePolicyTest {
                 CourierData.TransportMode.BROOM, CourierData.Phase.RETURNING_TO_ORIGIN));
         assertTrue(CourierRuntimePolicy.shouldKeepCourierChunkLoaded(
                 CourierData.TransportMode.BROOM,
+                CourierData.Phase.RETURNING_TO_WAREHOUSE_STANDBY));
+        assertTrue(CourierRuntimePolicy.shouldKeepCourierChunkLoaded(
+                CourierData.TransportMode.NONE,
+                CourierData.Phase.WAITING_FOR_WAREHOUSE_RETURN));
+        assertTrue(CourierRuntimePolicy.shouldKeepCourierChunkLoaded(
+                CourierData.TransportMode.BROOM,
                 CourierData.Phase.RETURNING_AFTER_LANDING_FAILURE));
         assertTrue(CourierRuntimePolicy.shouldKeepCourierChunkLoaded(
                 CourierData.TransportMode.BROOM, CourierData.Phase.WAITING_FOR_SAFE_LANDING));

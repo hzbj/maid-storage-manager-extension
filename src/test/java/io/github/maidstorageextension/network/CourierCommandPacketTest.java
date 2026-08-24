@@ -1,5 +1,6 @@
 package io.github.maidstorageextension.network;
 
+import io.github.maidstorageextension.data.CourierData;
 import io.netty.buffer.Unpooled;
 import net.minecraft.network.FriendlyByteBuf;
 import org.junit.jupiter.api.Test;
@@ -40,8 +41,9 @@ class CourierCommandPacketTest {
     }
 
     @Test
-    void postDeliveryHomeModeRoundTrips() {
-        CourierCommandPacket source = CourierCommandPacket.postDeliveryHomeMode(23, true);
+    void postDeliveryModeRoundTrips() {
+        CourierCommandPacket source = CourierCommandPacket.postDeliveryMode(
+                23, CourierData.PostDeliveryMode.RETURN_TO_DEFAULT_WAREHOUSE);
         FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
 
         CourierCommandPacket.encode(source, buffer);

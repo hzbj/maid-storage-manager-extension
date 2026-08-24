@@ -81,6 +81,11 @@ public final class BusinessLicenseScreen extends AbstractContainerScreen<Busines
                       BusinessLicenseData.RuleMode mode, String value) {
         ExtensionNetwork.CHANNEL.sendToServer(new BusinessLicenseActionPacket(
                 action, menu.licenseId(), mode, value));
+        if (action == BusinessLicenseActionPacket.Action.ARM_CONTAINER
+                || action == BusinessLicenseActionPacket.Action.ARM_LANDING
+                || action == BusinessLicenseActionPacket.Action.ARM_WORKER) {
+            onClose();
+        }
     }
 
     private BusinessLicenseSnapshot.Snapshot snapshot() {
@@ -141,24 +146,29 @@ public final class BusinessLicenseScreen extends AbstractContainerScreen<Busines
             Item item = ForgeRegistries.ITEMS.getValue(items.get(i));
             if (item != null) graphics.renderItem(new ItemStack(item), slotX, slotY);
         }
-        graphics.drawString(font, Component.translatable(
-                "gui.maid_storage_manager_extension.business_license.summary",
-                snapshot.workers().size(), BusinessLicenseData.MAX_WORKERS,
-                snapshot.containers(), BusinessLicenseData.MAX_CONTAINERS),
-                166, 92, MUTED, false);
-        String landing = snapshot.landing() == null ? "-"
-                : snapshot.landing().getX() + ", " + snapshot.landing().getY()
-                + ", " + snapshot.landing().getZ();
-        graphics.drawString(font, Component.translatable(
-                "gui.maid_storage_manager_extension.business_license.landing_value", landing),
-                166, 106, MUTED, false);
-        if (!snapshot.blocker().isBlank()) {
-            graphics.drawString(font, Component.translatable(snapshot.blocker()),
-                    166, 120, 0xFFFF7777, false);
-        }
         graphics.drawWordWrap(font, Component.translatable(
-                        "gui.maid_storage_manager_extension.business_license.jei_help"),
-                166, 144, 150, MUTED);
+                        "gui.maid_storage_manager_extension.business_license.purpose"),
+                166, 80, 150, TEXT);
+        graphics.drawString(font, Component.translatable(
+                        "gui.maid_storage_manager_extension.business_license.checklist"),
+                166, 122, ACCENT, false);
+        boolean ruleReady = snapshot.mode() == BusinessLicenseData.RuleMode.BLACKLIST
+                || !snapshot.filterItems().isEmpty();
+        renderChecklistLine(graphics, 134, "rule", ruleReady);
+        renderChecklistLine(graphics, 146, "container", snapshot.containers() > 0);
+        renderChecklistLine(graphics, 158, "worker", !snapshot.workers().isEmpty());
+        renderChecklistLine(graphics, 170, "landing", snapshot.landing() != null);
+        renderChecklistLine(graphics, 182, "terminal", snapshot.terminalRegistered());
+        if (!snapshot.blocker().isBlank()) {
+            graphics.drawString(font, trim(Component.translatable(snapshot.blocker()), 150),
+                    166, 198, 0xFFFF7777, false);
+        }
+    }
+
+    private void renderChecklistLine(GuiGraphics graphics, int y, String suffix, boolean ready) {
+        Component label = Component.literal(ready ? "✓ " : "! ").append(Component.translatable(
+                "gui.maid_storage_manager_extension.business_license.checklist." + suffix));
+        graphics.drawString(font, trim(label, 150), 166, y, ready ? 0xFF63C79D : 0xFFE0B35B, false);
     }
 
     public void toggleFilter(ItemStack stack) {

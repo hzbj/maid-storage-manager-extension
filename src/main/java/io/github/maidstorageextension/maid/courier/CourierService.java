@@ -43,6 +43,10 @@ public final class CourierService {
     private static final String META_ORIGINAL_STORAGE = "originalStorage";
     private static final String META_ORIGINAL_ENTITY = "originalEntity";
     private static final String META_FAILURE_RETURN = "failureReturn";
+
+    public record EditableRequestList(CourierData.RequestListOrigin origin,
+                                      int backpackSlot, ItemStack stack) {
+    }
     private static final double BIND_RANGE = 32.0;
     private static final double OWNER_ANCHOR_RANGE = 8.0;
     private static final double HANDOFF_DISTANCE = 2.75;
@@ -183,11 +187,11 @@ public final class CourierService {
         sync(courier, data);
     }
 
-    public static void setPostDeliveryHomeMode(ServerPlayer owner, EntityMaid courier,
-                                               boolean stayHome) {
+    public static void setPostDeliveryMode(ServerPlayer owner, EntityMaid courier, int ordinal) {
         if (!isCourierOwnedBy(courier, owner)) return;
         CourierData.Data data = CourierData.get(courier);
-        data.stayHomeAfterDelivery(stayHome);
+        CourierData.PostDeliveryMode[] values = CourierData.PostDeliveryMode.values();
+        data.postDeliveryMode(values[Math.max(0, Math.min(values.length - 1, ordinal))]);
         sync(courier, data);
     }
 
@@ -533,6 +537,8 @@ public final class CourierService {
                     approachDeliveryChest(level, courier, data);
             case OWNER_HANDOFF, OWNER_WAITING_SPACE -> handoffToOwner(level, courier, data);
             case RETURNING_TO_ORIGIN -> returnToOrigin(level, courier, data);
+            case RETURNING_TO_WAREHOUSE_STANDBY ->
+                    returnToWarehouseStandby(level, courier, data);
             case RETURNING_AFTER_LANDING_FAILURE ->
                     waitAfterLandingFailure(courier, data);
             case TRAVEL_TO_WAREHOUSE_DEPOSIT -> {
@@ -625,7 +631,8 @@ public final class CourierService {
         boolean broomAlreadyActive = CourierBroomFlightService.isCourierBroom(courier.getVehicle())
                 || data.courierBroom() != null;
         BlockPos fixedLanding = switch (data.phase()) {
-            case TRAVEL_TO_WAREHOUSE_REQUEST, TRAVEL_TO_WAREHOUSE_DEPOSIT ->
+            case TRAVEL_TO_WAREHOUSE_REQUEST, TRAVEL_TO_WAREHOUSE_DEPOSIT,
+                    RETURNING_TO_WAREHOUSE_STANDBY ->
                     stationReady ? station.stationPos() : null;
             default -> null;
         };
@@ -637,7 +644,8 @@ public final class CourierService {
             default -> null;
         };
         boolean warehouseLeg = data.phase() == CourierData.Phase.TRAVEL_TO_WAREHOUSE_REQUEST
-                || data.phase() == CourierData.Phase.TRAVEL_TO_WAREHOUSE_DEPOSIT;
+                || data.phase() == CourierData.Phase.TRAVEL_TO_WAREHOUSE_DEPOSIT
+                || data.phase() == CourierData.Phase.RETURNING_TO_WAREHOUSE_STANDBY;
         boolean stationTakeoffLeg = data.flightLeg() != data.phase()
                 && (data.phase() == CourierData.Phase.TRAVEL_TO_OWNER
                 || data.phase() == CourierData.Phase.TRAVEL_TO_DELIVERY_CHEST
@@ -661,7 +669,8 @@ public final class CourierService {
 
     private static Vec3 broomTarget(ServerLevel level, EntityMaid courier, CourierData.Data data) {
         return switch (data.phase()) {
-            case TRAVEL_TO_WAREHOUSE_REQUEST, TRAVEL_TO_WAREHOUSE_DEPOSIT -> {
+            case TRAVEL_TO_WAREHOUSE_REQUEST, TRAVEL_TO_WAREHOUSE_DEPOSIT,
+                    RETURNING_TO_WAREHOUSE_STANDBY -> {
                 CourierData.WarehouseBinding binding = data.binding(data.warehouse());
                 yield binding == null || binding.stationPos() == null
                         ? null : binding.stationPos().getCenter();
@@ -750,6 +759,21 @@ public final class CourierService {
                 }
                 yield true;
             }
+            case WAITING_FOR_WAREHOUSE_RETURN -> {
+                pauseMovement(courier);
+                yield !beginWarehouseStandbyReturn(level, courier, data);
+            }
+            case WAITING_AT_WAREHOUSE -> {
+                pauseMovement(courier);
+                if (CourierDeliveryPolicy.shouldResumeFromChestWait(
+                        hasDispatchableRequest(courier), data.depositRequested())) {
+                    courier.setHomeModeEnable(false);
+                    data.phase(CourierData.Phase.IDLE);
+                    sync(courier, data);
+                    yield false;
+                }
+                yield true;
+            }
             case WAITING_FOR_SAFE_LANDING -> true;
             default -> false;
         };
@@ -820,11 +844,9 @@ public final class CourierService {
 
     private static boolean beginRequest(ServerLevel level, EntityMaid courier, CourierData.Data data,
                                         EntityMaid warehouse) {
-        IItemHandlerModifiable source = courier.getAvailableInv(true);
-        for (int slot = 0; slot < source.getSlots(); slot++) {
-            ItemStack list = source.getStackInSlot(slot);
-            if (!list.is(ItemRegistry.REQUEST_LIST_ITEM.get())
-                    || RequestListItem.isIgnored(list) || isActiveCourierList(list)) continue;
+        EditableRequestList selectedList = findEditableRequestList(courier);
+        if (selectedList != null) {
+            ItemStack list = selectedList.stack();
             CourierData.TransportMode mode = selectStartMode(level, courier, data, warehouse);
             if (mode == CourierData.TransportMode.NONE) {
                 warnTransportNotReady(courier, data, warehouse);
@@ -1244,6 +1266,14 @@ public final class CourierService {
 
     private static void beginReturn(EntityMaid courier, CourierData.Data data) {
         resetHandoff(data);
+        if (data.postDeliveryMode() == CourierData.PostDeliveryMode.RETURN_TO_DEFAULT_WAREHOUSE
+                && courier.level() instanceof ServerLevel level) {
+            data.phase(CourierData.Phase.WAITING_FOR_WAREHOUSE_RETURN);
+            data.transportMode(CourierData.TransportMode.NONE);
+            data.clearFlight();
+            beginWarehouseStandbyReturn(level, courier, data);
+            return;
+        }
         if (data.dispatchSource() != CourierData.DispatchSource.DIRECT
                 && (data.dispatchSource() == CourierData.DispatchSource.TERMINAL
                 || data.dispatchSource() == CourierData.DispatchSource.ENDER_POCKET
@@ -1258,6 +1288,109 @@ public final class CourierService {
         } else {
             data.phase(CourierData.Phase.RETURNING_TO_ORIGIN);
             sync(courier, data);
+        }
+    }
+
+    private static boolean beginWarehouseStandbyReturn(ServerLevel level, EntityMaid courier,
+                                                        CourierData.Data data) {
+        CourierData.WarehouseBinding binding = data.binding(data.warehouse());
+        boolean hasDefault = binding != null && binding.stationPos() != null
+                && binding.stationDimension() != null;
+        boolean sameDimension = hasDefault
+                && binding.stationDimension().equals(dimension(level));
+        CourierWarehouseReturnPolicy.Decision decision = CourierWarehouseReturnPolicy.select(
+                hasDefault, sameDimension, sameDimension && validStation(level, binding),
+                sameDimension && withinHorizontal(courier.blockPosition(),
+                        binding.stationPos(), data.broomFlightDistance()),
+                EnderPocketCompat.hasBroom(courier));
+        if (!decision.ready()) {
+            waitForWarehouseReturn(courier, data, decision.blocker(),
+                    warehouseReturnMessage(decision.blocker()));
+            return false;
+        }
+        CourierData.TransportMode mode = decision.mode();
+        if (mode.usesBroom() && !broomRouteAvailable(level, courier, data)) {
+            waitForWarehouseReturn(courier, data, CourierData.ReturnBlocker.WRONG_DIMENSION,
+                    "message.maid_storage_manager_extension.courier.return_warehouse_dimension");
+            return false;
+        }
+        data.returnBlocker(CourierData.ReturnBlocker.NONE);
+        data.clearFlight();
+        activateMode(courier, data, mode);
+        data.phase(CourierData.Phase.RETURNING_TO_WAREHOUSE_STANDBY);
+        sync(courier, data);
+        notifyOwner(courier,
+                "message.maid_storage_manager_extension.courier.returning_to_warehouse");
+        return true;
+    }
+
+    private static String warehouseReturnMessage(CourierData.ReturnBlocker blocker) {
+        return switch (blocker) {
+            case DEFAULT_WAREHOUSE_UNAVAILABLE ->
+                    "message.maid_storage_manager_extension.courier.return_warehouse_missing";
+            case WRONG_DIMENSION ->
+                    "message.maid_storage_manager_extension.courier.return_warehouse_dimension";
+            case STATION_UNAVAILABLE ->
+                    "message.maid_storage_manager_extension.courier.return_warehouse_station";
+            case BROOM_MISSING ->
+                    "message.maid_storage_manager_extension.courier.return_warehouse_broom";
+            case NONE -> "message.maid_storage_manager_extension.courier.returning_to_warehouse";
+        };
+    }
+
+    private static void waitForWarehouseReturn(EntityMaid courier, CourierData.Data data,
+                                               CourierData.ReturnBlocker blocker,
+                                               String messageKey) {
+        boolean changed = data.returnBlocker() != blocker
+                || data.phase() != CourierData.Phase.WAITING_FOR_WAREHOUSE_RETURN;
+        pauseMovement(courier);
+        CourierBroomFlightService.cleanup(courier, data);
+        data.clearFlight();
+        data.transportMode(CourierData.TransportMode.NONE);
+        data.phase(CourierData.Phase.WAITING_FOR_WAREHOUSE_RETURN);
+        data.returnBlocker(blocker);
+        setHomeAtCurrentPosition(courier);
+        sync(courier, data);
+        if (changed) notifyOwner(courier, messageKey);
+    }
+
+    private static void returnToWarehouseStandby(ServerLevel level, EntityMaid courier,
+                                                  CourierData.Data data) {
+        CourierData.WarehouseBinding binding = data.binding(data.warehouse());
+        if (binding == null || binding.stationPos() == null
+                || !binding.stationDimension().equals(dimension(level))
+                || !validStation(level, binding)) {
+            waitForWarehouseReturn(courier, data, CourierData.ReturnBlocker.STATION_UNAVAILABLE,
+                    "message.maid_storage_manager_extension.courier.return_warehouse_station");
+            return;
+        }
+        if (data.transportMode().usesBroom() && !EnderPocketCompat.hasBroom(courier)) {
+            waitForWarehouseReturn(courier, data, CourierData.ReturnBlocker.BROOM_MISSING,
+                    "message.maid_storage_manager_extension.courier.return_warehouse_broom");
+            return;
+        }
+        BlockPos target = binding.stationPos();
+        if (courier.distanceToSqr(target.getCenter())
+                <= POSITION_ARRIVAL_DISTANCE * POSITION_ARRIVAL_DISTANCE) {
+            pauseMovement(courier);
+            CourierBroomFlightService.cleanup(courier, data);
+            setHomeAtCurrentPosition(courier);
+            data.clearFollowOverride();
+            data.clearRequest();
+            data.clearDeposit();
+            data.clearRoute();
+            data.returnBlocker(CourierData.ReturnBlocker.NONE);
+            data.phase(CourierData.Phase.WAITING_AT_WAREHOUSE);
+            sync(courier, data);
+            notifyOwner(courier,
+                    "message.maid_storage_manager_extension.courier.returned_to_warehouse");
+            return;
+        }
+        if (data.transportMode().usesBroom()
+                && !CourierBroomFlightService.landedFor(data, data.phase())) return;
+        if (navigateGround(level, courier, data, target, 1) == GroundNavigationResult.EXHAUSTED) {
+            waitForWarehouseReturn(courier, data, CourierData.ReturnBlocker.STATION_UNAVAILABLE,
+                    "message.maid_storage_manager_extension.courier.return_warehouse_station");
         }
     }
 
@@ -1435,7 +1568,7 @@ public final class CourierService {
                 || courier.distanceToSqr(owner) > OWNER_ANCHOR_RANGE * OWNER_ANCHOR_RANGE) {
             return false;
         }
-        if (data.stayHomeAfterDelivery()) {
+        if (data.postDeliveryMode() == CourierData.PostDeliveryMode.STAY_AT_DELIVERY) {
             setHomeAtCurrentPosition(courier);
         } else {
             courier.setHomeModeEnable(false);
@@ -1534,26 +1667,16 @@ public final class CourierService {
     }
 
     private static boolean hasDispatchableRequest(EntityMaid courier) {
-        IItemHandlerModifiable inventory = courier.getAvailableInv(true);
-        for (int slot = 0; slot < inventory.getSlots(); slot++) {
-            ItemStack stack = inventory.getStackInSlot(slot);
-            if (stack.is(ItemRegistry.REQUEST_LIST_ITEM.get())
-                    && !RequestListItem.isIgnored(stack) && !isActiveCourierList(stack)) {
-                return true;
-            }
-        }
-        return false;
+        return findEditableRequestList(courier) != null;
     }
 
     private static void dispatchRequest(EntityMaid courier, EntityMaid warehouse,
                                         CourierData.Data data) {
         if (!mayMutateWarehouseForCourier(warehouse)) return;
         pauseMovement(courier);
-        IItemHandlerModifiable source = courier.getAvailableInv(true);
-        for (int slot = 0; slot < source.getSlots(); slot++) {
-            ItemStack list = source.getStackInSlot(slot);
-            if (!list.is(ItemRegistry.REQUEST_LIST_ITEM.get())
-                    || RequestListItem.isIgnored(list) || isActiveCourierList(list)) continue;
+        EditableRequestList selection = findEditableRequestList(courier);
+        if (selection != null) {
+            ItemStack list = selection.stack();
 
             ItemStack outgoing = list.copyWithCount(1);
             prepareRequestTag(outgoing, courier);
@@ -1568,12 +1691,13 @@ public final class CourierService {
                 sync(courier, data);
                 return;
             }
-            if (!CourierInventory.removeExactSlot(source, slot, list.copyWithCount(1))) {
+            if (!removeRequestList(courier, selection)) {
                 CourierInventory.extract(warehouse.getAvailableInv(false), outgoing, 1);
                 resetHandoff(data);
                 sync(courier, data);
                 return;
             }
+            data.requestListOrigin(selection.origin(), selection.backpackSlot());
             data.requestFinished(false);
             data.phase(CourierData.Phase.REQUEST_RUNNING);
             data.spaceWarningSent(false);
@@ -1598,6 +1722,83 @@ public final class CourierService {
     public static boolean canEditHeldRequestList(ItemStack list) {
         return list != null && list.is(ItemRegistry.REQUEST_LIST_ITEM.get())
                 && !isActiveCourierList(list);
+    }
+
+    public static EditableRequestList findEditableRequestList(EntityMaid courier) {
+        if (courier == null) return null;
+        if (canEditHeldRequestList(courier.getMainHandItem())) {
+            return new EditableRequestList(CourierData.RequestListOrigin.MAIN_HAND,
+                    -1, courier.getMainHandItem());
+        }
+        if (canEditHeldRequestList(courier.getOffhandItem())) {
+            return new EditableRequestList(CourierData.RequestListOrigin.OFF_HAND,
+                    -1, courier.getOffhandItem());
+        }
+        IItemHandlerModifiable backpack = courier.getAvailableBackpackInv();
+        for (int slot = 0; slot < backpack.getSlots(); slot++) {
+            ItemStack stack = backpack.getStackInSlot(slot);
+            if (canEditHeldRequestList(stack)) {
+                return new EditableRequestList(CourierData.RequestListOrigin.BACKPACK,
+                        slot, stack);
+            }
+        }
+        return null;
+    }
+
+    public static void updateEditableRequestList(EntityMaid courier,
+                                                 EditableRequestList selection,
+                                                 ItemStack stack) {
+        if (courier == null || selection == null || stack == null) return;
+        switch (selection.origin()) {
+            case MAIN_HAND -> courier.setItemInHand(InteractionHand.MAIN_HAND, stack);
+            case OFF_HAND -> courier.setItemInHand(InteractionHand.OFF_HAND, stack);
+            case BACKPACK -> {
+                IItemHandlerModifiable backpack = courier.getAvailableBackpackInv();
+                if (selection.backpackSlot() >= 0
+                        && selection.backpackSlot() < backpack.getSlots()) {
+                    backpack.setStackInSlot(selection.backpackSlot(), stack);
+                }
+            }
+            case LEGACY -> { }
+        }
+    }
+
+    private static boolean removeRequestList(EntityMaid courier,
+                                             EditableRequestList selection) {
+        ItemStack expected = selection.stack().copyWithCount(1);
+        switch (selection.origin()) {
+            case MAIN_HAND -> {
+                ItemStack actual = courier.getMainHandItem();
+                if (!ItemStack.isSameItemSameTags(actual, expected) || actual.getCount() < 1) {
+                    return false;
+                }
+                actual = actual.copy();
+                actual.shrink(1);
+                courier.setItemInHand(InteractionHand.MAIN_HAND, actual);
+                return true;
+            }
+            case OFF_HAND -> {
+                ItemStack actual = courier.getOffhandItem();
+                if (!ItemStack.isSameItemSameTags(actual, expected) || actual.getCount() < 1) {
+                    return false;
+                }
+                actual = actual.copy();
+                actual.shrink(1);
+                courier.setItemInHand(InteractionHand.OFF_HAND, actual);
+                return true;
+            }
+            case BACKPACK -> {
+                IItemHandlerModifiable backpack = courier.getAvailableBackpackInv();
+                return selection.backpackSlot() >= 0
+                        && selection.backpackSlot() < backpack.getSlots()
+                        && CourierInventory.removeExactSlot(
+                        backpack, selection.backpackSlot(), expected);
+            }
+            case LEGACY -> {
+                return false;
+            }
+        }
+        return false;
     }
 
     private static void prepareRequestTag(ItemStack list, EntityMaid courier) {
@@ -1637,7 +1838,7 @@ public final class CourierService {
         list.getOrCreateTag().putBoolean(RequestListItem.TAG_IGNORE_TASK, true);
         list.getOrCreateTag().getCompound(META).putBoolean(META_FAILURE_RETURN, !success);
 
-        if (!returnList(courier, list, !success)) data.pendingList(list);
+        if (!returnList(courier, data, list, !success)) data.pendingList(list);
         data.requestFinished(true);
         boolean completeRemotely = CourierDeliveryPolicy.shouldCompleteRequestRemotely(
                 data.transportMode().usesEnderPocket(), data.forceOwnerDelivery(),
@@ -1675,10 +1876,16 @@ public final class CourierService {
         root.put(META, returned);
     }
 
-    private static boolean returnList(EntityMaid courier, ItemStack list, boolean failure) {
-        if (!failure) {
-            return CourierInventory.insert(courier.getAvailableBackpackInv(), list).isEmpty();
+    private static boolean returnList(EntityMaid courier, CourierData.Data data,
+                                      ItemStack list, boolean failure) {
+        if (data.requestListOrigin() != CourierData.RequestListOrigin.LEGACY) {
+            boolean restored = restoreOriginalRequestListSlot(courier, data, list)
+                    || CourierInventory.insert(courier.getAvailableBackpackInv(), list).isEmpty();
+            if (restored) data.clearRequestListOrigin();
+            return restored;
         }
+        if (!failure) return CourierInventory.insert(
+                courier.getAvailableBackpackInv(), list).isEmpty();
         ItemStack offhand = courier.getOffhandItem();
         if (!offhand.isEmpty()) {
             ItemStack remainder = CourierInventory.insert(courier.getAvailableBackpackInv(), offhand);
@@ -1688,12 +1895,39 @@ public final class CourierService {
         return true;
     }
 
+    private static boolean restoreOriginalRequestListSlot(EntityMaid courier,
+                                                          CourierData.Data data,
+                                                          ItemStack list) {
+        switch (data.requestListOrigin()) {
+            case MAIN_HAND -> {
+                if (!courier.getMainHandItem().isEmpty()) return false;
+                courier.setItemInHand(InteractionHand.MAIN_HAND, list.copy());
+                return true;
+            }
+            case OFF_HAND -> {
+                if (!courier.getOffhandItem().isEmpty()) return false;
+                courier.setItemInHand(InteractionHand.OFF_HAND, list.copy());
+                return true;
+            }
+            case BACKPACK -> {
+                IItemHandlerModifiable backpack = courier.getAvailableBackpackInv();
+                int slot = data.requestListSlot();
+                if (slot < 0 || slot >= backpack.getSlots()
+                        || !backpack.getStackInSlot(slot).isEmpty()) return false;
+                backpack.setStackInSlot(slot, list.copy());
+                return true;
+            }
+            case LEGACY -> { }
+        }
+        return false;
+    }
+
     private static void tryReturnPendingList(EntityMaid courier, CourierData.Data data) {
         ItemStack list = data.pendingList();
         CompoundTag root = list.getTag();
         boolean failure = root != null && root.contains(META, Tag.TAG_COMPOUND)
                 && root.getCompound(META).getBoolean(META_FAILURE_RETURN);
-        if (returnList(courier, list, failure)) {
+        if (returnList(courier, data, list, failure)) {
             data.pendingList(ItemStack.EMPTY);
             sync(courier, data);
         }

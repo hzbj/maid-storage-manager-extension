@@ -208,6 +208,9 @@ public final class LogisticsTrackerItem extends HangUpItem {
         tooltip.add(Component.translatable(
                 "tooltip.maid_storage_manager_extension.logistics_tracker.desc")
                 .withStyle(ChatFormatting.GRAY));
+        tooltip.add(Component.translatable(
+                "tooltip.maid_storage_manager_extension.logistics_tracker.guide")
+                .withStyle(ChatFormatting.DARK_GRAY));
         UUID account = getAccountId(stack);
         if (account == null) {
             tooltip.add(Component.translatable(
