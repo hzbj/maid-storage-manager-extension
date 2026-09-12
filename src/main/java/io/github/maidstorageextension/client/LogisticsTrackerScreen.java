@@ -266,13 +266,13 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
                     warehouseMode = WarehouseMode.WITHDRAW;
                     updateWidgetState();
                 }).bounds(layout.rightX + 5, layout.contentY + 31,
-                        Math.max(55, (layout.rightWidth - 14) / 2), 18).build());
+                        Math.max(40, (layout.rightWidth - 14) / 2), 18).build());
         depositButton = addRenderableWidget(Button.builder(Component.translatable(
                         "gui.maid_storage_manager_extension.compass.deposit"), ignored -> {
                     warehouseMode = WarehouseMode.DEPOSIT;
                     updateWidgetState();
-                }).bounds(layout.rightX + 8 + Math.max(55, (layout.rightWidth - 14) / 2),
-                        layout.contentY + 31, Math.max(55, (layout.rightWidth - 14) / 2), 18).build());
+                }).bounds(layout.rightX + 8 + Math.max(40, (layout.rightWidth - 14) / 2),
+                        layout.contentY + 31, Math.max(40, (layout.rightWidth - 14) / 2), 18).build());
 
         searchBox = addRenderableWidget(new EditBox(font, layout.rightX + 6,
                 layout.contentY + 52, layout.rightWidth - 12, 18,
@@ -290,7 +290,7 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
         scanWarehouseButton.setTooltip(Tooltip.create(Component.translatable(
                 "gui.maid_storage_manager_extension.compass.scan_now_hint")));
 
-        int deliveryWidth = Math.max(62, (layout.rightWidth - 14) / 2);
+        int deliveryWidth = Math.max(44, (layout.rightWidth - 14) / 2);
         int deliveryY = layout.contentBottom - 65;
         playerDeliveryButton = addRenderableWidget(Button.builder(Component.translatable(
                         "gui.maid_storage_manager_extension.compass.deliver_player"), ignored -> {
@@ -339,7 +339,7 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
 
         int transportX = layout.rightX + 6;
         int transportWidth = layout.rightWidth - 12;
-        int transportButtonWidth = Math.max(62, (transportWidth - 4) / 2);
+        int transportButtonWidth = Math.max(44, (transportWidth - 4) / 2);
         choosePickupButton = addRenderableWidget(Button.builder(Component.translatable(
                         "gui.maid_storage_manager_extension.transport.choose_pickup"), ignored -> {
                     if (hasShiftDown()) selectedPickup = null;
@@ -2772,22 +2772,13 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
     }
 
     private Layout layout() {
-        int margin = 6;
         int contentY = 31;
         int contentBottom = height - 36;
         int contentHeight = Math.max(100, contentBottom - contentY);
         int leftWidth = serviceTab == ServiceTab.MAID_LOGISTICS ? 0 : width < 640 ? 112 : 158;
-        int rightWidth = width < 640 ? 214 : Math.min(292, Math.max(242, width / 3));
-        int gap = 4;
-        int mapWidth = width - margin * 2 - leftWidth - rightWidth - gap * 2;
-        if (mapWidth < 96) {
-            mapWidth = 0;
-            rightWidth = Math.max(180, width - margin * 2 - leftWidth - gap);
-        }
-        int leftX = margin;
-        int mapX = leftX + leftWidth + gap;
-        int rightX = mapWidth > 0 ? mapX + mapWidth + gap : mapX;
-        return new Layout(leftX, leftWidth, mapX, mapWidth, rightX, rightWidth,
+        TerminalLayoutPolicy.Columns columns = TerminalLayoutPolicy.horizontal(width, leftWidth);
+        return new Layout(columns.leftX(), columns.leftWidth(), columns.mapX(),
+                columns.mapWidth(), columns.rightX(), columns.rightWidth(),
                 contentY, contentBottom, contentHeight);
     }
 
