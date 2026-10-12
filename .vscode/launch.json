@@ -1,0 +1,71 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "java",
+      "request": "launch",
+      "name": "Client",
+      "presentation": {
+        "group": "Mod Development - maid_storage_manager_extension",
+        "order": 0
+      },
+      "projectName": "maid_storage_manager_extension",
+      "mainClass": "net.neoforged.devlaunch.Main",
+      "args": [
+        "@D:\\Project\\女仆仓管bug修复\\maid_storage_manager_extension\\build\\moddev\\clientRunProgramArgs.txt"
+      ],
+      "vmArgs": [
+        "@D:\\Project\\女仆仓管bug修复\\maid_storage_manager_extension\\build\\moddev\\clientRunVmArgs.txt",
+        "-Dfml.modFolders\u003dmaid_storage_manager_extension%%D:\\Project\\女仆仓管bug修复\\maid_storage_manager_extension\\bin\\main"
+      ],
+      "cwd": "${workspaceFolder}\\build\\run-client",
+      "env": {},
+      "console": "internalConsole",
+      "shortenCommandLine": "none"
+    },
+    {
+      "type": "java",
+      "request": "launch",
+      "name": "GameTestServer",
+      "presentation": {
+        "group": "Mod Development - maid_storage_manager_extension",
+        "order": 1
+      },
+      "projectName": "maid_storage_manager_extension",
+      "mainClass": "net.neoforged.devlaunch.Main",
+      "args": [
+        "@D:\\Project\\女仆仓管bug修复\\maid_storage_manager_extension\\build\\moddev\\gameTestServerRunProgramArgs.txt"
+      ],
+      "vmArgs": [
+        "@D:\\Project\\女仆仓管bug修复\\maid_storage_manager_extension\\build\\moddev\\gameTestServerRunVmArgs.txt",
+        "-Dfml.modFolders\u003dmaid_storage_manager_extension%%D:\\Project\\女仆仓管bug修复\\maid_storage_manager_extension\\bin\\main"
+      ],
+      "cwd": "${workspaceFolder}\\build\\run-gametest",
+      "env": {},
+      "console": "internalConsole",
+      "shortenCommandLine": "none"
+    },
+    {
+      "type": "java",
+      "request": "launch",
+      "name": "Server",
+      "presentation": {
+        "group": "Mod Development - maid_storage_manager_extension",
+        "order": 2
+      },
+      "projectName": "maid_storage_manager_extension",
+      "mainClass": "net.neoforged.devlaunch.Main",
+      "args": [
+        "@D:\\Project\\女仆仓管bug修复\\maid_storage_manager_extension\\build\\moddev\\serverRunProgramArgs.txt"
+      ],
+      "vmArgs": [
+        "@D:\\Project\\女仆仓管bug修复\\maid_storage_manager_extension\\build\\moddev\\serverRunVmArgs.txt",
+        "-Dfml.modFolders\u003dmaid_storage_manager_extension%%D:\\Project\\女仆仓管bug修复\\maid_storage_manager_extension\\bin\\main"
+      ],
+      "cwd": "${workspaceFolder}\\build\\run-server",
+      "env": {},
+      "console": "internalConsole",
+      "shortenCommandLine": "none"
+    }
+  ]
+}
