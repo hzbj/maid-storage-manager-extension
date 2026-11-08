@@ -30,21 +30,8 @@ public final class EnderPocketCompat {
             return maid;
         }
         if (!ModList.get().isLoaded(MOD_ID)) return null;
-        if (player instanceof ServerPlayer serverPlayer) {
-            return EnderPocketService.getPlayerEnderPocketMaids(serverPlayer).stream()
-                    .filter(info -> info.getMaidEntityId() == maidId)
-                    .map(info -> Global.getOrCreatePlayerMaidMap(serverPlayer.getUUID())
-                            .get(info.getMaidUUID()))
-                    .filter(maid -> maid != null && maid.isAlive())
-                    .filter(maid -> maid.isOwnedBy(serverPlayer))
-                    .filter(EnderPocketCompat::isEquipped)
-                    .filter(maid -> EnderPocketService.getPlayerEnderPocketMaids(serverPlayer).stream()
-                            .anyMatch(info -> info.getMaidUUID().equals(maid.getUUID())
-                                    && info.getMaidEntityId() == maid.getId()
-                                    && info.getLevelKey().equals(maid.level().dimension())))
-                    .findFirst().orElse(null);
-        }
-        return null;
+        return player instanceof ServerPlayer serverPlayer
+                ? SpellAccess.resolveRemoteMaid(serverPlayer, maidId) : null;
     }
 
     public static void syncRemoteProxyBeforeMenu(Player player, int maidId) {
@@ -60,9 +47,31 @@ public final class EnderPocketCompat {
     public static boolean isRemoteSessionActive(ServerPlayer player, EntityMaid maid) {
         return player != null && maid != null && ModList.get().isLoaded(MOD_ID)
                 && maid.isOwnedBy(player) && isEquipped(maid)
-                && EnderPocketService.getPlayerEnderPocketMaids(player).stream()
-                .anyMatch(info -> info.getMaidUUID().equals(maid.getUUID())
-                        && info.getLevelKey().equals(maid.level().dimension()));
+                && SpellAccess.isRemoteSessionActive(player, maid);
+    }
+
+    // Keep optional API references in a class loaded only after the mod-presence check.
+    private static final class SpellAccess {
+        private static EntityMaid resolveRemoteMaid(ServerPlayer player, int maidId) {
+            return EnderPocketService.getPlayerEnderPocketMaids(player).stream()
+                    .filter(info -> info.getMaidEntityId() == maidId)
+                    .map(info -> Global.getOrCreatePlayerMaidMap(player.getUUID())
+                            .get(info.getMaidUUID()))
+                    .filter(maid -> maid != null && maid.isAlive())
+                    .filter(maid -> maid.isOwnedBy(player))
+                    .filter(EnderPocketCompat::isEquipped)
+                    .filter(maid -> EnderPocketService.getPlayerEnderPocketMaids(player).stream()
+                            .anyMatch(info -> info.getMaidUUID().equals(maid.getUUID())
+                                    && info.getMaidEntityId() == maid.getId()
+                                    && info.getLevelKey().equals(maid.level().dimension())))
+                    .findFirst().orElse(null);
+        }
+
+        private static boolean isRemoteSessionActive(ServerPlayer player, EntityMaid maid) {
+            return EnderPocketService.getPlayerEnderPocketMaids(player).stream()
+                    .anyMatch(info -> info.getMaidUUID().equals(maid.getUUID())
+                            && info.getLevelKey().equals(maid.level().dimension()));
+        }
     }
 
     public static boolean isEquipped(EntityMaid maid) {

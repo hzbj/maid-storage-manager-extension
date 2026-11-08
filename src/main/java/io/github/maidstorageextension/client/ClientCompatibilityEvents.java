@@ -6,6 +6,8 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
+import net.neoforged.fml.ModList;
+import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import io.github.maidstorageextension.registry.ExtensionMenus;
 
@@ -17,7 +19,13 @@ public final class ClientCompatibilityEvents {
 
     @SubscribeEvent
     public static void clientSetup(FMLClientSetupEvent event) {
-        event.enqueueWork(ConfigScreenBridge::validate);
+        if (ModList.get().isLoaded("cloth_config")) {
+            // Register only after the optional API is available; event scanning resolves its types.
+            event.enqueueWork(() -> {
+                ConfigScreenBridge.validate();
+                NeoForge.EVENT_BUS.register(ClientClothConfigEvents.class);
+            });
+        }
     }
 
     @SubscribeEvent

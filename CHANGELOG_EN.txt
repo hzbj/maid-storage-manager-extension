@@ -1,0 +1,15 @@
+Maid Logistics Network 1.4.4
+
+Optional Dependencies
+- Touhou Little Maid: Spell and Cloth Config are now optional. Either mod, or both, may be omitted.
+- Without Touhou Little Maid: Spell, Ender Pocket remote integration is disabled. Walking, broom transport, and other independent features remain available.
+- Without Cloth Config, extension settings screens are hidden. Existing settings or default values remain active.
+
+Fixes Retained
+- Restores the 1.4.2 terminal map fix for narrow windows and high GUI scales, including narrower control panels and buttons.
+- Retains the completed/unsuccessful request-list redispatch fix and recovery of stale in-transit request lists, preserving their request data and original delivery targets.
+
+Installation
+- Install the Forge file only on Minecraft 1.20.1, or the NeoForge file only on Minecraft 1.21.1.
+- Update the extension on both the client and server.
+- Touhou Little Maid and Maid Storage Manager remain required.

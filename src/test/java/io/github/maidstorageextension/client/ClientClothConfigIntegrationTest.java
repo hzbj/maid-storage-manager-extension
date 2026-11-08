@@ -45,7 +45,7 @@ class ClientClothConfigIntegrationTest {
         assertDoesNotThrow(() -> ExtensionClothConfigScreen.class.getDeclaredMethod(
                 "create", Screen.class,
                 com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid.class));
-        assertDoesNotThrow(() -> ConfigScreenBridge.class.getDeclaredMethod("validate"));
+        assertDoesNotThrow(ConfigScreenBridge::validate);
         assertDoesNotThrow(() -> ConfigScreenBridge.class.getDeclaredMethod(
                 "appendExtensionSettingsRow", StorageManagerMaidConfigGui.class));
     }
