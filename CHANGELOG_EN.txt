@@ -1,3 +1,9 @@
+Maid Logistics Network 1.4.5
+
+- Accept Touhou Little Maid: Spell 1.9.x on Forge and NeoForge while keeping the integration optional.
+- Use shared Ender Pocket info fields on NeoForge to support both 1.8.4 and 1.9.x without removed getter calls.
+- Retain minimum supported versions and test packaged version ranges, including loader-suffixed versions.
+
 Maid Logistics Network 1.4.4
 
 Optional Dependencies

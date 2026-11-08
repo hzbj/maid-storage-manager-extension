@@ -1,6 +1,8 @@
 package io.github.maidstorageextension.compat;
 
 import org.junit.jupiter.api.Test;
+import org.apache.maven.artifact.versioning.DefaultArtifactVersion;
+import org.apache.maven.artifact.versioning.VersionRange;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -50,6 +52,21 @@ class OptionalDependencyLoadingTest {
                     .split("\\[\\[", 2)[0];
             assertTrue(dependency.contains("type=\"optional\""), mod);
         }
+    }
+
+    @Test
+    void packagedSpellRangeAccepts19ReleasesIncludingLoaderSuffixes() throws Exception {
+        String metadata = Files.readString(Path.of("build/resources/main/META-INF/neoforge.mods.toml"));
+        String dependency = metadata.substring(metadata.indexOf("modId=\"touhou_little_maid_spell\""))
+                .split("\\[\\[", 2)[0];
+        String rangeText = dependency.split("versionRange=\"", 2)[1].split("\"", 2)[0];
+        VersionRange range = VersionRange.createFromVersionSpec(rangeText);
+        for (String version : List.of("1.8.4", "1.9.0", "1.9.1", "1.9.1-neoforge")) {
+            assertTrue(range.containsVersion(new DefaultArtifactVersion(version)),
+                    () -> version + " must be accepted by " + rangeText);
+        }
+        assertFalse(range.containsVersion(new DefaultArtifactVersion("1.8.3")));
+        assertFalse(range.containsVersion(new DefaultArtifactVersion("1.10")));
     }
 
     private static final class WithoutOptionalApis extends ClassLoader {

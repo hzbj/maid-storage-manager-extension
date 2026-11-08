@@ -51,10 +51,11 @@ public final class EnderPocketCompat {
     }
 
     // Keep optional API references in a class loaded only after the mod-presence check.
+    // Public info fields are shared by 1.8.4 and 1.9.x; 1.9 removed their getters.
     private static final class SpellAccess {
         private static EntityMaid resolveRemoteMaid(ServerPlayer player, int maidId) {
             return EnderPocketService.getPlayerEnderPocketMaids(player).stream()
-                    .filter(info -> info.getMaidEntityId() == maidId)
+                    .filter(info -> info.maidEntityId == maidId)
                     .map(info -> Global.getOrCreatePlayerMaidMap(player.getUUID())
                             .get(info.getMaidUUID()))
                     .filter(maid -> maid != null && maid.isAlive())
@@ -62,15 +63,15 @@ public final class EnderPocketCompat {
                     .filter(EnderPocketCompat::isEquipped)
                     .filter(maid -> EnderPocketService.getPlayerEnderPocketMaids(player).stream()
                             .anyMatch(info -> info.getMaidUUID().equals(maid.getUUID())
-                                    && info.getMaidEntityId() == maid.getId()
-                                    && info.getLevelKey().equals(maid.level().dimension())))
+                                    && info.maidEntityId == maid.getId()
+                                    && info.levelKey.equals(maid.level().dimension())))
                     .findFirst().orElse(null);
         }
 
         private static boolean isRemoteSessionActive(ServerPlayer player, EntityMaid maid) {
             return EnderPocketService.getPlayerEnderPocketMaids(player).stream()
                     .anyMatch(info -> info.getMaidUUID().equals(maid.getUUID())
-                            && info.getLevelKey().equals(maid.level().dimension()));
+                            && info.levelKey.equals(maid.level().dimension()));
         }
     }
 
