@@ -7,6 +7,13 @@
 
 [下载与版本记录](https://github.com/hzbj/maid-storage-manager-extension/releases) · [更新日志](CHANGELOG.md) · [问题反馈](https://github.com/hzbj/maid-storage-manager-extension/issues) · [第三方声明](THIRD_PARTY_NOTICES.md)
 
+源码按 Minecraft 版本分别维护：
+
+| Minecraft | 加载器 | 源码分支 |
+| --- | --- | --- |
+| 1.20.1 | Forge | [forge/1.20.1（默认）](https://github.com/hzbj/maid-storage-manager-extension/tree/forge/1.20.1) |
+| 1.21.1 | NeoForge | [neoforge/1.21.1](https://github.com/hzbj/maid-storage-manager-extension/tree/neoforge/1.21.1) |
+
 ## 功能模块
 
 ### 物流模块（核心玩法）
@@ -69,14 +76,19 @@
 | Mod Loader | Forge `47.x` | NeoForge `21.1.x` | 客户端与服务端 |
 | Touhou Little Maid | `>= 1.5.3, < 1.6` | `>= 1.5.2, < 1.6` | 客户端与服务端 |
 | Maid Storage Manager | `>= 1.15.6, < 1.16` | `>= 1.15.6, < 1.16` | 客户端与服务端 |
-| 本扩展 | `1.4.1` | `1.4.1` | 客户端与服务端，版本必须一致 |
-| Cloth Config | `>= 11.1.136, < 12` | `>= 15.0.140, < 16` | 仅客户端 |
-| Touhou Little Maid: Spell | `>= 1.8.2, < 1.9` | `>= 1.8.4, < 1.9` | 客户端与服务端 |
+| 本扩展 | `1.4.4` | `1.4.4` | 客户端与服务端，版本必须一致 |
+| Cloth Config（可选） | `>= 11.1.136, < 12` | `>= 15.0.140, < 16` | 仅客户端 |
+| Touhou Little Maid: Spell / 万法皆通（可选） | `>= 1.8.2, < 1.9` | `>= 1.8.4, < 1.9` | 使用联动时安装于客户端与服务端 |
+
+两个可选模组可以分别不装，也可以都不装：
+
+- 不装万法皆通：不启用末影腰包的远程女仆界面与远程交接；步行、扫帚及其他不依赖腰包的功能继续可用。需要腰包的运输路线仍按原规则等待所需道具，不会自动改成其他运输方式。
+- 不装 Cloth Config：不显示本扩展的全局设置子分类和仓管任务页的扩展设置入口；已有配置与新女仆的默认配置继续生效，快递员设置、终端等独立界面继续可用。
 
 ## 安装
 
 1. 从 [Releases](https://github.com/hzbj/maid-storage-manager-extension/releases) 下载普通版扩展 JAR。
-2. 按上表安装必需依赖；专用服务器不需要安装 Cloth Config。
+2. 按上表安装车万女仆、女仆仓管等必需依赖；万法皆通与 Cloth Config 按需安装，专用服务器不需要安装 Cloth Config。
 3. 将扩展 JAR 放入客户端与服务端的 `mods` 目录，确保双方使用同一版本。
 4. 启动前不要删除或替换女仆仓管本体，本扩展通过独立 Mod 方式加载。
 
@@ -134,13 +146,13 @@
 
 ## 构建
 
-Forge 1.20.1 主线使用 JDK 17；NeoForge 1.21.1 分支使用 JDK 21。女仆仓管和车万女仆从 Modrinth Maven 的精确版本 ID 获取，Forge 版的 Tour Guide 1.0.2 暂作为本地编译依赖保存在 `libs/`：
+`forge/1.20.1` 分支使用 JDK 17；`neoforge/1.21.1` 分支使用 JDK 21。女仆仓管和车万女仆从 Modrinth Maven 的精确版本 ID 获取，Forge 版的 Tour Guide 1.0.2 暂作为本地编译依赖保存在 `libs/`：
 
 ```powershell
 .\gradlew.bat clean build
 ```
 
-Forge 主线输出 `build/libs/1.20.1-maid_storage_manager_extension-1.4.1.jar`；`neoforge/1.21.1` 分支输出 `build/libs/1.21.1-maid_storage_manager_extension-1.4.1.jar`。
+`forge/1.20.1` 分支输出 `build/libs/1.20.1-maid_storage_manager_extension-1.4.4.jar`；`neoforge/1.21.1` 分支输出 `build/libs/1.21.1-maid_storage_manager_extension-1.4.4.jar`。
 
 ## 许可证与来源
 

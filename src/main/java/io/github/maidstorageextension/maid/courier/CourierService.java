@@ -38,6 +38,7 @@ import studio.fantasyit.maid_storage_manager.util.MemoryUtil;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Predicate;
 
 /** Server authority for physical courier routes and lossless item hand-offs. */
 public final class CourierService {
@@ -471,6 +472,7 @@ public final class CourierService {
                 ExtensionMemoryUtil.getMiscSort(courier).hasInFlight())) {
             return;
         }
+        if (!hasActiveTransaction(courier)) recoverOrphanedRequestLists(courier);
         enforceCourierNavigationOwnership(courier, data);
         if (tickWaitingState(level, courier, data)) return;
         if (!hasActiveTransaction(courier) && data.followOverrideActive()) {
@@ -847,7 +849,7 @@ public final class CourierService {
 
     private static boolean beginRequest(ServerLevel level, EntityMaid courier, CourierData.Data data,
                                         EntityMaid warehouse) {
-        EditableRequestList selectedList = findEditableRequestList(courier);
+        EditableRequestList selectedList = findDispatchableRequestList(courier);
         if (selectedList != null) {
             ItemStack list = selectedList.stack();
             CourierData.TransportMode mode = selectStartMode(level, courier, data, warehouse);
@@ -1669,15 +1671,47 @@ public final class CourierService {
         sync(courier, data);
     }
 
+    private static void recoverOrphanedRequestLists(EntityMaid courier) {
+        ItemStack mainHand = courier.getMainHandItem();
+        if (restoreOrphanedRequestList(courier.getUUID(), mainHand)) {
+            courier.setItemInHand(InteractionHand.MAIN_HAND, mainHand);
+        }
+        ItemStack offHand = courier.getOffhandItem();
+        if (restoreOrphanedRequestList(courier.getUUID(), offHand)) {
+            courier.setItemInHand(InteractionHand.OFF_HAND, offHand);
+        }
+        IItemHandlerModifiable backpack = courier.getAvailableBackpackInv();
+        for (int slot = 0; slot < backpack.getSlots(); slot++) {
+            ItemStack list = backpack.getStackInSlot(slot);
+            if (restoreOrphanedRequestList(courier.getUUID(), list)) {
+                backpack.setStackInSlot(slot, list);
+            }
+        }
+    }
+
+    static boolean restoreOrphanedRequestList(UUID courierId, ItemStack list) {
+        if (list == null || !list.is(ItemRegistry.REQUEST_LIST_ITEM.get())) return false;
+        CompoundTag root = ItemDataMigration.read(list);
+        if (!root.contains(META, Tag.TAG_COMPOUND)) return false;
+        CompoundTag meta = root.getCompound(META);
+        if (!meta.hasUUID(META_COURIER)
+                || !courierId.equals(meta.getUUID(META_COURIER))) return false;
+        // Only the idle original courier may recover a retrieved in-transit list.
+        // Keep the request data, but require an explicit edit before dispatching it again.
+        restoreRequestTag(list, meta);
+        RequestListItem.setIgnore(list);
+        return true;
+    }
+
     private static boolean hasDispatchableRequest(EntityMaid courier) {
-        return findEditableRequestList(courier) != null;
+        return findDispatchableRequestList(courier) != null;
     }
 
     private static void dispatchRequest(EntityMaid courier, EntityMaid warehouse,
                                         CourierData.Data data) {
         if (!mayMutateWarehouseForCourier(warehouse)) return;
         pauseMovement(courier);
-        EditableRequestList selection = findEditableRequestList(courier);
+        EditableRequestList selection = findDispatchableRequestList(courier);
         if (selection != null) {
             ItemStack list = selection.stack();
 
@@ -1727,20 +1761,36 @@ public final class CourierService {
                 && !isActiveCourierList(list);
     }
 
+    static boolean canDispatchHeldRequestList(ItemStack list) {
+        return canEditHeldRequestList(list) && !RequestListItem.isIgnored(list);
+    }
+
+    private static EditableRequestList findDispatchableRequestList(EntityMaid courier) {
+        // Returned lists remain editable by the terminal without becoming new orders.
+        return findRequestList(courier, CourierService::canDispatchHeldRequestList);
+    }
+
     public static EditableRequestList findEditableRequestList(EntityMaid courier) {
+        return findRequestList(courier, stack -> true);
+    }
+
+    private static EditableRequestList findRequestList(EntityMaid courier,
+                                                       Predicate<ItemStack> additionalFilter) {
         if (courier == null) return null;
-        if (canEditHeldRequestList(courier.getMainHandItem())) {
+        if (canEditHeldRequestList(courier.getMainHandItem())
+                && additionalFilter.test(courier.getMainHandItem())) {
             return new EditableRequestList(CourierData.RequestListOrigin.MAIN_HAND,
                     -1, courier.getMainHandItem());
         }
-        if (canEditHeldRequestList(courier.getOffhandItem())) {
+        if (canEditHeldRequestList(courier.getOffhandItem())
+                && additionalFilter.test(courier.getOffhandItem())) {
             return new EditableRequestList(CourierData.RequestListOrigin.OFF_HAND,
                     -1, courier.getOffhandItem());
         }
         IItemHandlerModifiable backpack = courier.getAvailableBackpackInv();
         for (int slot = 0; slot < backpack.getSlots(); slot++) {
             ItemStack stack = backpack.getStackInSlot(slot);
-            if (canEditHeldRequestList(stack)) {
+            if (canEditHeldRequestList(stack) && additionalFilter.test(stack)) {
                 return new EditableRequestList(CourierData.RequestListOrigin.BACKPACK,
                         slot, stack);
             }

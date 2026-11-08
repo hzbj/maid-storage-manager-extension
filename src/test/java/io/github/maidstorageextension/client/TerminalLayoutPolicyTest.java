@@ -2,110 +2,61 @@ package io.github.maidstorageextension.client;
 
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TerminalLayoutPolicyTest {
-
-    private static final int TAB_WIDTH = 112;
-    private static final int MAID_LOGISTICS_WIDTH = 0;
-
     @Test
-    void narrowWindowsThatAlreadyFitKeepTheHistoricalColumns() {
-        // 1920x1080 with auto GUI scale 4 renders 480 GUI pixels wide.
-        TerminalLayoutPolicy.Columns columns =
-                TerminalLayoutPolicy.horizontal(480, TAB_WIDTH);
-        assertEquals(TAB_WIDTH, columns.leftWidth());
-        assertEquals(214, columns.rightWidth());
-        assertEquals(134, columns.mapWidth());
-    }
-
-    @Test
-    void laptopAutoGuiScaleWindowsKeepTheMap() {
-        // 1280x720 fullscreen with auto GUI scale 3 renders 426 GUI pixels wide;
-        // the map used to be dropped entirely at this width.
-        TerminalLayoutPolicy.Columns columns =
-                TerminalLayoutPolicy.horizontal(426, TAB_WIDTH);
-        assertEquals(TAB_WIDTH, columns.leftWidth());
-        assertEquals(TerminalLayoutPolicy.PREFERRED_MAP_WIDTH, columns.mapWidth());
-        assertEquals(198, columns.rightWidth());
-        assertEquals(426 - TerminalLayoutPolicy.MARGIN,
-                columns.rightX() + columns.rightWidth());
-    }
-
-    @Test
-    void forcedHighGuiScaleWindowsStillShowAMap() {
-        // 1366x768 with manual GUI scale 4 renders 341 GUI pixels wide.
-        TerminalLayoutPolicy.Columns columns =
-                TerminalLayoutPolicy.horizontal(341, TAB_WIDTH);
-        assertEquals(TerminalLayoutPolicy.PREFERRED_MAP_WIDTH, columns.mapWidth());
-        assertEquals(113, columns.rightWidth());
-        assertEquals(341 - TerminalLayoutPolicy.MARGIN,
-                columns.rightX() + columns.rightWidth());
-    }
-
-    @Test
-    void minimumMinecraftWindowsKeepAUsableMap() {
-        // 320 GUI pixels is the narrowest window Minecraft renders at its size floor.
-        TerminalLayoutPolicy.Columns columns =
-                TerminalLayoutPolicy.horizontal(320, TAB_WIDTH);
-        assertEquals(80, columns.mapWidth());
-        assertEquals(TerminalLayoutPolicy.MIN_RIGHT_WIDTH, columns.rightWidth());
-    }
-
-    @Test
-    void maidLogisticsTabKeepsTheMapAtForcedHighGuiScale() {
-        // The maid logistics tab has no roster column, so the map survives even
-        // narrower windows than the transport tab.
-        TerminalLayoutPolicy.Columns columns =
-                TerminalLayoutPolicy.horizontal(341, MAID_LOGISTICS_WIDTH);
-        assertTrue(columns.mapWidth() >= TerminalLayoutPolicy.PREFERRED_MAP_WIDTH);
-        assertEquals(214, columns.rightWidth());
-        assertEquals(341 - TerminalLayoutPolicy.MARGIN,
-                columns.rightX() + columns.rightWidth());
-    }
-
-    @Test
-    void maidLogisticsTabKeepsTheMapAtTheWindowFloor() {
-        TerminalLayoutPolicy.Columns columns =
-                TerminalLayoutPolicy.horizontal(320, MAID_LOGISTICS_WIDTH);
-        assertEquals(TerminalLayoutPolicy.PREFERRED_MAP_WIDTH, columns.mapWidth());
-        assertEquals(204, columns.rightWidth());
-    }
-
-    @Test
-    void pathologicalWindowsFallBackToDroppingTheMap() {
-        TerminalLayoutPolicy.Columns columns =
-                TerminalLayoutPolicy.horizontal(260, TAB_WIDTH);
-        assertEquals(0, columns.mapWidth());
-        assertEquals(180, columns.rightWidth());
-    }
-
-    @Test
-    void wideWindowsNeverCollapse() {
-        for (int width = 640; width <= 1920; width += 73) {
-            TerminalLayoutPolicy.Columns columns =
-                    TerminalLayoutPolicy.horizontal(width, 158);
-            assertTrue(columns.mapWidth() >= 220, "map column collapsed at width " + width);
-            assertEquals(width - TerminalLayoutPolicy.MARGIN,
-                    columns.rightX() + columns.rightWidth(), "width " + width);
+    void highGuiScalesKeepAUsableMapColumn() {
+        for (int width : new int[]{320, 342, 427, 442}) {
+            var columns = TerminalLayoutPolicy.horizontal(width, 112);
+            assertTrue(columns.mapWidth() >= 48, "Map hidden at GUI width " + width);
+            assertTrue(columns.rightWidth() >= 108);
         }
+        assertEquals(80, TerminalLayoutPolicy.horizontal(320, 112).mapWidth());
+        assertEquals(96, TerminalLayoutPolicy.horizontal(427, 112).mapWidth());
     }
 
     @Test
-    void everyRenderableWidthFitsInsideTheWindow() {
-        for (int width = 320; width <= 1280; width++) {
-            TerminalLayoutPolicy.Columns columns =
-                    TerminalLayoutPolicy.horizontal(width, TAB_WIDTH);
-            assertTrue(columns.leftX() >= 0, "width " + width);
-            assertTrue(columns.rightX() + columns.rightWidth()
-                            <= width - TerminalLayoutPolicy.MARGIN, "width " + width);
-            if (columns.mapWidth() > 0) {
-                assertTrue(columns.mapWidth() >= TerminalLayoutPolicy.MIN_MAP_WIDTH,
-                        "map column too small at width " + width);
-                assertTrue(columns.mapX() + columns.mapWidth() <= columns.rightX(),
-                        "map column overlaps the right panel at width " + width);
+    void bothSidebarLayoutsFitEverySupportedWindowWidth() {
+        for (int width = 320; width <= 2560; width++) {
+            for (int leftWidth : new int[]{0, width < 640 ? 112 : 158}) {
+                var columns = TerminalLayoutPolicy.horizontal(width, leftWidth);
+                assertTrue(columns.mapWidth() >= 48, "Map hidden at " + width);
+                assertEquals(columns.leftX() + leftWidth + 4, columns.mapX());
+                assertEquals(columns.mapX() + columns.mapWidth() + 4, columns.rightX());
+                assertEquals(width - 6, columns.rightX() + columns.rightWidth());
+                assertTrue(columns.rightWidth() >= 108);
             }
         }
+    }
+
+    @Test
+    void wideWindowsKeepThePublishedColumnSizes() {
+        assertEquals(new TerminalLayoutPolicy.Columns(6, 158, 168, 220, 392, 242),
+                TerminalLayoutPolicy.horizontal(640, 158));
+        assertEquals(new TerminalLayoutPolicy.Columns(6, 158, 168, 490, 662, 292),
+                TerminalLayoutPolicy.horizontal(960, 158));
+    }
+
+    @Test
+    void unusablySmallWindowsKeepThePublishedFallbackThreshold() {
+        assertEquals(48, TerminalLayoutPolicy.horizontal(288, 112).mapWidth());
+        assertEquals(0, TerminalLayoutPolicy.horizontal(287, 112).mapWidth());
+    }
+
+    @Test
+    void terminalUsesThePolicyAndKeepsItsButtonsInsideNarrowPanels() throws Exception {
+        String source = Files.readString(Path.of(
+                "src/main/java/io/github/maidstorageextension/client/LogisticsTrackerScreen.java"));
+        assertTrue(source.contains("TerminalLayoutPolicy.horizontal(width, leftWidth)"));
+        assertFalse(source.contains("mapWidth < 96"));
+        assertTrue(source.contains("Math.max(40, (layout.rightWidth - 14) / 2)"));
+        assertTrue(source.contains("Math.max(44, (layout.rightWidth - 14) / 2)"));
+        assertTrue(source.contains("Math.max(44, (transportWidth - 4) / 2)"));
     }
 }

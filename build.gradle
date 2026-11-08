@@ -82,9 +82,14 @@ dependencies {
     compileOnly 'maven.modrinth:R0bDWFAW:Dbjwcs2u'
     localRuntime 'maven.modrinth:R0bDWFAW:Dbjwcs2u'
     compileOnly 'maven.modrinth:QHB4kBBS:3tvArxwR'
-    localRuntime 'maven.modrinth:QHB4kBBS:3tvArxwR'
+    // Compile against both APIs even when testing a runtime without these optional mods.
+    if (!project.hasProperty('skipMaidSpellRuntime')) {
+        localRuntime 'maven.modrinth:QHB4kBBS:3tvArxwR'
+    }
     compileOnly 'me.shedaniel.cloth:cloth-config-neoforge:15.0.140'
-    localRuntime 'me.shedaniel.cloth:cloth-config-neoforge:15.0.140'
+    if (!project.hasProperty('skipClothConfigRuntime')) {
+        localRuntime 'me.shedaniel.cloth:cloth-config-neoforge:15.0.140'
+    }
     compileOnly 'mezz.jei:jei-1.21.1-common-api:19.44.0.403'
     compileOnly 'mezz.jei:jei-1.21.1-neoforge-api:19.44.0.403'
     if (project.hasProperty('withJeiRuntime')) {

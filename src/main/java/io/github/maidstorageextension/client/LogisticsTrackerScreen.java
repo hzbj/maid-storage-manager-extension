@@ -2774,9 +2774,8 @@ public final class LogisticsTrackerScreen extends AbstractContainerScreen<Logist
         int contentHeight = Math.max(100, contentBottom - contentY);
         int leftWidth = serviceTab == ServiceTab.MAID_LOGISTICS ? 0 : width < 640 ? 112 : 158;
         TerminalLayoutPolicy.Columns columns = TerminalLayoutPolicy.horizontal(width, leftWidth);
-        return new Layout(columns.leftX(), columns.leftWidth(), columns.mapX(),
-                columns.mapWidth(), columns.rightX(), columns.rightWidth(),
-                contentY, contentBottom, contentHeight);
+        return new Layout(columns.leftX(), columns.leftWidth(), columns.mapX(), columns.mapWidth(),
+                columns.rightX(), columns.rightWidth(), contentY, contentBottom, contentHeight);
     }
 
     private SettingsLayout settingsLayout() {
