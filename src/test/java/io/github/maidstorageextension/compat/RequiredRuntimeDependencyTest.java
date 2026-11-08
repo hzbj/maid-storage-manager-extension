@@ -11,11 +11,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RequiredRuntimeDependencyTest {
     @Test
-    void spellAddonRequiredByModMetadataIsAvailableToDevelopmentRuns() throws IOException {
+    void optionalSpellAddonIsAvailableToDefaultDevelopmentRuns() throws IOException {
         String build = Files.readString(Path.of("build.gradle"), StandardCharsets.UTF_8);
 
         assertTrue(build.matches("(?s).*runtimeOnly\\s+fg\\.deobf\\("
                         + "'maven\\.modrinth:QHB4kBBS:[^']+'\\).*"),
-                "The mandatory spell add-on must be present in the Forge development runtime");
+                "The optional spell add-on should be present in the default development runtime");
     }
 }

@@ -1,4 +1,5 @@
 .gradle/
+.gradle-validation-home/
 build/
 build-codex-diagnostic/
 run/

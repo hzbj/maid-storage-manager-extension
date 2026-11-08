@@ -3,16 +3,12 @@ package io.github.maidstorageextension.client;
 import com.github.tartaricacid.touhoulittlemaid.api.event.client.AddClothConfigEvent;
 import com.github.tartaricacid.touhoulittlemaid.client.gui.entity.maid.AbstractMaidContainerGui;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
-import io.github.maidstorageextension.MaidStorageManagerExtension;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
 import studio.fantasyit.maid_storage_manager.maid.task.StorageManageTask;
 
 /** Nests this extension's per-maid global options below Maid Storage Manager. */
-@Mod.EventBusSubscriber(modid = MaidStorageManagerExtension.MOD_ID, value = Dist.CLIENT)
 public final class ClientClothConfigEvents {
     private ClientClothConfigEvents() {
     }

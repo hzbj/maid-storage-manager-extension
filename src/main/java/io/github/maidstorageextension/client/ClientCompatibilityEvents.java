@@ -5,6 +5,8 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
+import net.minecraftforge.fml.ModList;
+import net.minecraftforge.common.MinecraftForge;
 import net.minecraft.client.gui.screens.MenuScreens;
 import io.github.maidstorageextension.registry.ExtensionMenus;
 
@@ -16,7 +18,13 @@ public final class ClientCompatibilityEvents {
 
     @SubscribeEvent
     public static void clientSetup(FMLClientSetupEvent event) {
-        event.enqueueWork(ConfigScreenBridge::validate);
+        if (ModList.get().isLoaded("cloth_config")) {
+            // Register only after the optional API is available; event scanning resolves its types.
+            event.enqueueWork(() -> {
+                ConfigScreenBridge.validate();
+                MinecraftForge.EVENT_BUS.register(ClientClothConfigEvents.class);
+            });
+        }
         event.enqueueWork(() -> MenuScreens.register(
                 ExtensionMenus.COURIER_CONFIG.get(), CourierConfigScreen::new));
         event.enqueueWork(() -> MenuScreens.register(

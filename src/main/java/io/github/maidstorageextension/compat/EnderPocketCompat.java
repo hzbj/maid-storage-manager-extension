@@ -30,11 +30,7 @@ public final class EnderPocketCompat {
             return maid;
         }
         if (!ModList.get().isLoaded(MOD_ID)) return null;
-        if (player instanceof ServerPlayer serverPlayer) {
-            // The upstream service validates the active session, owner and maid UUID.
-            return EnderPocketService.resolveRemoteMaid(serverPlayer, maidId);
-        }
-        return EnderPocketMaidProxyCache.find(player.level(), maidId);
+        return SpellAccess.resolveRemoteMaid(player, maidId);
     }
 
     public static void syncRemoteProxyBeforeMenu(Player player, int maidId) {
@@ -42,18 +38,37 @@ public final class EnderPocketCompat {
                 || !(player instanceof ServerPlayer serverPlayer)) return;
         EntityMaid maid = resolveRemoteMaid(serverPlayer, maidId);
         if (maid != null) {
-            EnderPocketService.syncRemoteProxyBeforeMenu(serverPlayer, maid);
+            SpellAccess.syncRemoteProxy(serverPlayer, maid);
         }
     }
 
     public static void syncRemoteProxy(ServerPlayer player, EntityMaid maid) {
         if (!ModList.get().isLoaded(MOD_ID)) return;
-        EnderPocketService.syncRemoteProxyBeforeMenu(player, maid);
+        SpellAccess.syncRemoteProxy(player, maid);
     }
 
     public static boolean isRemoteSessionActive(ServerPlayer player, EntityMaid maid) {
         return player != null && maid != null && ModList.get().isLoaded(MOD_ID)
-                && EnderPocketService.isRemoteSessionActive(player, maid);
+                && SpellAccess.isRemoteSessionActive(player, maid);
+    }
+
+    // Keep optional API references in a class loaded only after the mod-presence check.
+    private static final class SpellAccess {
+        private static EntityMaid resolveRemoteMaid(Player player, int maidId) {
+            if (player instanceof ServerPlayer serverPlayer) {
+                // The upstream service validates the active session, owner and maid UUID.
+                return EnderPocketService.resolveRemoteMaid(serverPlayer, maidId);
+            }
+            return EnderPocketMaidProxyCache.find(player.level(), maidId);
+        }
+
+        private static void syncRemoteProxy(ServerPlayer player, EntityMaid maid) {
+            EnderPocketService.syncRemoteProxyBeforeMenu(player, maid);
+        }
+
+        private static boolean isRemoteSessionActive(ServerPlayer player, EntityMaid maid) {
+            return EnderPocketService.isRemoteSessionActive(player, maid);
+        }
     }
 
     public static boolean isEquipped(EntityMaid maid) {

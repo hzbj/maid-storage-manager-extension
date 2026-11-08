@@ -1,13 +1,6 @@
 package io.github.maidstorageextension.client;
 
-/**
- * Pure horizontal layout arithmetic for the communication terminal.
- *
- * <p>The map column must survive narrow windows (small screens, windowed mode or a high
- * GUI scale): instead of dropping the map, the right status panel shrinks first. The
- * math is extracted from {@code LogisticsTrackerScreen} so it stays unit-testable
- * without a client runtime.
- */
+/** Column sizing retained from the published 1.4.2 narrow-window fix. */
 final class TerminalLayoutPolicy {
     static final int MARGIN = 6;
     static final int GAP = 4;
@@ -23,6 +16,7 @@ final class TerminalLayoutPolicy {
         int rightWidth;
         if (width < 640) {
             int available = width - MARGIN * 2 - leftWidth - GAP * 2;
+            // Shrink the controls before hiding the map at high GUI scales.
             rightWidth = Math.max(MIN_RIGHT_WIDTH,
                     Math.min(214, available - PREFERRED_MAP_WIDTH));
             mapWidth = available - rightWidth;
