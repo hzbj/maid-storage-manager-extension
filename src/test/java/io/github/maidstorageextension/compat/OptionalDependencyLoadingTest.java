@@ -1,6 +1,8 @@
 package io.github.maidstorageextension.compat;
 
 import org.junit.jupiter.api.Test;
+import org.apache.maven.artifact.versioning.DefaultArtifactVersion;
+import org.apache.maven.artifact.versioning.VersionRange;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -50,6 +52,21 @@ class OptionalDependencyLoadingTest {
                     .split("\\[\\[", 2)[0];
             assertTrue(dependency.contains("mandatory=false"), mod);
         }
+    }
+
+    @Test
+    void packagedSpellRangeAccepts19ReleasesIncludingLoaderSuffixes() throws Exception {
+        String metadata = Files.readString(Path.of("build/resources/main/META-INF/mods.toml"));
+        String dependency = metadata.substring(metadata.indexOf("modId=\"touhou_little_maid_spell\""))
+                .split("\\[\\[", 2)[0];
+        String rangeText = dependency.split("versionRange=\"", 2)[1].split("\"", 2)[0];
+        VersionRange range = VersionRange.createFromVersionSpec(rangeText);
+        for (String version : List.of("1.8.2", "1.9.0-forge+mc1.20.1", "1.9.1-forge+mc1.20.1", "1.9.3.2-forge+mc1.20.1")) {
+            assertTrue(range.containsVersion(new DefaultArtifactVersion(version)),
+                    () -> version + " must be accepted by " + rangeText);
+        }
+        assertFalse(range.containsVersion(new DefaultArtifactVersion("1.8.1")));
+        assertFalse(range.containsVersion(new DefaultArtifactVersion("1.10")));
     }
 
     private static final class WithoutOptionalApis extends ClassLoader {

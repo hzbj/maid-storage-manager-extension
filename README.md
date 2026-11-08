@@ -76,9 +76,11 @@
 | Mod Loader | Forge `47.x` | NeoForge `21.1.x` | 客户端与服务端 |
 | Touhou Little Maid | `>= 1.5.3, < 1.6` | `>= 1.5.2, < 1.6` | 客户端与服务端 |
 | Maid Storage Manager | `>= 1.15.6, < 1.16` | `>= 1.15.6, < 1.16` | 客户端与服务端 |
-| 本扩展 | `1.4.4` | `1.4.4` | 客户端与服务端，版本必须一致 |
+| 本扩展 | `1.4.5` | `1.4.5` | 客户端与服务端，版本必须一致 |
 | Cloth Config（可选） | `>= 11.1.136, < 12` | `>= 15.0.140, < 16` | 仅客户端 |
-| Touhou Little Maid: Spell / 万法皆通（可选） | `>= 1.8.2, < 1.9` | `>= 1.8.4, < 1.9` | 使用联动时安装于客户端与服务端 |
+| Touhou Little Maid: Spell / 万法皆通（可选） | `>= 1.8.2, < 1.10` | `>= 1.8.4, < 1.10` | 使用联动时安装于客户端与服务端 |
+
+可选模组仍需满足各自的前置要求；例如 NeoForge 万法皆通 1.9.1 需要东方女仆 1.5.3 或以上。
 
 两个可选模组可以分别不装，也可以都不装：
 
@@ -152,7 +154,7 @@
 .\gradlew.bat clean build
 ```
 
-`forge/1.20.1` 分支输出 `build/libs/1.20.1-maid_storage_manager_extension-1.4.4.jar`；`neoforge/1.21.1` 分支输出 `build/libs/1.21.1-maid_storage_manager_extension-1.4.4.jar`。
+`forge/1.20.1` 分支输出 `build/libs/1.20.1-maid_storage_manager_extension-1.4.5.jar`；`neoforge/1.21.1` 分支输出 `build/libs/1.21.1-maid_storage_manager_extension-1.4.5.jar`。
 
 ## 许可证与来源
 
